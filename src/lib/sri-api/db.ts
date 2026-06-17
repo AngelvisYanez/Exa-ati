@@ -1,4 +1,25 @@
-import mysql, { Pool, PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+/**
+ * db.ts — Cliente de base de datos unificado
+ *
+ * - Desarrollo (DB_HOST definido o DATABASE_URL ausente): usa mysql2 contra MySQL local
+ * - Producción (DATABASE_URL definido, ej. Neon PostgreSQL): usa Prisma Client
+ *
+ * El resto del código importa `{ db }` desde aquí sin cambios.
+ */
+
+// ─── Selector de entorno ─────────────────────────────────────────────────────
+const usesPrisma = Boolean(process.env.DATABASE_URL);
+
+// ─── Cliente Prisma (producción / Neon PostgreSQL) ───────────────────────────
+// Se importa de forma lazy para que en desarrollo no se inicialice Prisma
+// (evita el error de "DATABASE_URL not set" en local)
+async function getPrismaDb() {
+  const { dbPrisma } = await import('./db-prisma');
+  return dbPrisma;
+}
+
+// ─── Cliente MySQL (desarrollo) ───────────────────────────────────────────────
+import mysql, { Pool, PoolConnection, ResultSetHeader } from 'mysql2/promise';
 import { randomUUID } from 'crypto';
 
 let pool: Pool | null = null;
@@ -27,26 +48,31 @@ function toMysqlPlaceholders(sql: string): string {
   return sql.replace(/\$(\d+)/g, '?');
 }
 
+// ─── Interfaz unificada ───────────────────────────────────────────────────────
 export const db = {
   async query<T = any>(
     text: string,
     params?: any[]
   ): Promise<{ rows: T[]; rowCount: number }> {
+    if (usesPrisma) {
+      const prismaDb = await getPrismaDb();
+      return prismaDb.query<T>(text, params);
+    }
+
     const start = Date.now();
     const mysqlSql = toMysqlPlaceholders(text);
     const [rows] = await getPool().execute(mysqlSql, params || []) as any;
     const duration = Date.now() - start;
     const operation = text.trim().split(/\s+/)[0].toUpperCase();
     if (process.env.NODE_ENV === 'development' || duration > 800) {
-      console.log(`[DB] ${operation} → ${duration}ms`);
+      console.log(`[DB:MySQL] ${operation} → ${duration}ms`);
     }
-    
-    // Handle INSERT/UPDATE/DELETE results
+
     if (!Array.isArray(rows)) {
       const result = rows as ResultSetHeader;
       return { rows: [], rowCount: result.affectedRows || 0 };
     }
-    
+
     return { rows: rows as T[], rowCount: (rows as any[]).length };
   },
 
@@ -66,14 +92,23 @@ export const db = {
     return result.rows;
   },
 
-  async getClient(): Promise<PoolConnection> {
+  async getClient(): Promise<PoolConnection | any> {
+    if (usesPrisma) {
+      const prismaDb = await getPrismaDb();
+      return prismaDb.getClient();
+    }
     return await getPool().getConnection();
   },
 
   async transaction<T>(
-    callback: (client: PoolConnection) => Promise<T>
+    callback: (client: PoolConnection | any) => Promise<T>
   ): Promise<T> {
-    const client = await this.getClient();
+    if (usesPrisma) {
+      const prismaDb = await getPrismaDb();
+      return prismaDb.transaction(callback);
+    }
+
+    const client = await getPool().getConnection();
     try {
       await client.beginTransaction();
       const result = await callback(client);
@@ -96,6 +131,11 @@ export const db = {
       throw new Error(`No data provided for insert into table "${table}"`);
     }
 
+    if (usesPrisma) {
+      const prismaDb = await getPrismaDb();
+      return prismaDb.insert<T>(table, data, returning);
+    }
+
     let generatedId = null;
     const isUuidTable = ['usuarios', 'tenants', 'emisores', 'comprobantes', 'tenant_settings'].includes(table);
     if (isUuidTable && !data.id) {
@@ -110,7 +150,7 @@ export const db = {
 
     const queryStr = `INSERT INTO \`${table}\` (${columns}) VALUES (${placeholders})`;
     const [result] = await getPool().execute(queryStr, values) as any;
-    
+
     const lookupId = (result as ResultSetHeader).insertId || data.id || generatedId;
     if (lookupId) {
       return this.queryOne<T>(`SELECT ${returning === '*' ? '*' : returning} FROM \`${table}\` WHERE id = ?`, [lookupId]);
@@ -130,11 +170,14 @@ export const db = {
       throw new Error(`No data provided for update in table "${table}"`);
     }
 
+    if (usesPrisma) {
+      const prismaDb = await getPrismaDb();
+      return prismaDb.update<T>(table, data, where, whereParams, returning, options);
+    }
+
     const keys = Object.keys(data);
     const values = Object.values(data);
     const setClause = keys.map(key => `\`${key}\` = ?`).join(', ');
-
-    // Convert $1 style params in where clause
     const mysqlWhere = toMysqlPlaceholders(where);
 
     const queryStr = `UPDATE \`${table}\` SET ${setClause} WHERE ${mysqlWhere}`;
@@ -144,7 +187,6 @@ export const db = {
       throw new Error(`Record to update in "${table}" was not found.`);
     }
 
-    // For returning, re-query (MySQL doesn't support RETURNING)
     return [];
-  }
+  },
 };

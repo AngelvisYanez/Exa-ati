@@ -1,0 +1,175 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// TENANTS (empresas/organizaciones)
+// ─────────────────────────────────────────────
+model Tenant {
+  id        String   @id @default(uuid()) @db.Uuid
+  nombre    String   @db.VarChar(255)
+  ruc       String?  @db.VarChar(20)
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  usuarios        Usuario[]
+  emisores        Emisor[]
+  comprobantes    Comprobante[]
+  tenantSettings  TenantSettings?
+  scrapingJobs    ScrapingJob[]
+
+  @@map("tenants")
+}
+
+// ─────────────────────────────────────────────
+// USUARIOS
+// ─────────────────────────────────────────────
+model Usuario {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  nombre       String?  @db.VarChar(255)
+  rol          String   @default("USER") @db.VarChar(50)
+  tenantId     String?  @map("tenant_id") @db.Uuid
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@map("usuarios")
+}
+
+// ─────────────────────────────────────────────
+// EMISORES (contribuyentes del SRI)
+// ─────────────────────────────────────────────
+model Emisor {
+  id                     String   @id @default(uuid()) @db.Uuid
+  tenantId               String   @map("tenant_id") @db.Uuid
+  ruc                    String   @db.VarChar(20)
+  razonSocial            String?  @map("razon_social") @db.VarChar(500)
+  nombreComercial        String?  @map("nombre_comercial") @db.VarChar(500)
+  ambiente               String   @default("1") @db.VarChar(2)
+  tipoEmision            String   @default("1") @map("tipo_emision") @db.VarChar(2)
+  certificadoP12         Bytes?   @map("certificado_p12")
+  certificadoPassword    String?  @map("certificado_password") @db.VarChar(500)
+  certValidoHasta        DateTime? @map("cert_valido_hasta")
+  certificadoValidoHasta DateTime? @map("certificado_valido_hasta")
+  claveSriEncrypted      String?  @map("clave_sri_encrypted") @db.Text
+  activo                 Boolean  @default(true)
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  comprobantes Comprobante[]
+
+  @@unique([tenantId, ruc])
+  @@map("emisores")
+}
+
+// ─────────────────────────────────────────────
+// COMPROBANTES
+// ─────────────────────────────────────────────
+model Comprobante {
+  id                     String    @id @default(uuid()) @db.Uuid
+  tenantId               String?   @map("tenant_id") @db.Uuid
+  emisorId               String?   @map("emisor_id") @db.Uuid
+  claveAcceso            String    @unique @map("clave_acceso") @db.VarChar(49)
+  tipo                   String?   @db.VarChar(5)
+  serie                  String?   @db.VarChar(10)
+  secuencial             String?   @db.VarChar(20)
+  ambiente               String?   @db.VarChar(2)
+  estado                 String    @default("PENDIENTE") @db.VarChar(50)
+  estadoSri              String?   @map("estado_sri") @db.VarChar(50)
+  fechaEmision           DateTime? @map("fecha_emision") @db.Date
+  fechaAutorizacion      DateTime? @map("fecha_autorizacion")
+  numeroAutorizacion     String?   @map("numero_autorizacion") @db.VarChar(49)
+  importeTotal           Decimal?  @map("importe_total") @db.Decimal(10, 2)
+  totalSinImpuesto       Decimal?  @map("total_sin_impuesto") @db.Decimal(10, 2)
+  subtotalSinImpuesto    Decimal?  @map("subtotal_sin_impuesto") @db.Decimal(10, 2)
+  totalIva               Decimal?  @map("total_iva") @db.Decimal(10, 2)
+  totalDescuento         Decimal?  @map("total_descuento") @db.Decimal(10, 2)
+  receptorIdentificacion String?   @map("receptor_identificacion") @db.VarChar(20)
+  receptorRazonSocial    String?   @map("receptor_razon_social") @db.VarChar(500)
+  receptorEmail          String?   @map("receptor_email") @db.VarChar(255)
+  emisorRuc              String?   @map("emisor_ruc") @db.VarChar(20)
+  emisorRazonSocial      String?   @map("emisor_razon_social") @db.VarChar(500)
+  categoria              String?   @db.VarChar(100)
+  documentosRelacionados String?   @map("documentos_relacionados") @db.Text
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant?  @relation(fields: [tenantId], references: [id])
+  emisor Emisor?  @relation(fields: [emisorId], references: [id])
+  xmls   ComprobanteXml[]
+
+  @@map("comprobantes")
+}
+
+// ─────────────────────────────────────────────
+// COMPROBANTE_XMLS
+// ─────────────────────────────────────────────
+model ComprobanteXml {
+  id             Int    @id @default(autoincrement())
+  comprobanteId  String @map("comprobante_id") @db.Uuid
+  tipo           String @default("autorizado") @db.VarChar(20)
+  rutaArchivo    String? @map("ruta_archivo") @db.Text
+  xmlAutorizadoPath String? @map("xml_autorizado_path") @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  comprobante Comprobante @relation(fields: [comprobanteId], references: [id])
+
+  @@unique([comprobanteId, tipo])
+  @@map("comprobante_xmls")
+}
+
+// ─────────────────────────────────────────────
+// SCRAPING_JOBS
+// ─────────────────────────────────────────────
+model ScrapingJob {
+  id               Int       @id @default(autoincrement())
+  tenantId         String?   @map("tenant_id") @db.Uuid
+  ruc              String    @db.VarChar(20)
+  claveSri         String    @map("clave_sri") @db.VarChar(255)
+  fechaDesde       DateTime? @map("fecha_desde") @db.Date
+  fechaHasta       DateTime? @map("fecha_hasta") @db.Date
+  mes              Int?
+  anio             Int?
+  tipoComprobante  String    @default("todos") @map("tipo_comprobante") @db.VarChar(50)
+  actionType       String    @default("DOWNLOAD_RECEIVED") @map("action_type") @db.VarChar(50)
+  status           String    @default("PENDING") @db.VarChar(50)
+  progressMessage  String?   @map("progress_message") @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@map("scraping_jobs")
+}
+
+// ─────────────────────────────────────────────
+// TENANT_SETTINGS
+// ─────────────────────────────────────────────
+model TenantSettings {
+  id                     Int       @id @default(autoincrement())
+  tenantId               String    @unique @map("tenant_id") @db.Uuid
+  llmProvider            String    @default("gemini") @map("llm_provider") @db.VarChar(50)
+  llmModel               String?   @map("llm_model") @db.VarChar(100)
+  geminiApiKeyEncrypted  String?   @map("gemini_api_key_encrypted") @db.Text
+  claudeApiKeyEncrypted  String?   @map("claude_api_key_encrypted") @db.Text
+  llmConfiguredAt        DateTime? @map("llm_configured_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("tenant_settings")
+}
