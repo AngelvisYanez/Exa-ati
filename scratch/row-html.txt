@@ -1,0 +1,53 @@
+{
+  "rowOuter": "<tr data-ri=\"0\" class=\"ui-widget-content ui-datatable-even\" role=\"row\"><td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">1</div></td><td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">0750131104001\n\t\t\t\t\t\t\t<br>BENALCAZAR RAMON MAYRA ALEJANDRA</div></td><td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">Factura  001-010-000013634</div></td><td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\"><a id=\"frmPrincipal:tablaCompRecibidos:0:j_idt58\" href=\"#\" class=\"ui-commandlink no-decor\" onclick=\"PrimeFaces.ab({source:'frmPrincipal:tablaCompRecibidos:0:j_idt58',process:'frmPrincipal:tablaCompRecibidos:0:j_idt58',update:'form-detalle-factura:panel-detalle-factura',oncomplete:function(xhr,status,args){dlgPanelDetalleFactura.show();;}});return false;\">0206202601075013110400120010100000136341234567819</a></div></td><td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">02/06/2026 17:01:47</div></td><td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">02/06/2026</div></td><td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">59.0</div></td><td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">0.0</div></td><td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">59.0</div></td><td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\"><a id=\"frmPrincipal:tablaCompRecibidos:0:lnkXml\" href=\"#\" style=\" width : 16px;\" onclick=\"mojarra.jsfcljs(document.getElementById('frmPrincipal'),{'frmPrincipal:tablaCompRecibidos:0:lnkXml':'frmPrincipal:tablaCompRecibidos:0:lnkXml'},'');return false\"><img src=\"/comprobantes-electronicos-internet/resources/imagenes/formatos/xml.gif\" alt=\"\" style=\"border:0;\"></a></div></td><td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\"><a id=\"frmPrincipal:tablaCompRecibidos:0:lnkPdf\" href=\"#\" style=\" width : 16px;\" onclick=\"mojarra.jsfcljs(document.getElementById('frmPrincipal'),{'frmPrincipal:tablaCompRecibidos:0:lnkPdf':'frmPrincipal:tablaCompRecibidos:0:lnkPdf'},'');return false\"><img src=\"/comprobantes-electronicos-internet/resources/imagenes/formatos/pdf.gif\" alt=\"\" style=\"border:0;\"></a></div></td><td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\"><a id=\"frmPrincipal:tablaCompRecibidos:0:j_idt85\" href=\"#\" class=\"ui-commandlink no-decor\" onclick=\"PrimeFaces.ab({source:'frmPrincipal:tablaCompRecibidos:0:j_idt85',process:'frmPrincipal:tablaCompRecibidos:0:j_idt85',update:'frmPrincipalMpn:pnlCabecera frmPrincipalMpn:pnlDetalle',oncomplete:function(xhr,status,args){dlgDocumentosRelacionados.show();;}});return false;\"><img src=\"/comprobantes-electronicos-internet/javax.faces.resource/listar.gif.jsf?ln=imagenes/eventos\" alt=\"Documentos Relacionados\" style=\"border:0;\"></a></div></td></tr>",
+  "cells": [
+    {
+      "index": 0,
+      "outerHTML": "<td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">1</div></td>"
+    },
+    {
+      "index": 1,
+      "outerHTML": "<td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">0750131104001\n\t\t\t\t\t\t\t<br>BENALCAZAR RAMON MAYRA ALEJANDRA</div></td>"
+    },
+    {
+      "index": 2,
+      "outerHTML": "<td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">Factura  001-010-000013634</div></td>"
+    },
+    {
+      "index": 3,
+      "outerHTML": "<td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\"><a id=\"frmPrincipal:tablaCompRecibidos:0:j_idt58\" href=\"#\" class=\"ui-commandlink no-decor\" onclick=\"PrimeFaces.ab({source:'frmPrincipal:tablaCompRecibidos:0:j_idt58',process:'frmPrincipal:tablaCompRecibidos:0:j_idt58',update:'form-detalle-factura:panel-detalle-factura',oncomplete:function(xhr,status,args){dlgPanelDetalleFactura.show();;}});return false;\">0206202601075013110400120010100000136341234567819</a></div></td>"
+    },
+    {
+      "index": 4,
+      "outerHTML": "<td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">02/06/2026 17:01:47</div></td>"
+    },
+    {
+      "index": 5,
+      "outerHTML": "<td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">02/06/2026</div></td>"
+    },
+    {
+      "index": 6,
+      "outerHTML": "<td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">59.0</div></td>"
+    },
+    {
+      "index": 7,
+      "outerHTML": "<td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">0.0</div></td>"
+    },
+    {
+      "index": 8,
+      "outerHTML": "<td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\">59.0</div></td>"
+    },
+    {
+      "index": 9,
+      "outerHTML": "<td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\"><a id=\"frmPrincipal:tablaCompRecibidos:0:lnkXml\" href=\"#\" style=\" width : 16px;\" onclick=\"mojarra.jsfcljs(document.getElementById('frmPrincipal'),{'frmPrincipal:tablaCompRecibidos:0:lnkXml':'frmPrincipal:tablaCompRecibidos:0:lnkXml'},'');return false\"><img src=\"/comprobantes-electronicos-internet/resources/imagenes/formatos/xml.gif\" alt=\"\" style=\"border:0;\"></a></div></td>"
+    },
+    {
+      "index": 10,
+      "outerHTML": "<td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\"><a id=\"frmPrincipal:tablaCompRecibidos:0:lnkPdf\" href=\"#\" style=\" width : 16px;\" onclick=\"mojarra.jsfcljs(document.getElementById('frmPrincipal'),{'frmPrincipal:tablaCompRecibidos:0:lnkPdf':'frmPrincipal:tablaCompRecibidos:0:lnkPdf'},'');return false\"><img src=\"/comprobantes-electronicos-internet/resources/imagenes/formatos/pdf.gif\" alt=\"\" style=\"border:0;\"></a></div></td>"
+    },
+    {
+      "index": 11,
+      "outerHTML": "<td role=\"gridcell\" style=\"text-align:center;\"><div class=\"ui-dt-c\"><a id=\"frmPrincipal:tablaCompRecibidos:0:j_idt85\" href=\"#\" class=\"ui-commandlink no-decor\" onclick=\"PrimeFaces.ab({source:'frmPrincipal:tablaCompRecibidos:0:j_idt85',process:'frmPrincipal:tablaCompRecibidos:0:j_idt85',update:'frmPrincipalMpn:pnlCabecera frmPrincipalMpn:pnlDetalle',oncomplete:function(xhr,status,args){dlgDocumentosRelacionados.show();;}});return false;\"><img src=\"/comprobantes-electronicos-internet/javax.faces.resource/listar.gif.jsf?ln=imagenes/eventos\" alt=\"Documentos Relacionados\" style=\"border:0;\"></a></div></td>"
+    }
+  ]
+}

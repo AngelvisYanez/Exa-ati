@@ -1,0 +1,136 @@
+=== SEARCH DIAGNOSTICS ===
+
+Raw THs found:
+[
+  "Nro",
+  "RUC y Razón social emisor",
+  "Tipo y serie de comprobante",
+  "Clave de acceso / Nro. Autorización",
+  "Fecha y hora de autorización",
+  "Fecha emisión",
+  "Valor sin impuestos",
+  "IVA",
+  "Importe Total",
+  "Documento",
+  "RIDE",
+  "Documentos relacionados"
+]
+
+Header Selector Matches:
+{
+  "#frmPrincipal\\:tablaCompRecibidos, [id*=\"tablaCompRecibidos\"] thead th": [
+    "NRO\n\t\nRUC Y RAZÓN SOCIAL EMISOR\n\t\nTIPO Y SERIE DE COMPROBANTE\n\t\nCLAVE DE ACCESO / NRO. AUTORIZACIÓN\n\t\nFECHA Y HORA DE AUTORIZACIÓN\n\t\nFECHA EMISIÓN\n\t\nVALOR SIN IMPUESTOS\n\t\nIVA\n\t\nIMPORTE TOTAL\n\t\nDOCUMENTO\n\t\nRIDE\n\t\nDOCUMENTOS RELACIONADOS\n\n\n25\n50\n75\nPP(1 OF 1)PP\n\n1\n\t\n0750131104001\nBENALCAZAR RAMON MAYRA ALEJANDRA\n\t\nFACTURA 001-010-000013634\n\t\n0206202601075013110400120010100000136341234567819\n\t\n02/06/2026 17:01:47\n\t\n02/06/2026\n\t\n59.0\n\t\n0.0\n\t\n59.0\n\t\n\t\n\t\n\n\n2\n\t\n0703613869001\nSANCHEZ ROMERO MILENA KARINA\n\t\nFACTURA 001-010-000033629\n\t\n0206202601070361386900120010100000336291234567812\n\t\n02/06/2026 20:22:27\n\t\n02/06/2026\n\t\n15.0\n\t\n0.0\n\t\n15.0",
+    "NRO",
+    "RUC Y RAZÓN SOCIAL EMISOR",
+    "TIPO Y SERIE DE COMPROBANTE",
+    "CLAVE DE ACCESO / NRO. AUTORIZACIÓN",
+    "FECHA Y HORA DE AUTORIZACIÓN",
+    "FECHA EMISIÓN",
+    "VALOR SIN IMPUESTOS",
+    "IVA",
+    "IMPORTE TOTAL",
+    "DOCUMENTO",
+    "RIDE",
+    "DOCUMENTOS RELACIONADOS"
+  ],
+  "[id*=\"tablaCompRecibidos\"] thead th": [
+    "NRO",
+    "RUC Y RAZÓN SOCIAL EMISOR",
+    "TIPO Y SERIE DE COMPROBANTE",
+    "CLAVE DE ACCESO / NRO. AUTORIZACIÓN",
+    "FECHA Y HORA DE AUTORIZACIÓN",
+    "FECHA EMISIÓN",
+    "VALOR SIN IMPUESTOS",
+    "IVA",
+    "IMPORTE TOTAL",
+    "DOCUMENTO",
+    "RIDE",
+    "DOCUMENTOS RELACIONADOS"
+  ],
+  "#frmPrincipal\\:tablaCompRecibidos, [id*=\"tablaCompRecibidos\"] tr.rf-dt-shdr th": [
+    "NRO\n\t\nRUC Y RAZÓN SOCIAL EMISOR\n\t\nTIPO Y SERIE DE COMPROBANTE\n\t\nCLAVE DE ACCESO / NRO. AUTORIZACIÓN\n\t\nFECHA Y HORA DE AUTORIZACIÓN\n\t\nFECHA EMISIÓN\n\t\nVALOR SIN IMPUESTOS\n\t\nIVA\n\t\nIMPORTE TOTAL\n\t\nDOCUMENTO\n\t\nRIDE\n\t\nDOCUMENTOS RELACIONADOS\n\n\n25\n50\n75\nPP(1 OF 1)PP\n\n1\n\t\n0750131104001\nBENALCAZAR RAMON MAYRA ALEJANDRA\n\t\nFACTURA 001-010-000013634\n\t\n0206202601075013110400120010100000136341234567819\n\t\n02/06/2026 17:01:47\n\t\n02/06/2026\n\t\n59.0\n\t\n0.0\n\t\n59.0\n\t\n\t\n\t\n\n\n2\n\t\n0703613869001\nSANCHEZ ROMERO MILENA KARINA\n\t\nFACTURA 001-010-000033629\n\t\n0206202601070361386900120010100000336291234567812\n\t\n02/06/2026 20:22:27\n\t\n02/06/2026\n\t\n15.0\n\t\n0.0\n\t\n15.0"
+  ],
+  "#frmPrincipal\\:tablaCompRecibidos, [id*=\"tablaCompRecibidos\"] .rf-dt-shdr th": [
+    "NRO\n\t\nRUC Y RAZÓN SOCIAL EMISOR\n\t\nTIPO Y SERIE DE COMPROBANTE\n\t\nCLAVE DE ACCESO / NRO. AUTORIZACIÓN\n\t\nFECHA Y HORA DE AUTORIZACIÓN\n\t\nFECHA EMISIÓN\n\t\nVALOR SIN IMPUESTOS\n\t\nIVA\n\t\nIMPORTE TOTAL\n\t\nDOCUMENTO\n\t\nRIDE\n\t\nDOCUMENTOS RELACIONADOS\n\n\n25\n50\n75\nPP(1 OF 1)PP\n\n1\n\t\n0750131104001\nBENALCAZAR RAMON MAYRA ALEJANDRA\n\t\nFACTURA 001-010-000013634\n\t\n0206202601075013110400120010100000136341234567819\n\t\n02/06/2026 17:01:47\n\t\n02/06/2026\n\t\n59.0\n\t\n0.0\n\t\n59.0\n\t\n\t\n\t\n\n\n2\n\t\n0703613869001\nSANCHEZ ROMERO MILENA KARINA\n\t\nFACTURA 001-010-000033629\n\t\n0206202601070361386900120010100000336291234567812\n\t\n02/06/2026 20:22:27\n\t\n02/06/2026\n\t\n15.0\n\t\n0.0\n\t\n15.0"
+  ],
+  "#frmPrincipal\\:tablaCompRecibidos, [id*=\"tablaCompRecibidos\"] th:not([class*=\"pagin\"]):not([id*=\"pagin\"])": [
+    "NRO\n\t\nRUC Y RAZÓN SOCIAL EMISOR\n\t\nTIPO Y SERIE DE COMPROBANTE\n\t\nCLAVE DE ACCESO / NRO. AUTORIZACIÓN\n\t\nFECHA Y HORA DE AUTORIZACIÓN\n\t\nFECHA EMISIÓN\n\t\nVALOR SIN IMPUESTOS\n\t\nIVA\n\t\nIMPORTE TOTAL\n\t\nDOCUMENTO\n\t\nRIDE\n\t\nDOCUMENTOS RELACIONADOS\n\n\n25\n50\n75\nPP(1 OF 1)PP\n\n1\n\t\n0750131104001\nBENALCAZAR RAMON MAYRA ALEJANDRA\n\t\nFACTURA 001-010-000013634\n\t\n0206202601075013110400120010100000136341234567819\n\t\n02/06/2026 17:01:47\n\t\n02/06/2026\n\t\n59.0\n\t\n0.0\n\t\n59.0\n\t\n\t\n\t\n\n\n2\n\t\n0703613869001\nSANCHEZ ROMERO MILENA KARINA\n\t\nFACTURA 001-010-000033629\n\t\n0206202601070361386900120010100000336291234567812\n\t\n02/06/2026 20:22:27\n\t\n02/06/2026\n\t\n15.0\n\t\n0.0\n\t\n15.0",
+    "NRO",
+    "RUC Y RAZÓN SOCIAL EMISOR",
+    "TIPO Y SERIE DE COMPROBANTE",
+    "CLAVE DE ACCESO / NRO. AUTORIZACIÓN",
+    "FECHA Y HORA DE AUTORIZACIÓN",
+    "FECHA EMISIÓN",
+    "VALOR SIN IMPUESTOS",
+    "IVA",
+    "IMPORTE TOTAL",
+    "DOCUMENTO",
+    "RIDE",
+    "DOCUMENTOS RELACIONADOS"
+  ]
+}
+
+Rows found:
+[
+  {
+    "rowIndex": 0,
+    "className": "",
+    "cells": [
+      "Nro",
+      "RUC y Razón social emisor",
+      "Tipo y serie de comprobante",
+      "Clave de acceso / Nro. Autorización",
+      "Fecha y hora de autorización",
+      "Fecha emisión",
+      "Valor sin impuestos",
+      "IVA",
+      "Importe Total",
+      "Documento",
+      "RIDE",
+      "Documentos relacionados"
+    ]
+  },
+  {
+    "rowIndex": 1,
+    "className": "",
+    "cells": [
+      "25\n50\n75\npp(1 of 1)pp"
+    ]
+  },
+  {
+    "rowIndex": 2,
+    "className": "ui-widget-content ui-datatable-even",
+    "cells": [
+      "1",
+      "0750131104001\nBENALCAZAR RAMON MAYRA ALEJANDRA",
+      "Factura 001-010-000013634",
+      "0206202601075013110400120010100000136341234567819",
+      "02/06/2026 17:01:47",
+      "02/06/2026",
+      "59.0",
+      "0.0",
+      "59.0",
+      "",
+      "",
+      ""
+    ]
+  },
+  {
+    "rowIndex": 3,
+    "className": "ui-widget-content ui-datatable-odd",
+    "cells": [
+      "2",
+      "0703613869001\nSANCHEZ ROMERO MILENA KARINA",
+      "Factura 001-010-000033629",
+      "0206202601070361386900120010100000336291234567812",
+      "02/06/2026 20:22:27",
+      "02/06/2026",
+      "15.0",
+      "0.0",
+      "15.0",
+      "",
+      "",
+      ""
+    ]
+  }
+]

@@ -1,0 +1,133 @@
+
+<input type="hidden" name="frmPrincipal" value="frmPrincipal">
+
+			<!-- RECAPTCHA  -->	
+			<script src="https://www.google.com/recaptcha/enterprise.js?render=6LdukTQsAAAAAIcciM4GZq4ibeyplUhmWvlScuQE"></script><script type="text/javascript" src="/comprobantes-electronicos-internet/javax.faces.resource/sri-reCAPTCHAEnterprise.js.jsf?ln=js"></script><div id="frmPrincipal:pnlBusqueda" class="pnlBusqueda"><label id="frmPrincipal:lblEtiquetacorreo" class="sri-subtitulos">Ingrese los datos para la consulta:</label>
+					<br>
+					<br><table id="frmPrincipal:opciones" class="sri-tabla-sin-borde">
+	<tbody><tr>
+<td>
+<input type="radio" checked="checked" name="frmPrincipal:opciones" id="frmPrincipal:opciones:0" value="ruc" onclick="PrimeFaces.ab({source:this,event:'click',process:'frmPrincipal:opciones',update:'frmPrincipal:pnlBusqueda frmPrincipal:panelListaComprobantes'}, arguments[1]);"><label for="frmPrincipal:opciones:0"> Ruc/Cédula/Pasaporte</label></td>
+	</tr>
+	<tr>
+<td>
+<input type="radio" name="frmPrincipal:opciones" id="frmPrincipal:opciones:1" value="clave" onclick="PrimeFaces.ab({source:this,event:'click',process:'frmPrincipal:opciones',update:'frmPrincipal:pnlBusqueda frmPrincipal:panelListaComprobantes'}, arguments[1]);"><label for="frmPrincipal:opciones:1"> Clave de acceso / Nro. autorización</label></td>
+	</tr>
+</tbody></table><input id="frmPrincipal:txtParametro" type="text" name="frmPrincipal:txtParametro" value="0704439892001" class="sri-input-large-dos sri-input-txt-paramtero" maxlength="49" size="50" disabled="disabled" placeholder=""><table>
+<tbody>
+<tr>
+<td><label class="sri-textolbl">Periodo emisión:</label></td>
+<td><select id="frmPrincipal:ano" name="frmPrincipal:ano" class="sri-input-mini sri-input-combo sri-input-combo-anio" size="1">	<option value="2026" selected="selected">2026</option>
+	<option value="2025">2025</option>
+	<option value="2024">2024</option>
+	<option value="2023">2023</option>
+	<option value="2022">2022</option>
+</select><select id="frmPrincipal:mes" name="frmPrincipal:mes" class="sri-input-medium-mini-dos sri-input-combo sri-input-combo-mes" size="1">	<option value="1">Enero</option>
+	<option value="2">Febrero</option>
+	<option value="3">Marzo</option>
+	<option value="4">Abril</option>
+	<option value="5">Mayo</option>
+	<option value="6" selected="selected">Junio</option>
+	<option value="7">Julio</option>
+	<option value="8">Agosto</option>
+	<option value="9">Septiembre</option>
+	<option value="10">Octubre</option>
+	<option value="11">Noviembre</option>
+	<option value="12">Diciembre</option>
+</select><select id="frmPrincipal:dia" name="frmPrincipal:dia" class="sri-input-mini-tres sri-input-combo sri-input-combo-dia" size="1">	<option value="0">Todos</option>
+	<option value="1">1</option>
+	<option value="2">2</option>
+	<option value="3">3</option>
+	<option value="4">4</option>
+	<option value="5">5</option>
+	<option value="6">6</option>
+	<option value="7">7</option>
+	<option value="8">8</option>
+	<option value="9">9</option>
+	<option value="10">10</option>
+	<option value="11">11</option>
+	<option value="12">12</option>
+	<option value="13">13</option>
+	<option value="14">14</option>
+	<option value="15">15</option>
+	<option value="16" selected="selected">16</option>
+	<option value="17">17</option>
+	<option value="18">18</option>
+	<option value="19">19</option>
+	<option value="20">20</option>
+	<option value="21">21</option>
+	<option value="22">22</option>
+	<option value="23">23</option>
+	<option value="24">24</option>
+	<option value="25">25</option>
+	<option value="26">26</option>
+	<option value="27">27</option>
+	<option value="28">28</option>
+	<option value="29">29</option>
+	<option value="30">30</option>
+	<option value="31">31</option>
+</select></td>
+</tr>
+<tr>
+<td><label class="sri-textolbl">Tipo de comprobante</label></td>
+<td><select id="frmPrincipal:cmbTipoComprobante" name="frmPrincipal:cmbTipoComprobante" class="sri-input-comprobantes-recibidos sri-input-combo sri-input-combo-tipo-comprobante" size="1">	<option value="1">Factura</option>
+	<option value="2">Liquidación de compra de bienes y prestación de servicios</option>
+	<option value="3">Notas de Crédito</option>
+	<option value="4">Notas de Débito</option>
+	<option value="6">Comprobante de Retención</option>
+</select></td>
+</tr>
+<tr>
+<td>
+
+
+						<!-- T&iacute;tulos para los inputs --></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>
+						<!-- Fin de T&iacute;tulos para los inputs -->
+
+						<!--  Placeholders para los inputs --></td>
+<td></td>
+</tr>
+<tr>
+<td>
+						<!--  Fin de placeholders para los inputs --></td>
+</tr>
+</tbody>
+</table>
+</div>			
+			
+			
+			<!-- RECAPTCHA INVISIBLE -->
+			<div id="recaptcha-container"><div class="grecaptcha-badge" data-style="none" style="width: 256px; height: 60px; position: fixed; visibility: hidden;"><div class="grecaptcha-logo"><iframe title="reCAPTCHA" width="256" height="60" role="presentation" name="a-bum67uwn11bz" frameborder="0" scrolling="no" sandbox="allow-forms allow-popups allow-same-origin allow-scripts allow-top-navigation allow-modals allow-popups-to-escape-sandbox allow-storage-access-by-user-activation" src="https://www.google.com/recaptcha/enterprise/anchor?ar=1&amp;k=6LdukTQsAAAAAIcciM4GZq4ibeyplUhmWvlScuQE&amp;co=aHR0cHM6Ly9zcmllbmxpbmVhLnNyaS5nb2IuZWM6NDQz&amp;hl=en&amp;v=ne1iDVwClkE7nKD3uA9Vqsvl&amp;size=invisible&amp;anchor-ms=20000&amp;execute-ms=30000&amp;cb=qyfctb24sxcy"></iframe></div><div class="grecaptcha-error"></div><textarea id="g-recaptcha-response" name="g-recaptcha-response" class="g-recaptcha-response" style="width: 250px; height: 40px; border: 1px solid rgb(193, 193, 193); margin: 10px 25px; padding: 0px; resize: none; display: none;"></textarea></div></div><script type="text/javascript">rcBuscar = function() {PrimeFaces.ab({source:'frmPrincipal:j_idt36',formId:'frmPrincipal',update:'frmPrincipal:panelListaComprobantes frmPrincipal:tablaCompRecibidos',onsuccess:function(data,status,xhr){reactivarBoton('frmPrincipal:btnBuscar');popStatusPrime.hide();resetarRecaptcha('SI');;},params:arguments[0]});}</script>
+			<!-- RECAPTCHA  --><div class="sri-centrado sri-boton-consultar"><input id="frmPrincipal:btnAnterior" type="submit" name="frmPrincipal:btnAnterior" value="Anterior" class="botonMediano sri-boton-mediano sri-bg-azul"><button id="frmPrincipal:btnBuscar" name="frmPrincipal:btnBuscar" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only botonMediano sri-boton-mediano sri-bg-azul" onclick="deshabilitarBoton(this);executeRecaptcha('consulta_cel_recibidos','SI');;PrimeFaces.ab({source:'frmPrincipal:btnBuscar'});return false;" type="submit" role="button" aria-disabled="false"><span class="ui-button-text">Consultar</span></button></div>
+			<div aria-labelledby="Información" class="sri-flex-unico sri-template-descargar sri-flex-left-descarga" role="region"><a id="frmPrincipal:lnkTxtlistado" href="#" onclick="mojarra.jsfcljs(document.getElementById('frmPrincipal'),{'frmPrincipal:lnkTxtlistado':'frmPrincipal:lnkTxtlistado'},'');return false" class="sri-flex-unico sri-flex-centrado sri-template-link sri-flex-left-descarga">
+
+						<div class="sri-flex-unico sri-flex-left-descarga"><img src="/comprobantes-electronicos-internet/javax.faces.resource/icono-descargar-guia.svg.jsf?ln=imagenes/recursos-sri-en-linea/imagenes/descargar-guia" alt="Exportar Txt" class="sri-descargar-solicitud-imagen">
+						</div>
+						<div class="sri-flex-unico sri-flex-centrado sri-template-descargar-link-texto">
+							<p>Descargar reporte</p>
+						</div>
+						
+						</a><a href="https://www.sri.gob.ec/o/sri-portlet-biblioteca-alfresco-internet/descargar/6162dad8-05c9-46e0-8a94-dabf556aceb5/Gu%c3%ada%20comprobantes%20electr%c3%b3nicos%20%20-%20Internet.pdf" download="guia_contribuyente.pdf">						
+							<div class="sri-flex-unico sri-flex-left-descarga"><img src="/comprobantes-electronicos-internet/javax.faces.resource/icono-descargar-guia.svg.jsf?ln=imagenes/recursos-sri-en-linea/imagenes/descargar-guia" alt="Guía para contribuyentes" class="sri-flex-unico sri-flex-centrado sri-template-link sri-descargar-solicitud-imagen">
+									<p class="sri-flex-unico sri-flex-centrado sri-template-descargar-link-texto">Guía para contribuyentes</p>
+									
+							</div>
+						</a>
+				</div>
+
+			<br><div id="frmPrincipal:panelListaComprobantes"></div>
+			<script>				
+				cargarRecaptcha('recaptcha-container',"6LdukTQsAAAAAIcciM4GZq4ibeyplUhmWvlScuQE","SI");
+			</script><input type="hidden" name="javax.faces.ViewState" id="javax.faces.ViewState" value="-9130821837485102377:4515686122077080475" autocomplete="off">
