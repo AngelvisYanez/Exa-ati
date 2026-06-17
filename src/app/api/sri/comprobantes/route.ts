@@ -47,7 +47,7 @@ export async function GET(req: Request) {
       if (rucEmisor) {
         // Validar acceso al RUC del emisor
         const emisor = await db.queryOne(
-          'SELECT id, tenant_id FROM emisores WHERE ruc = ? AND activo = 1',
+          'SELECT id, tenant_id FROM emisores WHERE ruc = ? AND activo = true',
           [rucEmisor]
         );
         if (!emisor || emisor.tenant_id !== user.tenantId) {
@@ -61,7 +61,7 @@ export async function GET(req: Request) {
       } else if (user.tenantId) {
         // Restringir a comprobantes del tenant del usuario, o emitidos por/para él
         const emisores = await db.queryAll(
-          'SELECT id FROM emisores WHERE tenant_id = ? AND activo = 1',
+          'SELECT id FROM emisores WHERE tenant_id = ? AND activo = true',
           [user.tenantId]
         );
         const emisorIds = emisores.map((e: any) => e.id);

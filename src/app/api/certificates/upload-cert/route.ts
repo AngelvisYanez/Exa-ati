@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     // Validar acceso si se proporciona RUC
     if (ruc && user.rol !== 'SUPERADMIN') {
       const emisorCheck = await db.queryOne(
-        'SELECT id, tenant_id FROM emisores WHERE ruc = ? AND activo = 1',
+        'SELECT id, tenant_id FROM emisores WHERE ruc = ? AND activo = true',
         [ruc]
       );
       if (!emisorCheck || emisorCheck.tenant_id !== user.tenantId) {
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
     // Vincular al emisor en base de datos si se provee el RUC
     if (ruc) {
       const emisor = await db.queryOne(
-        'SELECT id FROM emisores WHERE ruc = ? AND activo = 1',
+        'SELECT id FROM emisores WHERE ruc = ? AND activo = true',
         [ruc]
       );
 
@@ -137,7 +137,7 @@ export async function POST(req: Request) {
           cert_valido_hasta = ?,
           cert_valido_desde = ?,
           updated_at = NOW()
-        WHERE ruc = ? AND activo = 1`,
+        WHERE ruc = ? AND activo = true`,
         [
           buffer,
           passwordEncrypted,

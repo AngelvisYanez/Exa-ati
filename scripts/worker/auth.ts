@@ -1,17 +1,24 @@
 import fs from 'fs';
 import path from 'path';
+import { realisticClick } from '../../src/lib/scraping/sri-utils';
 // @ts-ignore
 import ac from '@antiadmin/anticaptchaofficial';
 
 export async function trySolveRecaptcha(page: any): Promise<boolean> {
   try {
     const frames = page.frames();
-    const challengeFrame = frames.find((f: any) => 
-      f.url().includes('api2/bframe') || 
-      f.url().includes('recaptcha/api2/anchor') || 
-      f.name().includes('c-') || 
-      f.url().includes('bframe')
-    );
+    const challengeFrame = frames.find((f: any) => {
+      try {
+        if (f.isDetached && f.isDetached()) return false;
+        const url = f.url() || '';
+        const name = f.name() || '';
+        return url.includes('api2/bframe') || 
+               name.includes('c-') || 
+               url.includes('bframe');
+      } catch {
+        return false;
+      }
+    });
     
     if (!challengeFrame) {
       return false;
@@ -117,9 +124,9 @@ export async function ensureSession(
   await updateProgress('Comprobando sesión en el SRI...');
   await page.goto('https://srienlinea.sri.gob.ec/sri-en-linea/contribuyente/perfil', { 
     waitUntil: 'domcontentloaded',
-    timeout: 45000
+    timeout: 120000
   });
-  await page.waitForSelector('body', { timeout: 10000 }).catch(() => {});
+  await page.waitForSelector('body', { timeout: 15000 }).catch(() => {});
 
   await updateProgress('Esperando respuesta del portal de sesión...');
   await new Promise(r => setTimeout(r, 5000));
@@ -131,7 +138,7 @@ export async function ensureSession(
   if (needsLogin) {
     await updateProgress('No hay sesión activa. Iniciando sesión...');
     
-    const userSelector = await page.waitForSelector('input#usuario, input#username, input[name="username"], input[name="usuario"]', { timeout: 45000 });
+    const userSelector = await page.waitForSelector('input#usuario, input#username, input[name="username"], input[name="usuario"]', { timeout: 120000 });
     if (userSelector) {
       await new Promise(r => setTimeout(r, 1500));
       try {
@@ -169,13 +176,13 @@ export async function ensureSession(
       }
       
       await updateProgress('Haciendo clic en ingresar...');
-      await page.click('button[type="submit"], input[type="submit"], button#kc-login, .btn-primary, input#kc-login').catch(() => {});
+      await realisticClick(page, 'button[type="submit"], input[type="submit"], button#kc-login, .btn-primary, input#kc-login');
       
       let loggedIn = false;
       for (let attempt = 0; attempt < 20; attempt++) {
         const busterTriggered = await trySolveRecaptcha(page);
         if (busterTriggered) {
-          await page.click('button[type="submit"], input[type="submit"], button#kc-login, .btn-primary, input#kc-login').catch(() => {});
+          await realisticClick(page, 'button[type="submit"], input[type="submit"], button#kc-login, .btn-primary, input#kc-login');
         }
         await new Promise(r => setTimeout(r, 1000));
         const currentUrl = page.url();
@@ -206,13 +213,13 @@ export async function ensureSession(
       }
       
       await updateProgress('Haciendo clic en ingresar...');
-      await page.click('button[type="submit"], input[type="submit"], button#kc-login, .btn-primary, input#kc-login').catch(() => {});
+      await realisticClick(page, 'button[type="submit"], input[type="submit"], button#kc-login, .btn-primary, input#kc-login');
       
       let loggedIn = false;
       for (let attempt = 0; attempt < 120; attempt++) {
         const busterTriggered = await trySolveRecaptcha(page);
         if (busterTriggered) {
-          await page.click('button[type="submit"], input[type="submit"], button#kc-login, .btn-primary, input#kc-login').catch(() => {});
+          await realisticClick(page, 'button[type="submit"], input[type="submit"], button#kc-login, .btn-primary, input#kc-login');
         }
         await new Promise(r => setTimeout(r, 1000));
         const currentUrl = page.url();

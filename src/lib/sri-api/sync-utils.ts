@@ -25,12 +25,22 @@ export type SyncResult = {
 };
 
 export async function persistSyncResult(tenantId: string, result: SyncResult) {
-  await db.query(
-    `INSERT INTO tenant_settings (tenant_id, last_sync_at, last_sync_result)
-     VALUES (?, NOW(), ?)
-     ON DUPLICATE KEY UPDATE last_sync_at = NOW(), last_sync_result = VALUES(last_sync_result)`,
-    [tenantId, JSON.stringify(result)]
-  );
+  const usesPostgres = Boolean(process.env.DATABASE_URL);
+  if (usesPostgres) {
+    await db.query(
+      `INSERT INTO tenant_settings (tenant_id, last_sync_at, last_sync_result)
+       VALUES ($1, NOW(), $2)
+       ON CONFLICT (tenant_id) DO UPDATE SET last_sync_at = NOW(), last_sync_result = EXCLUDED.last_sync_result`,
+      [tenantId, JSON.stringify(result)]
+    );
+  } else {
+    await db.query(
+      `INSERT INTO tenant_settings (tenant_id, last_sync_at, last_sync_result)
+       VALUES (?, NOW(), ?)
+       ON DUPLICATE KEY UPDATE last_sync_at = NOW(), last_sync_result = VALUES(last_sync_result)`,
+      [tenantId, JSON.stringify(result)]
+    );
+  }
 }
 
 export function buildSyncMessage(result: SyncResult): string {

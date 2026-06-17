@@ -11,7 +11,7 @@ export async function GET(req: Request) {
     const emisor = await db.queryOne<any>(
       `SELECT id, ruc, razon_social, nombre_comercial, ambiente, tipo_contribuyente,
               cert_valido_hasta, certificado_valido_hasta 
-       FROM emisores WHERE ruc = ? AND activo = 1`,
+       FROM emisores WHERE ruc = ? AND activo = true`,
       [userRuc]
     );
 

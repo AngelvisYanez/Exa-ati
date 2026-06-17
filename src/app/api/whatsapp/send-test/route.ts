@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
     const emisor = await db.queryOne<any>(
       `SELECT razon_social, whatsapp_numero, whatsapp_estado, notif_documentos, notif_generacion 
-       FROM emisores WHERE ruc = ? AND activo = 1`,
+       FROM emisores WHERE ruc = ? AND activo = true`,
       [userRuc]
     );
 

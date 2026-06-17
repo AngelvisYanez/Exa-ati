@@ -12,7 +12,7 @@ export async function GET(req: Request) {
       `SELECT ruc, razon_social, nombre_comercial, tipo_contribuyente, ambiente,
               cert_valido_hasta, certificado_valido_hasta,
               whatsapp_numero, whatsapp_estado, notif_documentos, notif_generacion
-       FROM emisores WHERE ruc = ? AND activo = 1`,
+       FROM emisores WHERE ruc = ? AND activo = true`,
       [userRuc]
     );
 
@@ -82,10 +82,10 @@ export async function PUT(req: Request) {
           notif_documentos = COALESCE(?, notif_documentos),
           notif_generacion = COALESCE(?, notif_generacion),
           updated_at = NOW()
-         WHERE ruc = ? AND activo = 1`,
+         WHERE ruc = ? AND activo = true`,
         [
-          body.notifDocumentos !== undefined ? (body.notifDocumentos ? 1 : 0) : null,
-          body.notifGeneracion !== undefined ? (body.notifGeneracion ? 1 : 0) : null,
+          body.notifDocumentos !== undefined ? Boolean(body.notifDocumentos) : null,
+          body.notifGeneracion !== undefined ? Boolean(body.notifGeneracion) : null,
           userRuc,
         ]
       );

@@ -1,0 +1,11 @@
+import { Pool } from '@neondatabase/serverless';
+import { config } from 'dotenv';
+import ws from 'ws';
+config({ path: '.env' });
+if (typeof globalThis.WebSocket === 'undefined') globalThis.WebSocket = ws;
+const pool = new Pool({ connectionString: process.env.DIRECT_DATABASE_URL });
+const client = await pool.connect();
+const r = await client.query('SELECT id, status, progress_message, updated_at FROM scraping_jobs WHERE id = 17');
+console.log(JSON.stringify(r.rows[0], null, 2));
+client.release();
+await pool.end();

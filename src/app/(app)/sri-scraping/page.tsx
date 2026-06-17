@@ -20,7 +20,8 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  Inbox
+  Inbox,
+  Ban
 } from 'lucide-react';
 
 export default function SriScrapingPage() {
@@ -55,7 +56,12 @@ export default function SriScrapingPage() {
   const fetchJobs = useCallback(async (manual = false) => {
     if (manual) setIsRefreshing(true);
     try {
-      const res = await fetch('/api/sri/scraping');
+      const token = localStorage.getItem('sri_access_token');
+      const res = await fetch('/api/sri/scraping', {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        }
+      });
       const data = await res.json();
       if (data.success && data.jobs) {
         setJobs(data.jobs);
@@ -74,6 +80,29 @@ export default function SriScrapingPage() {
     return () => clearInterval(interval);
   }, [fetchJobs]);
 
+  const cancelJob = async (jobId: string) => {
+    try {
+      const token = localStorage.getItem('sri_access_token');
+      const res = await fetch('/api/sri/scraping', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ jobId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || 'Trabajo cancelado');
+        fetchJobs(true);
+      } else {
+        toast.error(data.error || 'Error al cancelar');
+      }
+    } catch {
+      toast.error('Error de red al cancelar el trabajo');
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -87,16 +116,33 @@ export default function SriScrapingPage() {
     
     setLoading(true);
     try {
+      const token = localStorage.getItem('sri_access_token');
       const response = await fetch('/api/sri/scraping', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(formData),
       });
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (response.ok && data.jobId) {
         toast.success(data.message || 'Trabajo de descarga iniciado');
+        
+        // Disparar la sincronización en Vercel Serverless (sin bloquear la UI)
+        fetch('/api/sri/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: data.jobId }),
+        }).then(async (syncRes) => {
+          if (!syncRes.ok) {
+            const syncData = await syncRes.json();
+            console.error('[Sync] Error en worker:', syncData.error);
+          }
+        }).catch(err => console.error('[Sync] Error de red al iniciar worker:', err));
+        
       } else {
         toast.error(data.error || 'Error al iniciar la descarga');
       }
@@ -123,13 +169,17 @@ export default function SriScrapingPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'COMPLETED':
-        return <Badge variant="default" className="bg-emerald-500 hover:bg-emerald-600 text-white"><CheckCircle2 /> Completado</Badge>;
+        return <Badge variant="default" className="bg-emerald-500 hover:bg-emerald-600 text-white flex items-center gap-1 text-[11px] font-medium"><CheckCircle2 className="w-3.5 h-3.5" /> Completado</Badge>;
       case 'ERROR':
-        return <Badge variant="destructive"><XCircle /> Error</Badge>;
+        return <Badge variant="destructive" className="flex items-center gap-1 text-[11px] font-medium"><XCircle className="w-3.5 h-3.5" /> Error</Badge>;
       case 'PROCESSING':
-        return <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200"><Loader2 className="animate-spin" /> Procesando</Badge>;
+        return <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200 flex items-center gap-1 text-[11px] font-medium"><Loader2 className="animate-spin w-3.5 h-3.5" /> Procesando</Badge>;
+      case 'CANCELLED':
+        return <Badge variant="outline" className="border-amber-300 text-amber-600 bg-amber-50 hover:bg-amber-100 flex items-center gap-1 text-[11px] font-medium"><Ban className="w-3.5 h-3.5" /> Cancelado</Badge>;
+      case 'PENDING':
+        return <Badge variant="outline" className="border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 flex items-center gap-1 text-[11px] font-medium"><Clock className="w-3.5 h-3.5" /> Pendiente</Badge>;
       default:
-        return <Badge variant="outline" className="text-gray-500"><Clock /> {status}</Badge>;
+        return <Badge variant="outline" className="text-gray-500 flex items-center gap-1 text-[11px] font-medium"><Clock className="w-3.5 h-3.5" /> {status}</Badge>;
     }
   };
 
@@ -321,10 +371,12 @@ export default function SriScrapingPage() {
                     <thead className="bg-brand-gray-50 text-brand-gray-500 text-xs font-semibold uppercase tracking-wider sticky top-0 z-10 shadow-sm">
                       <tr>
                         <th className="px-5 py-3.5">Estado</th>
+                        <th className="px-5 py-3.5">RUC</th>
                         <th className="px-5 py-3.5">Período</th>
                         <th className="px-5 py-3.5">Tipo</th>
                         <th className="px-5 py-3.5">Detalle</th>
                         <th className="px-5 py-3.5 text-right">Fecha</th>
+                        <th className="px-5 py-3.5 text-center">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-brand-gray-100">
@@ -336,6 +388,9 @@ export default function SriScrapingPage() {
                         >
                           <td className="px-5 py-4 whitespace-nowrap">
                             {getStatusBadge(job.status)}
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap text-sm text-brand-gray-600 font-mono">
+                            {job.ruc}
                           </td>
                           <td className="px-5 py-4 font-medium text-brand-gray-900 whitespace-nowrap text-sm">
                             {job.fecha_desde 
@@ -361,6 +416,19 @@ export default function SriScrapingPage() {
                             {new Date(job.created_at).toLocaleString(undefined, {
                               month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                             })}
+                          </td>
+                          <td className="px-5 py-4 text-center whitespace-nowrap">
+                            {(job.status === 'PENDING' || job.status === 'PROCESSING') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => cancelJob(job.id)}
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                title="Cancelar tarea"
+                              >
+                                <Ban className="h-4 w-4" />
+                              </Button>
+                            )}
                           </td>
                         </tr>
                       ))}

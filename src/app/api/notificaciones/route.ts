@@ -15,7 +15,7 @@ export async function GET(req: Request) {
 
     const emisor = await db.queryOne<any>(
       `SELECT cert_valido_hasta, certificado_valido_hasta, whatsapp_estado
-       FROM emisores WHERE ruc = ? AND activo = 1`,
+       FROM emisores WHERE ruc = ? AND activo = true`,
       [userRuc]
     );
 

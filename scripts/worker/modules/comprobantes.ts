@@ -1,440 +1,29 @@
 import fs from 'fs';
 import path from 'path';
-import xml2js from 'xml2js';
-import fetch from 'node-fetch';
+import {
 
-function getTipoDocDesc(cod: string): string {
-  const mapping: Record<string, string> = {
-    '01': 'Factura',
-    '03': 'Liquidación de Compra',
-    '04': 'Nota de Crédito',
-    '05': 'Nota de Débito',
-    '07': 'Comprobante de Retención',
+  getTipoDocDesc, parseSriFloat, extractClaveAcceso, extractRuc, extractSerie,
+  extractSecuencial, extractFechaEmision, mapSriTypeCode, classifyExpense,
+  cleanEmisorRazonSocial, extractDocumentosRelacionados, extractIva,
+  parseLocalIsoDate, getDaysInRange, waitForDownload,
+  updateComprobanteFromXml, realisticClick, clickButtonByText, type DbLike,
+} from '../../../src/lib/scraping/sri-utils';
+
+function toMysqlPlaceholders(sql: string): string {
+  return sql.replace(/\$(\d+)/g, '?');
+}
+
+function makeDbAdapter(pool: any): DbLike {
+  return {
+    queryOne: async (sql, params) => {
+      const [rows] = await pool.query(toMysqlPlaceholders(sql), params);
+      return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+    },
+    query: async (sql, params) => {
+      const [rows] = await pool.query(toMysqlPlaceholders(sql), params);
+      return { rows: Array.isArray(rows) ? rows : [], rowCount: Array.isArray(rows) ? rows.length : 0 };
+    },
   };
-  return mapping[cod] || `Tipo ${cod}`;
-}
-
-function parseSriFloat(val: any): number {
-  if (val === undefined || val === null) return 0;
-  let clean = String(val).replace(/[^\d.,\-]/g, '').trim();
-  if (!clean) return 0;
-  
-  const hasComma = clean.includes(',');
-  const hasDot = clean.includes('.');
-  
-  if (hasComma && hasDot) {
-    if (clean.indexOf(',') > clean.indexOf('.')) {
-      clean = clean.replace(/\./g, '').replace(',', '.');
-    } else {
-      clean = clean.replace(/,/g, '');
-    }
-  } else if (hasComma) {
-    clean = clean.replace(',', '.');
-  }
-  
-  return parseFloat(clean) || 0;
-}
-
-function extractClaveAcceso(val: any): string | null {
-  if (val === undefined || val === null) return null;
-  const match = String(val).match(/\d{49}/);
-  return match ? match[0] : null;
-}
-
-function extractRuc(val: any): string | null {
-  if (val === undefined || val === null) return null;
-  const match = String(val).match(/\d{13}/);
-  return match ? match[0] : null;
-}
-
-function extractSerie(val: any): string | null {
-  if (val === undefined || val === null) return null;
-  const str = String(val).trim();
-  if (str.length === 49 && /^\d+$/.test(str)) {
-    return str.substring(24, 27) + '-' + str.substring(27, 30);
-  }
-  const match = str.match(/\d{3}-\d{3}/);
-  return match ? match[0] : null;
-}
-
-function extractSecuencial(val: any): string | null {
-  if (val === undefined || val === null) return null;
-  const str = String(val).trim();
-  if (!str) return null;
-  if (str.length === 49 && /^\d+$/.test(str)) {
-    return str.substring(30, 39);
-  }
-  if (str.includes('-')) {
-    const parts = str.split('-');
-    return parts[parts.length - 1].padStart(9, '0');
-  }
-  const digitsMatch = str.match(/\d+/);
-  return digitsMatch ? digitsMatch[0].padStart(9, '0') : null;
-}
-
-function extractFechaEmision(val: any): string | null {
-  if (val === undefined || val === null) return null;
-  const str = String(val).trim();
-  if (str.length === 49 && /^\d+$/.test(str)) {
-    const d = str.substring(0, 2);
-    const m = str.substring(2, 4);
-    const y = str.substring(4, 8);
-    return `${y}-${m}-${d}`;
-  }
-  return null;
-}
-
-function mapSriTypeCode(searchTypeCode: string): string {
-  const mapping: Record<string, string> = {
-    '1': '01', // Factura
-    '2': '03', // Liquidación de compra
-    '3': '04', // Nota de Crédito
-    '4': '05', // Nota de Débito
-    '6': '07', // Retención
-  };
-  return mapping[searchTypeCode] || searchTypeCode;
-}
-
-function classifyExpense(razonSocial: string | null): string {
-  if (!razonSocial) return 'Otros';
-  const r = razonSocial.toLowerCase();
-  if (r.includes('favorita') || r.includes('supermaxi') || r.includes('aliment') || r.includes('supermercado')) {
-    return 'Alimentación';
-  }
-  if (r.includes('farmacia') || r.includes('hospital') || r.includes('salud') || r.includes('medico')) {
-    return 'Salud';
-  }
-  if (r.includes('universidad') || r.includes('colegio') || r.includes('educa')) {
-    return 'Educación';
-  }
-  if (r.includes('inmobiliaria') || r.includes('arriendo') || r.includes('vivienda')) {
-    return 'Vivienda';
-  }
-  if (r.includes('ropa') || r.includes('textil') || r.includes('moda')) {
-    return 'Vestimenta';
-  }
-  if (r.includes('telecom') || r.includes('claro') || r.includes('cnt') || r.includes('internet')) {
-    return 'Negocio/Servicios';
-  }
-  return 'Otros';
-}
-
-function cleanEmisorRazonSocial(val: any): string | null {
-  if (val === undefined || val === null) return null;
-  return String(val)
-    .replace(/\d{13}/g, '')
-    .replace(/^[\s\-\:\/]+/, '')
-    .replace(/[\s\-\:\/]+$/, '')
-    .trim();
-}
-
-function extractDocumentosRelacionados(compData: any, rootName: string): string | null {
-  try {
-    const list: string[] = [];
-    if (rootName === 'notaCredito' && compData.infoNotaCredito) {
-      const info = compData.infoNotaCredito;
-      if (info.numDocModificado) {
-        const type = getTipoDocDesc(info.codDocModificado);
-        let str = `${type} ${info.numDocModificado}`;
-        if (info.fechaEmisionDocSustento) {
-          str += ` (${info.fechaEmisionDocSustento})`;
-        }
-        list.push(str);
-      }
-    } else if (rootName === 'notaDebito' && compData.infoNotaDebito) {
-      const info = compData.infoNotaDebito;
-      if (info.numDocModificado) {
-        const type = getTipoDocDesc(info.codDocModificado);
-        let str = `${type} ${info.numDocModificado}`;
-        if (info.fechaEmisionDocSustento) {
-          str += ` (${info.fechaEmisionDocSustento})`;
-        }
-        list.push(str);
-      }
-    } else if (rootName === 'comprobanteRetencion') {
-      if (compData.docsSustento && compData.docsSustento.docSustento) {
-        const docs = Array.isArray(compData.docsSustento.docSustento)
-          ? compData.docsSustento.docSustento
-          : [compData.docsSustento.docSustento];
-        for (const doc of docs) {
-          if (doc.numDocSustento) {
-            const type = getTipoDocDesc(doc.codDocSustento);
-            let str = `${type} ${doc.numDocSustento}`;
-            if (doc.fechaEmisionDocSustento) {
-              str += ` (${doc.fechaEmisionDocSustento})`;
-            }
-            if (!list.includes(str)) list.push(str);
-          }
-        }
-      }
-      if (compData.impuestos && compData.impuestos.impuesto) {
-        const imps = Array.isArray(compData.impuestos.impuesto)
-          ? compData.impuestos.impuesto
-          : [compData.impuestos.impuesto];
-        for (const imp of imps) {
-          if (imp.numDocSustento) {
-            const type = getTipoDocDesc(imp.codDocSustento || '01');
-            let str = `${type} ${imp.numDocSustento}`;
-            if (imp.fechaEmisionDocSustento) {
-              str += ` (${imp.fechaEmisionDocSustento})`;
-            }
-            if (!list.includes(str)) list.push(str);
-          }
-        }
-      }
-    }
-    return list.length > 0 ? list.join(', ') : null;
-  } catch (e) {
-    console.error('Error extracting related docs:', e);
-    return null;
-  }
-}
-
-function extractIva(docData: any): number {
-  if (!docData) return 0;
-  const totalConImpuestos = docData.totalConImpuestos;
-  if (totalConImpuestos && totalConImpuestos.totalImpuesto) {
-    const imps = Array.isArray(totalConImpuestos.totalImpuesto)
-      ? totalConImpuestos.totalImpuesto
-      : [totalConImpuestos.totalImpuesto];
-    const ivaImp = imps.find((imp: any) => imp.codigo === '2');
-    if (ivaImp) return parseFloat(ivaImp.valor) || 0;
-  }
-  const impuestos = docData.impuestos;
-  if (impuestos && impuestos.impuesto) {
-    const imps = Array.isArray(impuestos.impuesto)
-      ? impuestos.impuesto
-      : [impuestos.impuesto];
-    const ivaImp = imps.find((imp: any) => imp.codigo === '2');
-    if (ivaImp) return parseFloat(ivaImp.valor) || 0;
-  }
-  return 0;
-}
-
-async function updateComprobanteFromXml(pool: any, xmlFilePath: string, claveAcceso: string, tenantId?: string | null) {
-  try {
-    if (!fs.existsSync(xmlFilePath)) return;
-    const xmlContent = fs.readFileSync(xmlFilePath, 'utf-8');
-    
-    const parser = new xml2js.Parser({ explicitArray: false, ignoreAttrs: true });
-    const result = await parser.parseStringPromise(xmlContent);
-    
-    let autorizacion = result.autorizacion;
-    let comproXml = xmlContent;
-    let fechaAutorizacionStr = null;
-    let numeroAutorizacionStr = claveAcceso;
-    
-    if (autorizacion) {
-      fechaAutorizacionStr = autorizacion.fechaAutorizacion;
-      numeroAutorizacionStr = autorizacion.numeroAutorizacion || claveAcceso;
-      if (autorizacion.comprobante) {
-        comproXml = autorizacion.comprobante;
-      }
-    }
-    
-    let compResult = result;
-    if (autorizacion && autorizacion.comprobante) {
-      const innerParser = new xml2js.Parser({ explicitArray: false, ignoreAttrs: true });
-      compResult = await innerParser.parseStringPromise(comproXml);
-    }
-    
-    const rootName = Object.keys(compResult).find(k => ['factura', 'comprobanteRetencion', 'notaCredito', 'notaDebito', 'liquidacionCompra'].includes(k));
-    if (!rootName) {
-      console.log(`[Worker] No se encontró raíz del comprobante en XML para ${claveAcceso}`);
-      return;
-    }
-    
-    const compData = compResult[rootName];
-    const infoTributaria = compData.infoTributaria;
-    
-    let emisorRazonSocial = infoTributaria?.razonSocial || null;
-    let emisorRuc = infoTributaria?.ruc || null;
-    let receptorRazonSocial = null;
-    let receptorIdentificacion = null;
-    let subtotalSinImpuesto = 0;
-    let totalIva = 0;
-    let importeTotal = 0;
-    let receptorEmail = null;
-    
-    if (rootName === 'factura') {
-      const infoFactura = compData.infoFactura;
-      receptorRazonSocial = infoFactura?.razonSocialReceptor || null;
-      receptorIdentificacion = infoFactura?.identificacionReceptor || null;
-      subtotalSinImpuesto = parseFloat(infoFactura?.totalSinImpuestos) || 0;
-      importeTotal = parseFloat(infoFactura?.importeTotal) || 0;
-      totalIva = extractIva(infoFactura);
-      
-      receptorEmail = compData.infoAdicional?.campoAdicional
-        ? (Array.isArray(compData.infoAdicional.campoAdicional)
-            ? compData.infoAdicional.campoAdicional.find((c: any) => c._ || c.value || (typeof c === 'string' && c.includes('@')))
-            : compData.infoAdicional.campoAdicional)
-        : null;
-      if (receptorEmail && typeof receptorEmail === 'object') {
-        receptorEmail = receptorEmail._ || receptorEmail.value || null;
-      }
-    } else if (rootName === 'liquidacionCompra') {
-      const infoLiquidacion = compData.infoLiquidacionCompra;
-      receptorRazonSocial = infoLiquidacion?.razonSocialReceptor || null;
-      receptorIdentificacion = infoLiquidacion?.identificacionReceptor || null;
-      subtotalSinImpuesto = parseFloat(infoLiquidacion?.totalSinImpuestos) || 0;
-      importeTotal = parseFloat(infoLiquidacion?.importeTotal) || 0;
-      totalIva = extractIva(infoLiquidacion);
-    } else if (rootName === 'comprobanteRetencion') {
-      const infoRetencion = compData.infoCompRetencion;
-      receptorRazonSocial = infoRetencion?.razonSocialSujetoRetenido || null;
-      receptorIdentificacion = infoRetencion?.identificacionSujetoRetenido || null;
-    } else if (rootName === 'notaCredito') {
-      const infoNC = compData.infoNotaCredito;
-      receptorRazonSocial = infoNC?.razonSocialReceptor || null;
-      receptorIdentificacion = infoNC?.identificacionReceptor || null;
-      subtotalSinImpuesto = parseFloat(infoNC?.totalSinImpuestos) || 0;
-      importeTotal = parseFloat(infoNC?.valorModificacion) || 0;
-      totalIva = extractIva(infoNC);
-    } else if (rootName === 'notaDebito') {
-      const infoND = compData.infoNotaDebito;
-      receptorRazonSocial = infoND?.razonSocialReceptor || null;
-      receptorIdentificacion = infoND?.identificacionReceptor || null;
-      subtotalSinImpuesto = parseFloat(infoND?.totalSinImpuestos) || 0;
-      importeTotal = parseFloat(infoND?.valor) || 0;
-      totalIva = extractIva(infoND);
-    }
-    
-    const documentosRelacionados = extractDocumentosRelacionados(compData, rootName);
-
-    let fechaEmisionFormatted = null;
-    const infoDoc = compData.infoFactura || compData.infoLiquidacionCompra || compData.infoCompRetencion || compData.infoNotaCredito || compData.infoNotaDebito;
-    if (infoDoc && infoDoc.fechaEmision) {
-      const parts = String(infoDoc.fechaEmision).split('/');
-      if (parts.length === 3) {
-        fechaEmisionFormatted = `${parts[2]}-${parts[1]}-${parts[0]}`;
-      } else {
-        fechaEmisionFormatted = String(infoDoc.fechaEmision);
-      }
-    }
-    if (!fechaEmisionFormatted || isNaN(Date.parse(fechaEmisionFormatted))) {
-      fechaEmisionFormatted = extractFechaEmision(claveAcceso);
-    }
-    
-    let fechaAutorizacionFormatted = null;
-    if (fechaAutorizacionStr) {
-      if (fechaAutorizacionStr.includes('T')) {
-        fechaAutorizacionFormatted = fechaAutorizacionStr.replace('T', ' ').split('.')[0].substring(0, 19);
-      } else {
-        const parts = fechaAutorizacionStr.split(' ');
-        if (parts.length >= 2) {
-          const dateParts = parts[0].split('/');
-          if (dateParts.length === 3) {
-            fechaAutorizacionFormatted = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]} ${parts[1]}`;
-          }
-        }
-      }
-    }
-    
-    if (fechaAutorizacionFormatted && isNaN(Date.parse(fechaAutorizacionFormatted))) {
-      fechaAutorizacionFormatted = null;
-    }
-
-    let emisorId: string | null = null;
-    if (emisorRuc && tenantId) {
-      try {
-        const [emRows] = await pool.query(
-          "SELECT id FROM emisores WHERE ruc = ? AND tenant_id = ? AND activo = 1 LIMIT 1",
-          [emisorRuc, tenantId]
-        );
-        if (emRows && (emRows as any[]).length > 0) {
-          emisorId = (emRows as any[])[0].id;
-        }
-      } catch (e) {}
-    }
-    
-    let xmlTypeCode = '01';
-    if (rootName === 'factura') xmlTypeCode = '01';
-    else if (rootName === 'liquidacionCompra') xmlTypeCode = '03';
-    else if (rootName === 'notaCredito') xmlTypeCode = '04';
-    else if (rootName === 'notaDebito') xmlTypeCode = '05';
-    else if (rootName === 'comprobanteRetencion') xmlTypeCode = '07';
-
-    console.log(`[Worker] Actualizando detalles del comprobante ${claveAcceso} en BD...`);
-    const updateQuery = `
-      UPDATE comprobantes SET
-        tipo = COALESCE(?, tipo),
-        emisor_razon_social = COALESCE(?, emisor_razon_social),
-        receptor_razon_social = COALESCE(?, receptor_razon_social),
-        receptor_identificacion = COALESCE(?, receptor_identificacion),
-        emisor_ruc = COALESCE(?, emisor_ruc),
-        subtotal_sin_impuesto = ?,
-        total_iva = ?,
-        importe_total = COALESCE(IF(? = 0, NULL, ?), importe_total),
-        fecha_autorizacion = ?,
-        numero_autorizacion = COALESCE(?, numero_autorizacion),
-        receptor_email = COALESCE(?, receptor_email),
-        documentos_relacionados = ?,
-        tenant_id = COALESCE(tenant_id, ?),
-        emisor_id = COALESCE(emisor_id, ?),
-        estado = 'AUTORIZADO',
-        fecha_emision = COALESCE(fecha_emision, ?),
-        categoria = IF(categoria IS NULL OR categoria = 'Otros', ?, categoria),
-        updated_at = NOW()
-      WHERE clave_acceso = ?
-    `;
-    await pool.query(updateQuery, [
-      xmlTypeCode,
-      emisorRazonSocial,
-      receptorRazonSocial,
-      receptorIdentificacion,
-      emisorRuc,
-      subtotalSinImpuesto,
-      totalIva,
-      importeTotal,
-      importeTotal,
-      fechaAutorizacionFormatted,
-      numeroAutorizacionStr,
-      receptorEmail,
-      documentosRelacionados,
-      tenantId || null,
-      emisorId || null,
-      fechaEmisionFormatted,
-      classifyExpense(emisorRazonSocial),
-      claveAcceso
-    ]);
-  } catch (e: any) {
-    console.error(`[Worker] Error al parsear y guardar XML para ${claveAcceso}:`, e.message);
-  }
-}
-
-function parseLocalIsoDate(dateVal: any): Date {
-  if (!dateVal) return new Date();
-  if (dateVal instanceof Date) return dateVal;
-  const parts = String(dateVal).split('T')[0].split('-');
-  if (parts.length === 3) {
-    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-  }
-  return new Date(dateVal);
-}
-
-function getDaysInRange(startD: Date, endD: Date): Date[] {
-  const days: Date[] = [];
-  const current = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate());
-  const limit = new Date(endD.getFullYear(), endD.getMonth(), endD.getDate());
-  
-  while (current <= limit) {
-    days.push(new Date(current));
-    current.setDate(current.getDate() + 1);
-  }
-  return days;
-}
-
-async function waitForDownload(downloadPath: string, extension: string, timeoutMs: number = 30000): Promise<string | null> {
-  let elapsed = 0;
-  const ext = extension.toLowerCase();
-  while (elapsed < timeoutMs) {
-    const files = fs.readdirSync(downloadPath);
-    const targetFile = files.find(f => f.toLowerCase().endsWith(ext) && !f.endsWith('.crdownload') && !f.endsWith('.tmp') && !f.includes('.part'));
-    if (targetFile) return path.join(downloadPath, targetFile);
-    await new Promise(r => setTimeout(r, 1000));
-    elapsed += 1000;
-  }
-  return null;
 }
 
 export async function downloadReceivedComprobantes(
@@ -445,18 +34,19 @@ export async function downloadReceivedComprobantes(
   solveRecaptchaAntiCaptcha: any,
   trySolveRecaptcha: any
 ): Promise<void> {
+  const db = makeDbAdapter(pool);
   const startD = parseLocalIsoDate(job.fecha_desde);
   const endD = parseLocalIsoDate(job.fecha_hasta);
   const docTypeSelect = job.tipo_comprobante || '1';
 
   let tenantId: string | null = null;
   try {
-    const [emisorRows] = await pool.query(
-      "SELECT tenant_id FROM emisores WHERE ruc = ? AND activo = 1 LIMIT 1",
+    const emisorRow = await db.queryOne(
+      "SELECT tenant_id FROM emisores WHERE ruc = $1 AND activo = true LIMIT 1",
       [job.ruc]
     );
-    if (emisorRows && (emisorRows as any[]).length > 0) {
-      tenantId = (emisorRows as any[])[0].tenant_id;
+    if (emisorRow) {
+      tenantId = emisorRow.tenant_id;
     }
   } catch (err: any) {
     console.error('[Worker] Error al consultar tenantId:', err.message);
@@ -466,7 +56,7 @@ export async function downloadReceivedComprobantes(
   try {
     await page.goto('https://srienlinea.sri.gob.ec/tuportal-internet/accederAplicacion.jspa?redireccion=57&idGrupo=55', { 
       waitUntil: 'domcontentloaded',
-      timeout: 45000
+      timeout: 120000
     });
   } catch (err: any) {
     if (err.message.includes('net::ERR_ABORTED') || err.message.includes('Navigation aborted')) {
@@ -477,7 +67,7 @@ export async function downloadReceivedComprobantes(
   }
   
   await updateProgress(pool, job.id, 'Esperando a que cargue la aplicación de comprobantes...');
-  await page.waitForSelector('select[id*="ano"], select[name*="ano"], input[value="ruc"]', { timeout: 45000 });
+  await page.waitForSelector('select[id*="ano"], select[name*="ano"], input[value="ruc"]', { timeout: 120000 });
   await new Promise(r => setTimeout(r, 3000));
 
   const daysToCheck = getDaysInRange(startD, endD);
@@ -527,7 +117,7 @@ export async function downloadReceivedComprobantes(
         }
       }
 
-      await page.waitForSelector('select[id*="ano"]', { timeout: 15000 });
+      await page.waitForSelector('select[id*="ano"]', { timeout: 30000 });
       
       await page.select('select[id*="ano"]', String(year));
       await new Promise(r => setTimeout(r, 1500));
@@ -544,8 +134,38 @@ export async function downloadReceivedComprobantes(
       for (let attempt = 0; attempt < MAX_SEARCH_ATTEMPTS; attempt++) {
         console.log(`[Worker Debug] Intento de búsqueda ${attempt + 1}/${MAX_SEARCH_ATTEMPTS}...`);
 
-        await page.click('button[id*="btnBuscar"], button[id*="Buscar"]');
+        // Limpiar filas de la consulta anterior y mensajes para evitar falsos positivos
+        await page.evaluate(() => {
+          const rows = document.querySelectorAll('#frmPrincipal\\:tablaCompRecibidos tr, [id*="tablaCompRecibidos"] tr');
+          rows.forEach(tr => tr.remove());
+          const msgs = document.querySelectorAll('.ui-messages, .rf-msg, .ui-message, [id*="mensaje"], [id*="mensajes"]');
+          msgs.forEach(m => m.remove());
+        }).catch(() => {});
+
+        const searchBtn = await page.$('button[id*="btnConsultar"], button[id*="btnBuscar"], button[id*="Consultar"], button[id*="Buscar"]');
+        if (searchBtn) {
+          await realisticClick(page, 'button[id*="btnConsultar"], button[id*="btnBuscar"], button[id*="Consultar"], button[id*="Buscar"]');
+        } else {
+          await clickButtonByText(page, 'Consultar');
+        }
         await new Promise(r => setTimeout(r, 3000));
+
+        // Detectar y resolver CAPTCHA activo en caso de bloqueo
+        const hasChallenge = await page.evaluate(() => {
+          const frames = Array.from(document.querySelectorAll('iframe'));
+          return frames.some(f => f.src.includes('api2/bframe') || f.src.includes('bframe') || f.name.includes('c-'));
+        }).catch(() => false);
+        if (hasChallenge) {
+          console.log('[Worker CAPTCHA] Se detectó popup de CAPTCHA activo en la búsqueda. Resolviendo...');
+          let solved = false;
+          if (ANTICAPTCHA_KEY) {
+            solved = await solveRecaptchaAntiCaptcha(page, 'consulta_cel_recibidos');
+          }
+          if (!solved) {
+            solved = await trySolveRecaptcha(page);
+          }
+          await new Promise(r => setTimeout(r, 4000));
+        }
 
         console.log('[Worker Debug] Esperando resultados...');
         let state = { hasTable: false, hasNoResults: false, hasCaptchaError: false };
@@ -556,7 +176,9 @@ export async function downloadReceivedComprobantes(
                                 bodyText.includes('No existen') ||
                                 bodyText.includes('No se encontraron resultados') ||
                                 bodyText.includes('No existen registros');
-            const hasTable = document.querySelector('#frmPrincipal\\:tablaCompRecibidos\\:tb tr, [id*="tablaCompRecibidos"] tr') !== null;
+            const hasTable = document.querySelector(
+              '#frmPrincipal\\:tablaCompRecibidos table.rf-dt-bdy tr, #frmPrincipal\\:tablaCompRecibidos tr, [id*="tablaCompRecibidos"] tr, #frmPrincipal\\:tablaCompRecibidos table tr'
+            ) !== null;
             const hasCaptchaError = bodyText.includes('Captcha incorrecta') || bodyText.includes('CAPTCHA incorrecto');
             return hasNoResults || hasTable || hasCaptchaError;
           }, { timeout: 30000 });
@@ -567,7 +189,9 @@ export async function downloadReceivedComprobantes(
                                 bodyText.includes('No existen') ||
                                 bodyText.includes('No se encontraron resultados') ||
                                 bodyText.includes('No existen registros');
-            const hasTable = document.querySelector('#frmPrincipal\\:tablaCompRecibidos\\:tb tr, [id*="tablaCompRecibidos"] tr') !== null;
+            const hasTable = document.querySelector(
+              '#frmPrincipal\\:tablaCompRecibidos table.rf-dt-bdy tr, #frmPrincipal\\:tablaCompRecibidos tr, [id*="tablaCompRecibidos"] tr, #frmPrincipal\\:tablaCompRecibidos table tr'
+            ) !== null;
             const hasCaptchaError = bodyText.includes('Captcha incorrecta') || bodyText.includes('CAPTCHA incorrecto');
             return { hasNoResults, hasTable, hasCaptchaError };
           });
@@ -624,18 +248,39 @@ export async function downloadReceivedComprobantes(
 
       const noDataFound = await page.evaluate(() => {
         const bodyText = document.body.innerText;
-        const hasNoResultsMsg = bodyText.includes('No se encontraron registros') || 
-                                bodyText.includes('No se encontraron comprobantes') ||
-                                bodyText.includes('No existen comprobantes') ||
-                                bodyText.includes('No existen registros') ||
-                                bodyText.includes('No se encontraron resultados');
+        const lowerBody = bodyText.toLowerCase();
+        const hasNoResultsMsg = lowerBody.includes('no se encontraron registros') || 
+                                lowerBody.includes('no se encontraron comprobantes') ||
+                                lowerBody.includes('no existen comprobantes') ||
+                                lowerBody.includes('no existen registros') ||
+                                lowerBody.includes('no se encontraron resultados') ||
+                                lowerBody.includes('no existen datos') ||
+                                lowerBody.includes('parametos ingresado') ||
+                                lowerBody.includes('parámetros ingresados');
         
         const trs = Array.from(document.querySelectorAll('#frmPrincipal\\:tablaCompRecibidos tr, [id*="tablaCompRecibidos"] tr'));
-        const hasTableRows = trs.some(tr => tr.innerText.match(/\d{49}/) !== null);
+        const hasTableRows = trs.some(tr => (tr as HTMLElement).innerText.match(/\d{49}/) !== null);
         return hasNoResultsMsg && !hasTableRows;
       });
 
       if (noDataFound) {
+        const msgNoData = `No se encontraron datos para ${currentLabel} el día ${formattedDateStr}`;
+        await updateProgress(pool, job.id, msgNoData);
+
+        try {
+          await db.query(
+            `INSERT INTO auditoria (usuario_email, tenant_id, accion, recurso, descripcion, datos_nuevos, exitoso)
+             VALUES ($1, $2, 'SCRAPING_NO_DATA', 'comprobantes', $3, $4, true)`,
+            [
+              'worker@system.local',
+              tenantId,
+              msgNoData,
+              JSON.stringify({ ruc: job.ruc, fecha: formattedDateStr, tipo: typeCode })
+            ]
+          );
+        } catch (e: any) {
+          console.error('[Worker] Error al guardar auditoria de no-data:', e.message);
+        }
         continue;
       }
 
@@ -669,25 +314,23 @@ export async function downloadReceivedComprobantes(
         
         for (const key of clavesEnTxt) {
           try {
-            const [exists] = await pool.query(
-              "SELECT id, estado FROM comprobantes WHERE clave_acceso = ? LIMIT 1",
+            const exists = await db.queryOne(
+              "SELECT id, estado FROM comprobantes WHERE clave_acceso = $1 LIMIT 1",
               [key]
             );
-            if (!exists || (exists as any[]).length === 0) {
+            if (!exists) {
               const rucEmisor = extractRuc(key);
               const serie = extractSerie(key);
               const secuencial = extractSecuencial(key);
-              
-              const insertQuery = `
-                INSERT INTO comprobantes (
+
+              await db.query(
+                `INSERT INTO comprobantes (
                   clave_acceso, tipo, emisor_ruc, serie, secuencial, estado, receptor_identificacion, tenant_id, fecha_emision, categoria
                 ) VALUES (
-                  ?, ?, ?, ?, ?, 'PENDIENTE', ?, ?, ?, 'Otros'
-                )
-              `;
-              await pool.query(insertQuery, [
-                key, mapSriTypeCode(typeCode), rucEmisor, serie, secuencial, job.ruc, tenantId, extractFechaEmision(key)
-              ]);
+                  $1, $2, $3, $4, $5, 'PENDIENTE', $6, $7, $8, 'Otros'
+                )`,
+                [key, mapSriTypeCode(typeCode), rucEmisor, serie, secuencial, job.ruc, tenantId, extractFechaEmision(key)]
+              );
               console.log(`[Worker] Comprobante pre-insertado: ${key}`);
             }
           } catch (dbErr: any) {
@@ -707,7 +350,7 @@ export async function downloadReceivedComprobantes(
       });
 
       const hasRows = await page.evaluate((sel: string) => {
-        const rows = Array.from(document.querySelectorAll(sel + ' tr')).filter(tr => tr.innerText.match(/\d{49}/) !== null);
+        const rows = Array.from(document.querySelectorAll(sel + ' tr')).filter(tr => (tr as HTMLElement).innerText.match(/\d{49}/) !== null);
         return rows.length > 0;
       }, tableSelector);
 
@@ -783,16 +426,16 @@ export async function downloadReceivedComprobantes(
         }
 
         const rowCount = await page.evaluate((sel: string) => {
-          const rows = Array.from(document.querySelectorAll(sel + ' tr')).filter(tr => tr.innerText.match(/\d{49}/) !== null);
+          const rows = Array.from(document.querySelectorAll(sel + ' tr')).filter(tr => (tr as HTMLElement).innerText.match(/\d{49}/) !== null);
           return rows.length;
         }, tableSelector);
 
         for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
           const rowData = await page.evaluate((sel: string, idx: number) => {
-            const rows = Array.from(document.querySelectorAll(sel + ' tr')).filter(tr => tr.innerText.match(/\d{49}/) !== null);
+            const rows = Array.from(document.querySelectorAll(sel + ' tr')).filter(tr => (tr as HTMLElement).innerText.match(/\d{49}/) !== null);
             if (idx >= rows.length) return null;
             const cells = rows[idx].querySelectorAll('td');
-            const cellTexts = Array.from(cells).map(c => c.innerText.trim());
+            const cellTexts = Array.from(cells).map(c => (c as HTMLElement).innerText.trim());
             return {
               textos: cellTexts,
               html: rows[idx].innerHTML
@@ -830,47 +473,47 @@ export async function downloadReceivedComprobantes(
           const pathXmlFinal = path.join(xmlPath, `${claveAcceso}.xml`);
           const pathPdfFinal = path.join(pdfPath, `${claveAcceso}.pdf`);
 
-          const [dbCheck] = await pool.query(
-            "SELECT id, estado FROM comprobantes WHERE clave_acceso = ? LIMIT 1",
+          const dbCheck = await db.queryOne(
+            "SELECT id, estado FROM comprobantes WHERE clave_acceso = $1 LIMIT 1",
             [claveAcceso]
           );
           let recordId = null;
           let currentStatus = 'PENDIENTE';
 
-          if (dbCheck && (dbCheck as any[]).length > 0) {
-            recordId = (dbCheck as any[])[0].id;
-            currentStatus = (dbCheck as any[])[0].estado;
+          if (dbCheck) {
+            recordId = dbCheck.id;
+            currentStatus = dbCheck.estado;
           }
 
           if (!recordId) {
-            const insertQuery = `
-              INSERT INTO comprobantes (
+            const serie = extractSerie(claveAcceso);
+            const secuencial = extractSecuencial(claveAcceso);
+            await db.query(
+              `INSERT INTO comprobantes (
                 clave_acceso, tipo, emisor_ruc, emisor_razon_social,
                 serie, secuencial, estado, importe_total, receptor_identificacion, tenant_id, fecha_emision, categoria
               ) VALUES (
-                ?, ?, ?, ?, ?, ?, 'PENDIENTE', ?, ?, ?, ?, ?
-              )
-            `;
-            const serie = extractSerie(claveAcceso);
-            const secuencial = extractSecuencial(claveAcceso);
-            await pool.query(insertQuery, [
-              claveAcceso, mapSriTypeCode(typeCode), rucEmisor, razonSocialEmisor,
-              serie, secuencial, total, job.ruc, tenantId, extractFechaEmision(claveAcceso), classifyExpense(razonSocialEmisor)
-            ]);
+                $1, $2, $3, $4, $5, $6, 'PENDIENTE', $7, $8, $9, $10, $11
+              )`,
+              [
+                claveAcceso, mapSriTypeCode(typeCode), rucEmisor, razonSocialEmisor,
+                serie, secuencial, total, job.ruc, tenantId, extractFechaEmision(claveAcceso), classifyExpense(razonSocialEmisor)
+              ]
+            );
           } else {
-            const updateQuery = `
-              UPDATE comprobantes SET
-                emisor_razon_social = COALESCE(?, emisor_razon_social),
-                importe_total = COALESCE(IF(? = 0, NULL, ?), importe_total),
-                tenant_id = COALESCE(tenant_id, ?),
-                fecha_emision = COALESCE(fecha_emision, ?),
-                categoria = IF(categoria IS NULL OR categoria = 'Otros', ?, categoria),
+            await db.query(
+              `UPDATE comprobantes SET
+                emisor_razon_social = COALESCE($1, emisor_razon_social),
+                importe_total = COALESCE(CASE WHEN $2 = 0 THEN NULL ELSE $3 END, importe_total),
+                tenant_id = COALESCE(tenant_id, $4),
+                fecha_emision = COALESCE(fecha_emision, $5),
+                categoria = CASE WHEN categoria IS NULL OR categoria = 'Otros' THEN $6 ELSE categoria END,
                 updated_at = NOW()
-              WHERE id = ?
-            `;
-            await pool.query(updateQuery, [
-              razonSocialEmisor, total, total, tenantId, extractFechaEmision(claveAcceso), classifyExpense(razonSocialEmisor), recordId
-            ]);
+              WHERE id = $7`,
+              [
+                razonSocialEmisor, total, total, tenantId, extractFechaEmision(claveAcceso), classifyExpense(razonSocialEmisor), recordId
+              ]
+            );
           }
 
           const needsXml = !fs.existsSync(pathXmlFinal) || currentStatus !== 'AUTORIZADO';
@@ -878,7 +521,7 @@ export async function downloadReceivedComprobantes(
 
           if (needsXml || needsPdf) {
             let actionButtons = await page.evaluateHandle((sel: string, idx: number) => {
-              const rows = Array.from(document.querySelectorAll(sel + ' tr')).filter(tr => tr.innerText.match(/\d{49}/) !== null);
+              const rows = Array.from(document.querySelectorAll(sel + ' tr')).filter(tr => (tr as HTMLElement).innerText.match(/\d{49}/) !== null);
               if (idx >= rows.length) return [];
               const imgs = rows[idx].querySelectorAll('a, input[type="image"], button');
               return Array.from(imgs);
@@ -928,7 +571,132 @@ export async function downloadReceivedComprobantes(
             }
 
             if (fs.existsSync(pathXmlFinal)) {
-              await updateComprobanteFromXml(pool, pathXmlFinal, claveAcceso, tenantId);
+              await updateComprobanteFromXml(db, pathXmlFinal, claveAcceso, tenantId);
+            }
+          }
+
+          if (colIdx.relacionados !== -1 && rowData.textos[colIdx.relacionados]) {
+            try {
+              const relCellHtml = await page.evaluate(
+                (sel: string, idx: number, relCol: number) => {
+                  const rows = Array.from(document.querySelectorAll(sel + ' tr'))
+                    .filter(tr => (tr as HTMLElement).innerText.match(/\d{49}/) !== null);
+                  if (idx >= rows.length) return null;
+                  const cells = rows[idx].querySelectorAll('td');
+                  if (relCol < 0 || relCol >= cells.length) return null;
+                  return cells[relCol].innerHTML;
+                },
+                tableSelector, rowIndex, colIdx.relacionados
+              );
+              if (relCellHtml && /<a\s/i.test(relCellHtml)) {
+                console.log(`[Worker] Abriendo modal relacionado (fila ${rowIndex + 1})...`);
+                const relLinkRect = await page.evaluate(
+                  (sel: string, idx: number, relCol: number) => {
+                    const rows = Array.from(document.querySelectorAll(sel + ' tr'))
+                      .filter(tr => (tr as HTMLElement).innerText.match(/\d{49}/) !== null);
+                    if (idx >= rows.length) return null;
+                    const cells = rows[idx].querySelectorAll('td');
+                    if (relCol < 0 || relCol >= cells.length) return null;
+                    const link = cells[relCol].querySelector('a');
+                    if (!link) return null;
+                    const r = link.getBoundingClientRect();
+                    return { x: r.x + window.scrollX, y: r.y + window.scrollY, w: r.width, h: r.height };
+                  },
+                  tableSelector, rowIndex, colIdx.relacionados
+                );
+                if (relLinkRect) {
+                  const cx = relLinkRect.x + relLinkRect.w / 2 + (Math.random() - 0.5) * 4;
+                  const cy = relLinkRect.y + relLinkRect.h / 2 + (Math.random() - 0.5) * 4;
+                  await page.mouse.move(cx, cy, { steps: 3 + Math.floor(Math.random() * 4) });
+                  await new Promise(r => setTimeout(r, 40 + Math.random() * 60));
+                  await page.mouse.click(cx, cy);
+                  await new Promise(r => setTimeout(r, 3000));
+                  try {
+                    await page.waitForSelector(
+                      '.rf-pp-cnt, .ui-dialog-content, [role="dialog"], div[id*="popup"]:not([style*="none"]), div[id*="dlg"]:not([style*="none"])',
+                      { timeout: 15000 }
+                    );
+                  } catch { }
+                  const relatedClave = await page.evaluate(() => {
+                    const modal = document.querySelector(
+                      '.rf-pp-cnt, .ui-dialog-content, [role="dialog"], div[id*="popup"], div[id*="dlg"]'
+                    );
+                    if (!modal) return null;
+                    const text = (modal as HTMLElement).innerText;
+                    const match = text.match(/\d{49}/);
+                    return match ? match[0] : null;
+                  });
+                  if (relatedClave && relatedClave !== claveAcceso) {
+                    console.log(`[Worker] Relacionado: ${relatedClave}`);
+                    const relExists = await db.queryOne(
+                      'SELECT id, estado FROM comprobantes WHERE clave_acceso = $1 LIMIT 1',
+                      [relatedClave]
+                    );
+                    if (!relExists) {
+                      await db.query(
+                        `INSERT INTO comprobantes (clave_acceso, tipo, emisor_ruc, serie, secuencial, estado, receptor_identificacion, tenant_id, fecha_emision, categoria)
+                         VALUES ($1, $2, $3, $4, $5, 'PENDIENTE', $6, $7, $8, 'Otros')`,
+                        [relatedClave, mapSriTypeCode(typeCode), extractRuc(relatedClave), extractSerie(relatedClave), extractSecuencial(relatedClave), job.ruc, tenantId, extractFechaEmision(relatedClave)]
+                      );
+                    }
+                    const relPathXml = path.join(xmlPath, `${relatedClave}.xml`);
+                    const relPathPdf = path.join(pdfPath, `${relatedClave}.pdf`);
+                    if (!fs.existsSync(relPathXml) || !fs.existsSync(relPathPdf)) {
+                      const relBtns = await page.evaluate(() => {
+                        const modal = document.querySelector(
+                          '.rf-pp-cnt, .ui-dialog-content, [role="dialog"], div[id*="popup"], div[id*="dlg"]'
+                        );
+                        if (!modal) return [];
+                        const btns = modal.querySelectorAll('a, input[type="image"], button');
+                        return Array.from(btns).map((b, i) => ({
+                          index: i,
+                          src: (b as HTMLElement).getAttribute('src') || '',
+                          id: (b as HTMLElement).getAttribute('id') || '',
+                          title: (b as HTMLElement).getAttribute('title') || '',
+                          text: (b as HTMLElement).textContent?.trim().toLowerCase() || '',
+                          href: (b as HTMLAnchorElement).href || '',
+                        }));
+                      });
+                      const relXmlBtn = relBtns.find((b: any) => (b.src + b.id + b.title + b.text + b.href).toLowerCase().includes('xml') || b.text.includes('comprobante'));
+                      const relPdfBtn = relBtns.find((b: any) => (b.src + b.id + b.title + b.text + b.href).toLowerCase().includes('pdf') || b.text.includes('ride'));
+                      if (relXmlBtn && !fs.existsSync(relPathXml)) {
+                        clearTempFolder();
+                        await page.evaluate((idx: number) => {
+                          const modal = document.querySelector('.rf-pp-cnt, .ui-dialog-content, [role="dialog"], div[id*="popup"], div[id*="dlg"]');
+                          if (!modal) return;
+                          const btns = modal.querySelectorAll('a, input[type="image"], button');
+                          if (idx < btns.length) (btns[idx] as HTMLElement).click();
+                        }, relXmlBtn.index);
+                        const dl = await waitForDownload(tempPath, '.xml', 15000);
+                        if (dl) { fs.renameSync(dl, relPathXml); xmlsDescargados++; }
+                      }
+                      if (relPdfBtn && !fs.existsSync(relPathPdf)) {
+                        clearTempFolder();
+                        await page.evaluate((idx: number) => {
+                          const modal = document.querySelector('.rf-pp-cnt, .ui-dialog-content, [role="dialog"], div[id*="popup"], div[id*="dlg"]');
+                          if (!modal) return;
+                          const btns = modal.querySelectorAll('a, input[type="image"], button');
+                          if (idx < btns.length) (btns[idx] as HTMLElement).click();
+                        }, relPdfBtn.index);
+                        const dl = await waitForDownload(tempPath, '.pdf', 15000);
+                        if (dl) { fs.renameSync(dl, relPathPdf); pdfsDescargados++; }
+                      }
+                      if (fs.existsSync(relPathXml)) {
+                        await updateComprobanteFromXml(db, relPathXml, relatedClave, tenantId);
+                      }
+                    }
+                  }
+                  try {
+                    await page.evaluate(() => {
+                      const cb = document.querySelector<HTMLElement>('.rf-pp-btn-close, .ui-dialog-titlebar-close, a[class*="close"], button[class*="close"], .ui-messages-close');
+                      if (cb) cb.click();
+                    });
+                    await new Promise(r => setTimeout(r, 1500));
+                  } catch { }
+                }
+              }
+            } catch (relErr: any) {
+              console.error(`[Worker] Error procesando relacionado:`, relErr.message);
             }
           }
         }
@@ -938,11 +706,11 @@ export async function downloadReceivedComprobantes(
           paginaActual++;
           
           const firstRowClaveBefore = await page.evaluate((sel: string) => {
-            const rows = Array.from(document.querySelectorAll(sel + ' tr')).filter(tr => tr.innerText.match(/\d{49}/) !== null);
+            const rows = Array.from(document.querySelectorAll(sel + ' tr')).filter(tr => (tr as HTMLElement).innerText.match(/\d{49}/) !== null);
             if (rows.length === 0) return '';
             const cells = rows[0].querySelectorAll('td');
             for (const cell of Array.from(cells)) {
-              const match = cell.innerText.trim().match(/\d{49}/);
+              const match = (cell as HTMLElement).innerText.trim().match(/\d{49}/);
               if (match) return match[0];
             }
             return '';
@@ -954,11 +722,11 @@ export async function downloadReceivedComprobantes(
           for (let attempt = 0; attempt < 10; attempt++) {
             await new Promise(r => setTimeout(r, 1000));
             const firstRowClaveAfter = await page.evaluate((sel: string) => {
-              const rows = Array.from(document.querySelectorAll(sel + ' tr')).filter(tr => tr.innerText.match(/\d{49}/) !== null);
+              const rows = Array.from(document.querySelectorAll(sel + ' tr')).filter(tr => (tr as HTMLElement).innerText.match(/\d{49}/) !== null);
               if (rows.length === 0) return '';
               const cells = rows[0].querySelectorAll('td');
               for (const cell of Array.from(cells)) {
-                const match = cell.innerText.trim().match(/\d{49}/);
+                const match = (cell as HTMLElement).innerText.trim().match(/\d{49}/);
                 if (match) return match[0];
               }
               return '';

@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     const userRuc = await getUserRuc(user);
 
     const emisor = await db.queryOne<any>(
-      `SELECT ambiente FROM emisores WHERE ruc = ? AND activo = 1`,
+      `SELECT ambiente FROM emisores WHERE ruc = ? AND activo = true`,
       [userRuc]
     );
 

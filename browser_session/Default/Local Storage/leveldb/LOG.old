@@ -1,3 +1,5 @@
-2026/06/16-20:01:12.375 3a4c Reusing MANIFEST C:\Users\ismaa\OneDrive\Documentos\GitHub\Exa-ati\browser_session\Default\Local Storage\leveldb/MANIFEST-000001
-2026/06/16-20:01:12.381 3a4c Recovering log #4
-2026/06/16-20:01:12.384 3a4c Reusing old log C:\Users\ismaa\OneDrive\Documentos\GitHub\Exa-ati\browser_session\Default\Local Storage\leveldb/000004.log 
+2026/06/17-12:50:09.217 655c Reusing MANIFEST C:\Users\ismaa\OneDrive\Documentos\GitHub\Exa-ati\browser_session\Default\Local Storage\leveldb/MANIFEST-000001
+2026/06/17-12:50:09.225 655c Recovering log #4
+2026/06/17-12:50:09.225 655c Level-0 table #6: started
+2026/06/17-12:50:09.238 655c Level-0 table #6: 18936 bytes OK
+2026/06/17-12:50:09.252 655c Delete type=0 #4

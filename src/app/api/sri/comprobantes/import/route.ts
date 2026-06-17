@@ -120,7 +120,7 @@ export async function POST(req: Request) {
 
     // Pre-buscar emisores vinculados a nuestro tenant
     const emisores = await db.queryAll(
-      'SELECT id, ruc FROM emisores WHERE tenant_id = ? AND activo = 1',
+      'SELECT id, ruc FROM emisores WHERE tenant_id = ? AND activo = true',
       [user.tenantId]
     );
     const emisorMap = new Map(emisores.map((e: any) => [e.ruc, e.id]));

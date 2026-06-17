@@ -29,7 +29,7 @@ export async function GET(
     const rucEmisor = claveAcceso.substring(10, 23);
     if (user.rol !== 'SUPERADMIN') {
       const emisor = await db.queryOne(
-        'SELECT id, tenant_id FROM emisores WHERE ruc = ? AND activo = 1',
+        'SELECT id, tenant_id FROM emisores WHERE ruc = ? AND activo = true',
         [rucEmisor]
       );
       if (!emisor || emisor.tenant_id !== user.tenantId) {

@@ -36,6 +36,24 @@ yarn-error.log*
 # vercel
 .vercel
 
+# browser session artifacts (Chrome profiles)
+browser_session/
+
+# downloaded files
+downloads/
+
+# runtime lock files
+sri-worker.lock
+
+# test scripts (not part of src/)
+scripts/*.mjs
+scripts/insert-custom-job.mjs
+scripts/query-*.mjs
+scripts/reset-*.mjs
+scripts/smoke-test-*.mjs
+scripts/test-*.mjs
+scripts/trigger-job.mjs
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

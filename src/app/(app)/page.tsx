@@ -288,7 +288,7 @@ export default function Dashboard() {
               ) : !isConnected || !hasSriLinked ? (
                 <div className="h-48 border border-dashed border-slate-200 rounded-lg flex flex-col items-center justify-center gap-2 p-6 text-center">
                   <p className="text-xs text-slate-500 font-medium">Vincula tu RUC del SRI para visualizar estadísticas financieras</p>
-                  <Link href="/configuracion" className="text-xs font-semibold text-slate-900 border border-slate-200 px-3 py-1.5 rounded-md hover:bg-slate-50">
+                  <Link href="/configuracion?vincular=true" className="text-xs font-semibold text-slate-900 border border-slate-200 px-3 py-1.5 rounded-md hover:bg-slate-50">
                     Vincular SRI
                   </Link>
                 </div>

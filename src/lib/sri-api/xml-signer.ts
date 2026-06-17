@@ -100,7 +100,7 @@ export const xmlSigner = {
       `SELECT certificado_p12, password_certificado,
               certificado_nombre, certificado_password_encrypted
        FROM emisores
-       WHERE ruc = ? AND activo = 1`,
+       WHERE ruc = ? AND activo = true`,
       [ruc]
     );
 

@@ -29,7 +29,7 @@ export async function POST(req: Request) {
 
     if (assignedTenantId) {
       const tenant = await db.queryOne<{ id: string }>(
-        `SELECT id FROM tenants WHERE id = $1 AND activo = 1`,
+        `SELECT id FROM tenants WHERE id = $1 AND activo = true`,
         [assignedTenantId]
       );
       if (!tenant) {

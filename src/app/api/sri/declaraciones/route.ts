@@ -14,7 +14,7 @@ export async function GET(req: Request) {
 
     const tenantId = requireTenantId(user);
 
-    const conditions = ["tenant_id = ?", "accion = 'PRESENTAR_DECLARACION'", 'exitoso = 1'];
+    const conditions = ["tenant_id = ?", "accion = 'PRESENTAR_DECLARACION'", 'exitoso = true'];
     const params: string[] = [tenantId];
 
     if (fechaDesde) {
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
     const summary = calculateTaxSummary(comprobantes, userRuc);
 
     const emisor = await db.queryOne<any>(
-      `SELECT razon_social FROM emisores WHERE ruc = ? AND activo = 1`,
+      `SELECT razon_social FROM emisores WHERE ruc = ? AND activo = true`,
       [userRuc]
     );
 
@@ -120,25 +120,21 @@ export async function POST(req: Request) {
       fechaHasta: range.fechaHasta,
     };
 
-    await db.query(
-      `INSERT INTO auditoria (usuario_email, tenant_id, accion, recurso, descripcion, datos_nuevos, exitoso)
-       VALUES (?, ?, 'PRESENTAR_DECLARACION', 'declaraciones', ?, ?, 1)`,
-      [
-        userRuc,
-        tenantId,
-        `Declaración IVA ${periodo} registrada. IVA: $${payload.ivaAPagar.toFixed(2)}`,
-        JSON.stringify(payload),
-      ]
-    );
+    const auditRow = await db.insert<any>('auditoria', {
+      usuario_email: userRuc,
+      tenant_id: tenantId,
+      accion: 'PRESENTAR_DECLARACION',
+      recurso: 'declaraciones',
+      descripcion: `Declaración IVA ${periodo} registrada. IVA: $${payload.ivaAPagar.toFixed(2)}`,
+      datos_nuevos: JSON.stringify(payload),
+      exitoso: true,
+    });
 
-    const idRow = await db.queryOne<{ id: number }>('SELECT LAST_INSERT_ID() AS id');
-    payload.numeroTramite = `SRI-${String(idRow?.id || 0).padStart(10, '0')}`;
+    const insertedId = auditRow?.id || 0;
+    payload.numeroTramite = `SRI-${String(insertedId).padStart(10, '0')}`;
 
-    if (idRow?.id) {
-      await db.query(
-        `UPDATE auditoria SET datos_nuevos = ? WHERE id = ?`,
-        [JSON.stringify(payload), idRow.id]
-      );
+    if (insertedId) {
+      await db.update('auditoria', { datos_nuevos: JSON.stringify(payload) }, 'id = ?', [insertedId]);
     }
 
     return NextResponse.json({

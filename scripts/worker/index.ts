@@ -7,6 +7,7 @@ import path from 'path';
 
 import { ensureSession, solveRecaptchaAntiCaptcha, trySolveRecaptcha } from './auth.js';
 import { downloadReceivedComprobantes } from './modules/comprobantes.js';
+import { sincronizarConSri } from '../../src/lib/sri-api/sync-service';
 
 puppeteer.use(StealthPlugin());
 
@@ -159,6 +160,22 @@ async function runWorker() {
         );
       } else {
         throw new Error(`Acción no soportada: ${action}`);
+      }
+
+      const tenantId = job.tenant_id || null;
+      if (tenantId && job.ruc && job.fecha_desde && job.fecha_hasta) {
+        try {
+          await updateProgress(pool, job.id, 'Sincronizando comprobantes pendientes con SOAP del SRI...');
+          const syncResult = await sincronizarConSri(tenantId, job.ruc, {
+            fechaDesde: job.fecha_desde,
+            fechaHasta: job.fecha_hasta,
+            modo: 'completo',
+            limite: 30,
+          });
+          console.log(`[Job ${job.id}] Post-scrape SOAP sync: ${syncResult.message}`);
+        } catch (syncErr: any) {
+          console.error(`[Job ${job.id}] Post-scrape SOAP sync error:`, syncErr.message);
+        }
       }
 
     } catch (error: any) {

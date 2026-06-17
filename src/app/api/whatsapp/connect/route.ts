@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     await db.query(
       `UPDATE emisores 
        SET whatsapp_numero = ?, whatsapp_estado = 'CONECTADO', updated_at = NOW() 
-       WHERE ruc = ? AND activo = 1`,
+       WHERE ruc = ? AND activo = true`,
       [numero, userRuc]
     );
 

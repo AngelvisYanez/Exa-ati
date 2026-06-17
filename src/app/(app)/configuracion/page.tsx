@@ -89,7 +89,11 @@ function ConfiguracionContent() {
           setWhatsappNotif(res.notificaciones?.whatsapp ?? true);
         }
       } catch (err: any) {
-        setError(err.message || "Error al cargar configuración");
+        if (err.message?.includes("404") || err.message?.includes("not encontrado") || err.message?.includes("no encontrado")) {
+          setPerfil(null);
+        } else {
+          setError(err.message || "Error al cargar configuración");
+        }
       } finally {
         setLoading(false);
       }
@@ -232,8 +236,14 @@ function ConfiguracionContent() {
                     {testingConnection ? "Probando conexión..." : "Probar conexión SRI"}
                   </button>
                   <Link
+                    href="/configuracion?vincular=true"
+                    className="flex-1 min-w-[180px] text-center bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center"
+                  >
+                    Actualizar contraseña SRI
+                  </Link>
+                  <Link
                     href="/documentos"
-                    className="flex-1 min-w-[180px] text-center bg-brand-navy text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-brand-navy-light transition-colors"
+                    className="flex-1 min-w-[180px] text-center bg-brand-navy text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-brand-navy-light transition-colors flex items-center justify-center"
                   >
                     Sincronizar comprobantes
                   </Link>
@@ -244,6 +254,26 @@ function ConfiguracionContent() {
                     Configurar WhatsApp
                   </button>
                 </div>
+              </div>
+            )}
+
+            {activeTab === "general" && !perfil && (
+              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center flex flex-col items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-brand-amber/10 flex items-center justify-center">
+                  <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-brand-amber">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">No tienes una cuenta del SRI vinculada</h3>
+                  <p className="text-xs text-slate-500 mt-1">Vincula tu RUC y contraseña del SRI para comenzar a sincronizar tus comprobantes electrónicos automáticamente.</p>
+                </div>
+                <Link
+                  href="/configuracion?vincular=true"
+                  className="bg-brand-navy text-white px-6 py-2.5 rounded-lg text-xs font-bold hover:bg-brand-navy-light transition-all active:scale-[0.98]"
+                >
+                  Vincular cuenta del SRI
+                </Link>
               </div>
             )}
 

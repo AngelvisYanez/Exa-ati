@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     const encryptedPassword = await encryption.encrypt(sriPassword);
 
     const existing = await db.queryOne<any>(
-      `SELECT id, tenant_id FROM emisores WHERE ruc = ? AND activo = 1`,
+      `SELECT id, tenant_id FROM emisores WHERE ruc = $1 AND activo = true`,
       [ruc]
     );
 
@@ -52,10 +52,10 @@ export async function POST(req: Request) {
     if (existing) {
       await db.query(
         `UPDATE emisores SET
-          sri_password_encrypted = ?,
-          tenant_id = ?,
+          clave_sri_encrypted = $1,
+          tenant_id = $2,
           updated_at = NOW()
-         WHERE id = ?`,
+         WHERE id = $3`,
         [encryptedPassword, tenantId, existing.id]
       );
     } else {
@@ -65,13 +65,13 @@ export async function POST(req: Request) {
         nombre_comercial: `Contribuyente ${ruc}`,
         tenant_id: tenantId,
         activo: true,
-        sri_password_encrypted: encryptedPassword,
+        clave_sri_encrypted: encryptedPassword,
         ambiente: '2',
       });
     }
 
     await db.query(
-      `UPDATE tenants SET ruc = ?, updated_at = NOW() WHERE id = ?`,
+      `UPDATE tenants SET ruc = $1, updated_at = NOW() WHERE id = $2`,
       [ruc, tenantId]
     );
 
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
 
       await db.query(
         `INSERT INTO auditoria (usuario_email, tenant_id, accion, recurso, descripcion, datos_nuevos, exitoso)
-         VALUES (?, ?, 'SINCRONIZAR_SRI', 'comprobantes', ?, ?, 1)`,
+         VALUES ($1, $2, 'SINCRONIZAR_SRI', 'comprobantes', $3, $4, true)`,
         [
           user.email,
           tenantId,
@@ -101,12 +101,22 @@ export async function POST(req: Request) {
         ]
       );
 
-      await db.query(
-        `INSERT INTO tenant_settings (tenant_id, last_sync_at, last_sync_result)
-         VALUES (?, NOW(), ?)
-         ON DUPLICATE KEY UPDATE last_sync_at = NOW(), last_sync_result = VALUES(last_sync_result)`,
-        [tenantId, JSON.stringify(syncResult)]
-      );
+      const usesPostgres = Boolean(process.env.DATABASE_URL);
+      if (usesPostgres) {
+        await db.query(
+          `INSERT INTO tenant_settings (tenant_id, last_sync_at, last_sync_result)
+           VALUES ($1, NOW(), $2)
+           ON CONFLICT (tenant_id) DO UPDATE SET last_sync_at = NOW(), last_sync_result = EXCLUDED.last_sync_result`,
+          [tenantId, JSON.stringify(syncResult)]
+        );
+      } else {
+        await db.query(
+          `INSERT INTO tenant_settings (tenant_id, last_sync_at, last_sync_result)
+           VALUES (?, NOW(), ?)
+           ON DUPLICATE KEY UPDATE last_sync_at = NOW(), last_sync_result = VALUES(last_sync_result)`,
+          [tenantId, JSON.stringify(syncResult)]
+        );
+      }
     } catch (syncErr: any) {
       syncError = syncErr.message || 'Error en sincronización inicial';
       console.warn('[Vincular] Sync inicial falló:', syncError);

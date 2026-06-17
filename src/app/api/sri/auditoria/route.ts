@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     const range = parseDateRange(req);
 
     const emisor = await db.queryOne<any>(
-      `SELECT cert_valido_hasta, certificado_valido_hasta FROM emisores WHERE ruc = ? AND activo = 1`,
+      `SELECT cert_valido_hasta, certificado_valido_hasta FROM emisores WHERE ruc = ? AND activo = true`,
       [userRuc]
     );
 

@@ -509,7 +509,7 @@ async function updateComprobanteFromXml(pool: any, xmlFilePath: string, claveAcc
         emisor_ruc = COALESCE(?, emisor_ruc),
         subtotal_sin_impuesto = ?,
         total_iva = ?,
-        importe_total = COALESCE(IF(? = 0, NULL, ?), importe_total),
+        importe_total = COALESCE(CASE WHEN ? = 0 THEN NULL ELSE ? END, importe_total),
         fecha_autorizacion = ?,
         numero_autorizacion = COALESCE(?, numero_autorizacion),
         receptor_email = COALESCE(?, receptor_email),

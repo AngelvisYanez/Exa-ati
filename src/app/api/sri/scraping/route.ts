@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
-import { spawn } from 'child_process';
-import path from 'path';
-import fs from 'fs';
+import { db } from '@/lib/sri-api/db';
+import { verifyAuth } from '@/lib/sri-api/auth-helper';
 
 export const dynamic = 'force-dynamic';
-import mysql from 'mysql2/promise';
 
 export async function POST(req: Request) {
   try {
+    const user = await verifyAuth(req);
+    const tenantId = user.tenantId;
+    if (!tenantId) {
+      return NextResponse.json({ message: 'Usuario sin tenant asignado' }, { status: 403 });
+    }
+
     const body = await req.json();
     const { ruc, clave_sri, fecha_desde, fecha_hasta, tipo_comprobante, action_type } = body;
 
@@ -32,95 +36,102 @@ export async function POST(req: Request) {
       );
     }
 
-    // Connect to database to queue the job
-    const connection = await mysql.createConnection({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '3306', 10),
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'db_sri'
-    });
-
     const finalActionType = action_type || 'DOWNLOAD_RECEIVED';
-    const [result] = await connection.execute(
-      `INSERT INTO scraping_jobs (ruc, clave_sri, fecha_desde, fecha_hasta, tipo_comprobante, status, action_type) VALUES (?, ?, ?, ?, ?, 'PENDING', ?)`,
-      [ruc, clave_sri, fecha_desde, fecha_hasta, tipo_comprobante, finalActionType]
-    );
-    const jobId = (result as any).insertId;
-    await connection.end();
 
-    // Intentar iniciar el worker independiente (scripts/sri-worker.ts) en segundo plano
-    try {
-      const lockFilePath = path.resolve(process.cwd(), 'sri-worker.lock');
-      let isRunning = false;
+    const jobData: Record<string, any> = {
+      ruc,
+      clave_sri,
+      fecha_desde,
+      fecha_hasta,
+      tipo_comprobante,
+      status: 'PENDING',
+      action_type: finalActionType,
+      tenant_id: tenantId,
+    };
 
-      if (fs.existsSync(lockFilePath)) {
-        try {
-          const existingPid = parseInt(fs.readFileSync(lockFilePath, 'utf8').trim(), 10);
-          if (existingPid) {
-            process.kill(existingPid, 0);
-            isRunning = true;
-          }
-        } catch (e) {
-          // El proceso no existe o es una cerradura huérfana
-        }
-      }
-
-      if (!isRunning) {
-        console.log('[API Scraping] Iniciando el worker SRI en segundo plano...');
-        const isWin = process.platform === 'win32';
-        const cmd = isWin ? 'npm.cmd' : 'npm';
-        
-        const child = spawn(cmd, ['run', 'worker:sri'], {
-          cwd: path.resolve(process.cwd()),
-          detached: true,
-          stdio: 'ignore',
-          shell: isWin
-        });
-        child.unref();
-      } else {
-        console.log('[API Scraping] El worker SRI ya se encuentra en ejecución.');
-      }
-    } catch (workerErr: any) {
-      console.error('[API Scraping] Error al intentar iniciar el worker en segundo plano:', workerErr.message);
-    }
+    const insertedJob = await db.insert('scraping_jobs', jobData, 'id');
+    const jobId = insertedJob ? insertedJob.id : null;
 
     return NextResponse.json({
       success: true,
-      message: 'Trabajo de descarga de SRI encolado y worker iniciado exitosamente',
+      message: 'Trabajo de descarga encolado.',
       jobId,
     });
 
   } catch (error: any) {
     console.error('Error al encolar trabajo:', error);
+    const isAuthError = error.message?.includes('No autorizado');
     return NextResponse.json(
-      { error: 'Error interno del servidor al encolar la descarga.' },
-      { status: 500 }
+      { error: isAuthError ? error.message : 'Error interno del servidor al encolar la descarga.' },
+      { status: isAuthError ? 401 : 500 }
+    );
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const user = await verifyAuth(req);
+    const tenantId = user.tenantId;
+    if (!tenantId) {
+      return NextResponse.json({ message: 'Usuario sin tenant asignado' }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { jobId } = body;
+
+    if (!jobId) {
+      return NextResponse.json({ error: 'Falta jobId' }, { status: 400 });
+    }
+
+    const job = await db.queryOne("SELECT id, status, tenant_id FROM scraping_jobs WHERE id = $1", [jobId]);
+    if (!job) {
+      return NextResponse.json({ error: 'Trabajo no encontrado' }, { status: 404 });
+    }
+
+    if (job.tenant_id !== tenantId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
+    if (job.status === 'COMPLETED' || job.status === 'CANCELLED') {
+      return NextResponse.json({ error: 'El trabajo ya ha finalizado' }, { status: 400 });
+    }
+
+    await db.query(
+      `UPDATE scraping_jobs SET status = 'CANCELLED', progress_message = 'Cancelado por el usuario', updated_at = NOW() WHERE id = $1`,
+      [jobId]
+    );
+
+    return NextResponse.json({ success: true, message: 'Trabajo cancelado' });
+  } catch (error: any) {
+    console.error('Error al cancelar trabajo:', error);
+    const isAuthError = error.message?.includes('No autorizado');
+    return NextResponse.json(
+      { error: isAuthError ? error.message : 'Error interno del servidor' },
+      { status: isAuthError ? 401 : 500 }
     );
   }
 }
 
 export async function GET(req: Request) {
   try {
-    const connection = await mysql.createConnection({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '3306', 10),
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'db_sri'
-    });
+    const user = await verifyAuth(req);
+    const tenantId = user.tenantId;
+    if (!tenantId) {
+      return NextResponse.json({ message: 'Usuario sin tenant asignado' }, { status: 403 });
+    }
 
-    const [rows] = await connection.execute(
-      `SELECT id, ruc, fecha_desde, fecha_hasta, tipo_comprobante, mes, anio, status, progress_message, created_at, updated_at FROM scraping_jobs ORDER BY created_at DESC LIMIT 20`
+    const jobs = await db.queryAll(
+      `SELECT id, ruc, fecha_desde, fecha_hasta, tipo_comprobante, mes, anio, status, progress_message, created_at, updated_at FROM scraping_jobs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 20`,
+      [tenantId]
     );
-    await connection.end();
 
-    return NextResponse.json({ success: true, jobs: rows });
+    return NextResponse.json({ success: true, jobs });
   } catch (error: any) {
     console.error('Error al obtener trabajos:', error);
+    const isAuthError = error.message?.includes('No autorizado');
     return NextResponse.json(
-      { error: 'Error interno del servidor al obtener la lista de trabajos.' },
-      { status: 500 }
+      { error: isAuthError ? error.message : 'Error interno del servidor al obtener la lista de trabajos.' },
+      { status: isAuthError ? 401 : 500 }
     );
   }
 }

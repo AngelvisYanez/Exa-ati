@@ -151,7 +151,7 @@ export async function upsertComprobanteFromParsed(
   }
 
   const emisor = await db.queryOne<any>(
-    'SELECT id FROM emisores WHERE ruc = ? AND tenant_id = ? AND activo = 1',
+    'SELECT id FROM emisores WHERE ruc = ? AND tenant_id = ? AND activo = true',
     [data.rucEmisor, tenantId]
   );
 
@@ -266,19 +266,25 @@ export async function saveAutorizadoXml(comprobanteId: string, ruc: string, clav
   const autorizadoPath = xmlStorage.saveXml(ruc, claveAcceso, fecha, 'autorizado', xmlContent);
 
   try {
-    await db.query(
-      `INSERT INTO comprobante_xmls (comprobante_id, tipo, ruta_archivo)
-       VALUES (?, 'autorizado', ?)
-       ON DUPLICATE KEY UPDATE ruta_archivo = VALUES(ruta_archivo)`,
-      [comprobanteId, autorizadoPath]
-    );
+    await db.upsertComprobanteXml(comprobanteId, 'autorizado', autorizadoPath);
   } catch {
-    await db.query(
-      `INSERT INTO comprobante_xmls (comprobante_id, xml_autorizado_path)
-       VALUES (?, ?)
-       ON DUPLICATE KEY UPDATE xml_autorizado_path = VALUES(xml_autorizado_path)`,
-      [comprobanteId, autorizadoPath]
-    ).catch(() => undefined);
+    // Fallback para esquemas legacy con la columna xml_autorizado_path en base de datos local
+    const usesPostgres = Boolean(process.env.DATABASE_URL);
+    if (usesPostgres) {
+      await db.query(
+        `INSERT INTO comprobante_xmls (comprobante_id, xml_autorizado_path)
+         VALUES ($1, $2)
+         ON CONFLICT (comprobante_id) DO UPDATE SET xml_autorizado_path = EXCLUDED.xml_autorizado_path`,
+        [comprobanteId, autorizadoPath]
+      ).catch(() => undefined);
+    } else {
+      await db.query(
+        `INSERT INTO comprobante_xmls (comprobante_id, xml_autorizado_path)
+         VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE xml_autorizado_path = VALUES(xml_autorizado_path)`,
+        [comprobanteId, autorizadoPath]
+      ).catch(() => undefined);
+    }
   }
 
   return autorizadoPath;

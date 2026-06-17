@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       `SELECT razon_social, tipo_contribuyente, ambiente,
               certificado_valido_hasta, cert_valido_hasta,
               whatsapp_numero, whatsapp_estado
-       FROM emisores WHERE ruc = ? AND activo = 1`,
+       FROM emisores WHERE ruc = ? AND activo = true`,
       [userRuc]
     );
 

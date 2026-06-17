@@ -12,8 +12,8 @@ export async function PUT(req: Request) {
     await db.query(
       `UPDATE emisores 
        SET notif_documentos = ?, notif_generacion = ?, updated_at = NOW() 
-       WHERE ruc = ? AND activo = 1`,
-      [notifDocumentos ? 1 : 0, notifGeneracion ? 1 : 0, userRuc]
+       WHERE ruc = ? AND activo = true`,
+      [Boolean(notifDocumentos), Boolean(notifGeneracion), userRuc]
     );
 
     return NextResponse.json({

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Dialog from "@/components/ui/Dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
@@ -9,6 +10,10 @@ import { sriClient } from "@/lib/sriClient";
 export default function SriConnectDialog() {
   const { isAuthenticated, hasSriLinked, isLoading, refreshSriStatus } = useAuth();
   const toast = useToast();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   const [ruc, setRuc] = useState("");
   const [sriPassword, setSriPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -16,7 +21,30 @@ export default function SriConnectDialog() {
   const [dismissed, setDismissed] = useState(false);
   const [error, setError] = useState("");
 
-  const show = isAuthenticated && !hasSriLinked && !isLoading && !dismissed;
+  const isForced = searchParams?.get("vincular") === "true";
+  const show = (isAuthenticated && !hasSriLinked && !isLoading && !dismissed) || (isAuthenticated && !isLoading && isForced);
+
+  useEffect(() => {
+    if (show && hasSriLinked && !ruc) {
+      sriClient.getEmisor()
+        .then((res) => {
+          if (res.success && res.emisor?.ruc) {
+            setRuc(res.emisor.ruc);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [show, hasSriLinked, ruc]);
+
+  const handleClose = () => {
+    setDismissed(true);
+    if (isForced) {
+      const params = new URLSearchParams(searchParams?.toString() || "");
+      params.delete("vincular");
+      const qs = params.toString() ? `?${params.toString()}` : "";
+      router.replace(`${pathname}${qs}`);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +71,12 @@ export default function SriConnectDialog() {
       await refreshSriStatus();
       setRuc("");
       setSriPassword("");
+      if (isForced) {
+        const params = new URLSearchParams(searchParams?.toString() || "");
+        params.delete("vincular");
+        const qs = params.toString() ? `?${params.toString()}` : "";
+        router.replace(`${pathname}${qs}`);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error al vincular con el SRI";
       setError(msg);
@@ -56,11 +90,12 @@ export default function SriConnectDialog() {
   return (
     <Dialog
       open={show}
-      title="Vincular cuenta del SRI"
+      title={hasSriLinked ? "Actualizar credenciales SRI" : "Vincular cuenta del SRI"}
       description="Ingresa tu RUC y contraseña del SRI en línea. Los emitidos se sincronizan vía SOAP; las compras se importan con archivos XML."
       size="sm"
-      closeOnOverlay={false}
-      showClose={false}
+      closeOnOverlay={isForced}
+      showClose={isForced}
+      onClose={handleClose}
     >
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700 font-semibold mb-3">
@@ -108,18 +143,18 @@ export default function SriConnectDialog() {
         <div className="flex gap-2 mt-1">
           <button
             type="button"
-            onClick={() => setDismissed(true)}
+            onClick={handleClose}
             disabled={submitting || syncing}
             className="flex-1 bg-brand-gray-100 hover:bg-brand-gray-200 text-brand-gray-700 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50"
           >
-            Configurar después
+            {hasSriLinked ? "Cancelar" : "Configurar después"}
           </button>
           <button
             type="submit"
             disabled={submitting || syncing}
             className="flex-1 bg-brand-navy hover:bg-brand-navy-light text-white py-2.5 rounded-lg text-xs font-bold cursor-pointer transition-colors disabled:opacity-50"
           >
-            {syncing ? "Sincronizando..." : submitting ? "Vinculando..." : "Vincular y sincronizar"}
+            {syncing ? "Sincronizando..." : submitting ? "Vinculando..." : hasSriLinked ? "Actualizar y sincronizar" : "Vincular y sincronizar"}
           </button>
         </div>
       </form>

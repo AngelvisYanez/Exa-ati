@@ -17,8 +17,10 @@ model Tenant {
   nombre    String   @db.VarChar(255)
   ruc       String?  @db.VarChar(20)
   activo    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  lastSyncAt             DateTime? @map("last_sync_at")
+  lastSyncResult         String?   @map("last_sync_result") @db.Text
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
 
   usuarios        Usuario[]
   emisores        Emisor[]
@@ -111,6 +113,7 @@ model Comprobante {
   emisor Emisor?  @relation(fields: [emisorId], references: [id])
   xmls   ComprobanteXml[]
 
+  @@index([fechaEmision])
   @@map("comprobantes")
 }
 

@@ -6,13 +6,13 @@ const RUC_PATTERN = /^\d{13}$/;
 export async function getUserRuc(user: JwtPayload): Promise<string> {
   if (user.tenantId) {
     const emisor = await db.queryOne<{ ruc: string }>(
-      `SELECT ruc FROM emisores WHERE tenant_id = ? AND activo = 1 LIMIT 1`,
+      `SELECT ruc FROM emisores WHERE tenant_id = ? AND activo = true LIMIT 1`,
       [user.tenantId]
     );
     if (emisor?.ruc) return emisor.ruc;
 
     const tenant = await db.queryOne<{ ruc: string }>(
-      `SELECT ruc FROM tenants WHERE id = ? AND activo = 1`,
+      `SELECT ruc FROM tenants WHERE id = ? AND activo = true`,
       [user.tenantId]
     );
     if (tenant?.ruc && RUC_PATTERN.test(tenant.ruc)) return tenant.ruc;
@@ -20,7 +20,7 @@ export async function getUserRuc(user: JwtPayload): Promise<string> {
 
   if (RUC_PATTERN.test(user.email)) {
     const emisor = await db.queryOne<{ ruc: string }>(
-      `SELECT ruc FROM emisores WHERE ruc = ? AND activo = 1 LIMIT 1`,
+      `SELECT ruc FROM emisores WHERE ruc = ? AND activo = true LIMIT 1`,
       [user.email]
     );
     if (emisor?.ruc) return emisor.ruc;

@@ -21,7 +21,7 @@ export async function POST(req: Request) {
        FROM usuarios u
        LEFT JOIN emisores e ON u.tenant_id = e.tenant_id AND e.activo = true
        WHERE u.email = $1 OR e.ruc = $2
-       ORDER BY (u.email = $3)::int DESC, u.rol ASC`,
+       ORDER BY CASE WHEN u.email = $3 THEN 1 ELSE 0 END DESC, u.rol ASC`,
       [email, email, email]
     );
 

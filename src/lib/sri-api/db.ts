@@ -20,6 +20,7 @@ async function getPrismaDb() {
 
 // ─── Cliente MySQL (desarrollo) ───────────────────────────────────────────────
 import mysql, { Pool, PoolConnection, ResultSetHeader } from 'mysql2/promise';
+import type { QueryResultRow } from '@neondatabase/serverless';
 import { randomUUID } from 'crypto';
 
 let pool: Pool | null = null;
@@ -50,7 +51,7 @@ function toMysqlPlaceholders(sql: string): string {
 
 // ─── Interfaz unificada ───────────────────────────────────────────────────────
 export const db = {
-  async query<T = any>(
+  async query<T extends QueryResultRow = any>(
     text: string,
     params?: any[]
   ): Promise<{ rows: T[]; rowCount: number }> {
@@ -76,7 +77,7 @@ export const db = {
     return { rows: rows as T[], rowCount: (rows as any[]).length };
   },
 
-  async queryOne<T = any>(
+  async queryOne<T extends QueryResultRow = any>(
     text: string,
     params?: any[]
   ): Promise<T | null> {
@@ -84,7 +85,7 @@ export const db = {
     return result.rows[0] || null;
   },
 
-  async queryAll<T = any>(
+  async queryAll<T extends QueryResultRow = any>(
     text: string,
     params?: any[]
   ): Promise<T[]> {
@@ -122,7 +123,7 @@ export const db = {
     }
   },
 
-  async insert<T = any>(
+  async insert<T extends QueryResultRow = any>(
     table: string,
     data: Record<string, any>,
     returning: string = '*'
@@ -158,7 +159,7 @@ export const db = {
     return null;
   },
 
-  async update<T = any>(
+  async update<T extends QueryResultRow = any>(
     table: string,
     data: Record<string, any>,
     where: string,
@@ -188,5 +189,23 @@ export const db = {
     }
 
     return [];
+  },
+
+  async upsertComprobanteXml(comprobanteId: string, tipo: string, rutaArchivo: string): Promise<any> {
+    if (usesPrisma) {
+      return this.query(
+        `INSERT INTO comprobante_xmls (comprobante_id, tipo, ruta_archivo)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (comprobante_id, tipo) DO UPDATE SET ruta_archivo = EXCLUDED.ruta_archivo`,
+        [comprobanteId, tipo, rutaArchivo]
+      );
+    } else {
+      return this.query(
+        `INSERT INTO comprobante_xmls (comprobante_id, tipo, ruta_archivo)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE ruta_archivo = VALUES(ruta_archivo)`,
+        [comprobanteId, tipo, rutaArchivo]
+      );
+    }
   },
 };

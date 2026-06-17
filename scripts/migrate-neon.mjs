@@ -56,15 +56,49 @@ const statements = [
     "nombre_comercial" VARCHAR(500),
     "ambiente" VARCHAR(2) NOT NULL DEFAULT '1',
     "tipo_emision" VARCHAR(2) NOT NULL DEFAULT '1',
+    "tipo_contribuyente" VARCHAR(100),
     "certificado_p12" BYTEA,
     "certificado_password" VARCHAR(500),
     "cert_valido_hasta" TIMESTAMP(3),
     "certificado_valido_hasta" TIMESTAMP(3),
     "clave_sri_encrypted" TEXT,
     "activo" BOOLEAN NOT NULL DEFAULT true,
+    "notif_documentos" BOOLEAN NOT NULL DEFAULT true,
+    "notif_generacion" BOOLEAN NOT NULL DEFAULT true,
+    "whatsapp_numero" VARCHAR(20),
+    "whatsapp_estado" VARCHAR(20) NOT NULL DEFAULT 'DESCONECTADO',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "emisores_pkey" PRIMARY KEY ("id")
+  )`,
+
+  `ALTER TABLE "emisores" ADD COLUMN IF NOT EXISTS "tipo_contribuyente" VARCHAR(100)`,
+  `ALTER TABLE "emisores" ADD COLUMN IF NOT EXISTS "notif_documentos" BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE "emisores" ADD COLUMN IF NOT EXISTS "notif_generacion" BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE "emisores" ADD COLUMN IF NOT EXISTS "whatsapp_numero" VARCHAR(20)`,
+  `ALTER TABLE "emisores" ADD COLUMN IF NOT EXISTS "whatsapp_estado" VARCHAR(20) NOT NULL DEFAULT 'DESCONECTADO'`,
+
+  `CREATE TABLE IF NOT EXISTS "auditoria" (
+    "id" SERIAL NOT NULL,
+    "usuario_email" VARCHAR(255) NOT NULL,
+    "tenant_id" UUID,
+    "accion" VARCHAR(100) NOT NULL,
+    "recurso" VARCHAR(100) NOT NULL,
+    "descripcion" TEXT,
+    "datos_nuevos" TEXT,
+    "exitoso" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "auditoria_pkey" PRIMARY KEY ("id")
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS "secuenciales" (
+    "emisor_id" UUID NOT NULL,
+    "tipo_comprobante" VARCHAR(5) NOT NULL,
+    "serie" VARCHAR(10) NOT NULL,
+    "ultimo_secuencial" INTEGER NOT NULL DEFAULT 1,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "secuenciales_pkey" PRIMARY KEY ("emisor_id", "tipo_comprobante", "serie")
   )`,
 
   `CREATE TABLE IF NOT EXISTS "comprobantes" (
@@ -134,10 +168,15 @@ const statements = [
     "gemini_api_key_encrypted" TEXT,
     "claude_api_key_encrypted" TEXT,
     "llm_configured_at" TIMESTAMP(3),
+    "last_sync_at" TIMESTAMP(3),
+    "last_sync_result" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "tenant_settings_pkey" PRIMARY KEY ("id")
   )`,
+
+  `ALTER TABLE "tenant_settings" ADD COLUMN IF NOT EXISTS "last_sync_at" TIMESTAMP(3)`,
+  `ALTER TABLE "tenant_settings" ADD COLUMN IF NOT EXISTS "last_sync_result" TEXT`,
 
   // Índices únicos
   `CREATE UNIQUE INDEX IF NOT EXISTS "usuarios_email_key" ON "usuarios"("email")`,
@@ -145,6 +184,7 @@ const statements = [
   `CREATE UNIQUE INDEX IF NOT EXISTS "comprobantes_clave_acceso_key" ON "comprobantes"("clave_acceso")`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "comprobante_xmls_comprobante_id_tipo_key" ON "comprobante_xmls"("comprobante_id", "tipo")`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "tenant_settings_tenant_id_key" ON "tenant_settings"("tenant_id")`,
+  `CREATE INDEX IF NOT EXISTS "comprobantes_fecha_emision_idx" ON "comprobantes"("fecha_emision")`,
 
   // Foreign Keys con comprobación de existencia
   `DO $$ BEGIN
@@ -186,6 +226,18 @@ const statements = [
   `DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tenant_settings_tenant_id_fkey') THEN
       ALTER TABLE "tenant_settings" ADD CONSTRAINT "tenant_settings_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'auditoria_tenant_id_fkey') THEN
+      ALTER TABLE "auditoria" ADD CONSTRAINT "auditoria_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'secuenciales_emisor_id_fkey') THEN
+      ALTER TABLE "secuenciales" ADD CONSTRAINT "secuenciales_emisor_id_fkey" FOREIGN KEY ("emisor_id") REFERENCES "emisores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
     END IF;
   END $$`,
 ];

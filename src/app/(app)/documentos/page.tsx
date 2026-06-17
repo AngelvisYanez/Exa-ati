@@ -775,7 +775,7 @@ export default function Documentos() {
               </div>
             ) : (
               <Link
-                href="/configuracion"
+                href="/configuracion?vincular=true"
                 className="bg-brand-amber/10 border border-brand-amber/30 hover:bg-brand-amber/20 rounded-lg px-3 py-2 text-xs font-bold text-brand-amber flex items-center gap-1.5 cursor-pointer transition-all"
               >
                 <span className="w-2 h-2 bg-brand-amber rounded-full"></span>
@@ -808,7 +808,7 @@ export default function Documentos() {
                   <p className="text-xs text-brand-gray-400 mt-1">Configura tu RUC y contraseña del SRI para ver comprobantes</p>
                 </div>
                 <Link
-                  href="/configuracion"
+                  href="/configuracion?vincular=true"
                   className="bg-brand-navy text-white px-5 py-2 rounded-lg text-xs font-bold cursor-pointer hover:bg-brand-navy-mid transition-colors"
                 >
                   Vincular SRI

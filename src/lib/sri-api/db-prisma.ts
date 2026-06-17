@@ -4,7 +4,7 @@
  * Usa @neondatabase/serverless Pool directamente (más fiable que Prisma adapter en Next.js).
  * Expone la misma interfaz que db.ts: query, queryOne, queryAll, insert, update, transaction.
  */
-import { Pool, neonConfig } from '@neondatabase/serverless';
+import { Pool, neonConfig, QueryResultRow } from '@neondatabase/serverless';
 import { randomUUID } from 'crypto';
 import ws from 'ws';
 
@@ -34,14 +34,20 @@ function getPool(): Pool {
 
 // ─── Interfaz compatible con db.ts ───────────────────────────────────────────
 export const dbPrisma = {
-  async query<T = any>(
+  async query<T extends QueryResultRow = any>(
     text: string,
     params?: any[]
   ): Promise<{ rows: T[]; rowCount: number }> {
     const start = Date.now();
     const operation = text.trim().split(/\s+/)[0].toUpperCase();
 
-    const result = await getPool().query<T>(text, params || []);
+    let reindexedText = text;
+    if (reindexedText.includes('?')) {
+      let paramIndex = 1;
+      reindexedText = reindexedText.replace(/\?/g, () => `$${paramIndex++}`);
+    }
+
+    const result = await getPool().query<T>(reindexedText, params || []);
     const duration = Date.now() - start;
 
     if (process.env.NODE_ENV === 'development' || duration > 800) {
@@ -51,7 +57,7 @@ export const dbPrisma = {
     return { rows: result.rows, rowCount: result.rowCount ?? result.rows.length };
   },
 
-  async queryOne<T = any>(
+  async queryOne<T extends QueryResultRow = any>(
     text: string,
     params?: any[]
   ): Promise<T | null> {
@@ -59,7 +65,7 @@ export const dbPrisma = {
     return result.rows[0] || null;
   },
 
-  async queryAll<T = any>(
+  async queryAll<T extends QueryResultRow = any>(
     text: string,
     params?: any[]
   ): Promise<T[]> {
@@ -88,7 +94,7 @@ export const dbPrisma = {
     }
   },
 
-  async insert<T = any>(
+  async insert<T extends QueryResultRow = any>(
     table: string,
     data: Record<string, any>,
     returning: string = '*'
@@ -114,7 +120,7 @@ export const dbPrisma = {
     return result.rows[0] || null;
   },
 
-  async update<T = any>(
+  async update<T extends QueryResultRow = any>(
     table: string,
     data: Record<string, any>,
     where: string,

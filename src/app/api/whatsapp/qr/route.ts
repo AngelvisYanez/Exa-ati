@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     const numeroParam = searchParams.get('numero');
 
     let emisor = await db.queryOne<any>(
-      `SELECT whatsapp_numero FROM emisores WHERE ruc = ? AND activo = 1`,
+      `SELECT whatsapp_numero FROM emisores WHERE ruc = ? AND activo = true`,
       [userRuc]
     );
 
@@ -27,13 +27,13 @@ export async function GET(req: Request) {
     if (numeroParam) {
       await db.query(
         `UPDATE emisores SET whatsapp_numero = ?, whatsapp_estado = 'VINCULANDO', updated_at = NOW()
-         WHERE ruc = ? AND activo = 1`,
+         WHERE ruc = ? AND activo = true`,
         [numeroParam.trim(), userRuc]
       );
       emisor = { whatsapp_numero: numeroParam.trim() };
     } else {
       await db.query(
-        "UPDATE emisores SET whatsapp_estado = 'VINCULANDO', updated_at = NOW() WHERE ruc = ? AND activo = 1",
+        "UPDATE emisores SET whatsapp_estado = 'VINCULANDO', updated_at = NOW() WHERE ruc = ? AND activo = true",
         [userRuc]
       );
     }

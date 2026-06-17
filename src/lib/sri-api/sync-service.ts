@@ -106,7 +106,7 @@ async function fetchAllComprobantesForSync(
     ? 'c.fecha_emision ASC, c.secuencial ASC, c.id ASC'
     : modo === 'pendientes'
       ? 'c.updated_at ASC, c.id ASC'
-      : '(cx.id IS NULL) DESC, FIELD(c.estado, "PENDIENTE","FIRMADO","ENVIADO","DEVUELTA"), c.updated_at ASC, c.id ASC';
+      : '(cx.id IS NULL) DESC, CASE c.estado WHEN \'PENDIENTE\' THEN 1 WHEN \'FIRMADO\' THEN 2 WHEN \'ENVIADO\' THEN 3 WHEN \'DEVUELTA\' THEN 4 ELSE 5 END, c.updated_at ASC, c.id ASC';
 
   return db.queryAll<any>(
     `SELECT c.id, c.clave_acceso, c.secuencial, c.tipo, c.estado, c.fecha_emision, c.emisor_ruc,
@@ -136,7 +136,7 @@ async function fetchComprobantesBatch(
      FROM comprobantes c
      LEFT JOIN comprobante_xmls cx ON cx.comprobante_id = c.id AND cx.tipo = 'autorizado'
      WHERE ${conditions.join(' AND ')}
-     ORDER BY (cx.id IS NULL) DESC, FIELD(c.estado, 'PENDIENTE','FIRMADO','ENVIADO','DEVUELTA'), c.updated_at ASC, c.id ASC
+     ORDER BY (cx.id IS NULL) DESC, CASE c.estado WHEN 'PENDIENTE' THEN 1 WHEN 'FIRMADO' THEN 2 WHEN 'ENVIADO' THEN 3 WHEN 'DEVUELTA' THEN 4 ELSE 5 END, c.updated_at ASC, c.id ASC
      LIMIT ? OFFSET ?`,
     params
   );

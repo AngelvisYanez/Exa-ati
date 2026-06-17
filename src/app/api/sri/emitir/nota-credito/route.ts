@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
     if (user.rol !== 'SUPERADMIN') {
       const emisorCheck = await db.queryOne(
-        'SELECT id, tenant_id FROM emisores WHERE ruc = ? AND activo = 1',
+        'SELECT id, tenant_id FROM emisores WHERE ruc = ? AND activo = true',
         [ruc]
       );
       if (!emisorCheck || emisorCheck.tenant_id !== user.tenantId) {
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     const emisor = await db.queryOne<any>(
       `SELECT id, ruc, razon_social, nombre_comercial, direccion_matriz, obligado_contabilidad,
               ambiente, tenant_id, certificado_p12, password_certificado
-       FROM emisores WHERE ruc = ? AND activo = 1`,
+       FROM emisores WHERE ruc = ? AND activo = true`,
       [ruc]
     );
 
@@ -55,19 +55,36 @@ export async function POST(req: Request) {
     let secuencial = dto.secuencial?.padStart(9, '0');
     if (!secuencial) {
       secuencial = await db.transaction<string>(async (client) => {
-        await client.query(
-          `INSERT INTO secuenciales (emisor_id, tipo_comprobante, serie, ultimo_secuencial)
-           VALUES (?, '04', ?, 1)
-           ON DUPLICATE KEY UPDATE ultimo_secuencial = ultimo_secuencial + 1, updated_at = NOW()`,
-          [emisor.id, serie]
-        );
-        const [rows] = await client.query(
-          `SELECT ultimo_secuencial FROM secuenciales
-           WHERE emisor_id = ? AND tipo_comprobante = '04' AND serie = ?`,
-          [emisor.id, serie]
-        );
-        const row = (rows as any[])[0];
-        return String(row.ultimo_secuencial).padStart(9, '0');
+        const usesPostgres = Boolean(process.env.DATABASE_URL);
+        if (usesPostgres) {
+          await client.query(
+            `INSERT INTO secuenciales (emisor_id, tipo_comprobante, serie, ultimo_secuencial)
+             VALUES ($1, '04', $2, 1)
+             ON CONFLICT (emisor_id, tipo_comprobante, serie) 
+             DO UPDATE SET ultimo_secuencial = secuenciales.ultimo_secuencial + 1, updated_at = NOW()`,
+            [emisor.id, serie]
+          );
+          const res = await client.query(
+            `SELECT ultimo_secuencial FROM secuenciales
+             WHERE emisor_id = $1 AND tipo_comprobante = '04' AND serie = $2`,
+            [emisor.id, serie]
+          );
+          return String(res.rows[0].ultimo_secuencial).padStart(9, '0');
+        } else {
+          await client.query(
+            `INSERT INTO secuenciales (emisor_id, tipo_comprobante, serie, ultimo_secuencial)
+             VALUES (?, '04', ?, 1)
+             ON DUPLICATE KEY UPDATE ultimo_secuencial = ultimo_secuencial + 1, updated_at = NOW()`,
+            [emisor.id, serie]
+          );
+          const [rows] = await client.query(
+            `SELECT ultimo_secuencial FROM secuenciales
+             WHERE emisor_id = ? AND tipo_comprobante = '04' AND serie = ?`,
+            [emisor.id, serie]
+          );
+          const row = (rows as any[])[0];
+          return String(row.ultimo_secuencial).padStart(9, '0');
+        }
       });
     }
 
@@ -80,6 +97,13 @@ export async function POST(req: Request) {
       fechaEmision = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
     } else {
       fechaEmision = new Date(dto.fechaEmision || Date.now());
+    }
+
+    if (fechaEmision > new Date()) {
+      return NextResponse.json(
+        { message: 'La fecha de emisión no puede ser mayor a la fecha actual' },
+        { status: 400 }
+      );
     }
 
     const claveAcceso = claveAccesoService.generate({
@@ -184,18 +208,10 @@ export async function POST(req: Request) {
     if (comp?.id) {
       const xmlPaths = xmlStorage.saveAllXmls(ruc, claveAcceso, fechaEmision, undefined, xmlFirmado, resultado.xmlAutorizado);
       if (xmlPaths.firmadoPath) {
-        await db.query(
-          `INSERT INTO comprobante_xmls (comprobante_id, tipo, ruta_archivo) VALUES (?, 'firmado', ?)
-           ON DUPLICATE KEY UPDATE ruta_archivo = VALUES(ruta_archivo)`,
-          [comp.id, xmlPaths.firmadoPath]
-        );
+        await db.upsertComprobanteXml(comp.id, 'firmado', xmlPaths.firmadoPath);
       }
       if (xmlPaths.autorizadoPath) {
-        await db.query(
-          `INSERT INTO comprobante_xmls (comprobante_id, tipo, ruta_archivo) VALUES (?, 'autorizado', ?)
-           ON DUPLICATE KEY UPDATE ruta_archivo = VALUES(ruta_archivo)`,
-          [comp.id, xmlPaths.autorizadoPath]
-        );
+        await db.upsertComprobanteXml(comp.id, 'autorizado', xmlPaths.autorizadoPath);
       }
     }
 
