@@ -1,30 +1,35 @@
 import { defineConfig } from 'prisma/config';
 import { PrismaNeon } from '@prisma/adapter-neon';
+import { Pool } from '@neondatabase/serverless';
+import { config } from 'dotenv';
 
-// prisma.config.ts — Configuración de Prisma 7 para Neon PostgreSQL
-// Este archivo reemplaza las propiedades `url` y `directUrl` del schema.prisma
+// Cargar .env manualmente — prisma.config.ts se ejecuta antes que Next.js
+config({ path: '.env' });
+
+// prisma.config.ts — Configuración Prisma 7 para Neon PostgreSQL
+//
+// Para migraciones usamos la URL pooled (pgbouncer) que es más accesible.
+// La URL directa (DIRECT_DATABASE_URL) se puede usar en entornos que lo soporten.
+
+const migrationUrl =
+  process.env.DATABASE_URL ??
+  process.env.DIRECT_DATABASE_URL ??
+  '';
 
 export default defineConfig({
   earlyAccess: true,
   schema: './prisma/schema.prisma',
+  datasource: {
+    url: migrationUrl,
+  },
   migrate: {
     async adapter() {
-      const { neonConfig, Pool } = await import('@neondatabase/serverless');
-      const { PrismaNeon } = await import('@prisma/adapter-neon');
-
-      // Neon requiere WebSockets en entornos serverless
-      // En Node.js local usamos el driver HTTP de Neon
-      neonConfig.webSocketConstructor =
-        typeof globalThis.WebSocket !== 'undefined'
-          ? globalThis.WebSocket
-          : (await import('ws')).default;
-
-      const connectionString = process.env.DATABASE_URL;
-      if (!connectionString) {
-        throw new Error('DATABASE_URL is not set');
+      if (!migrationUrl) {
+        throw new Error(
+          'Necesitas definir DATABASE_URL en tu .env'
+        );
       }
-
-      const pool = new Pool({ connectionString });
+      const pool = new Pool({ connectionString: migrationUrl });
       return new PrismaNeon(pool);
     },
   },

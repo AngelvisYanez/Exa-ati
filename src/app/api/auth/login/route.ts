@@ -19,9 +19,9 @@ export async function POST(req: Request) {
     const users = await db.queryAll<any>(
       `SELECT u.id, u.email, u.password_hash, u.rol, u.tenant_id, u.activo
        FROM usuarios u
-       LEFT JOIN emisores e ON u.tenant_id = e.tenant_id AND e.activo = 1
+       LEFT JOIN emisores e ON u.tenant_id = e.tenant_id AND e.activo = true
        WHERE u.email = $1 OR e.ruc = $2
-       ORDER BY (u.email = $3) DESC, u.rol ASC`,
+       ORDER BY (u.email = $3)::int DESC, u.rol ASC`,
       [email, email, email]
     );
 
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
 
     // Actualizar la última fecha de conexión
     await db.query(
-      `UPDATE usuarios SET last_login = NOW() WHERE id = $1`,
+      `UPDATE usuarios SET updated_at = NOW() WHERE id = $1`,
       [user.id]
     );
 

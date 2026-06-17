@@ -1,67 +1,54 @@
 /**
- * db-prisma.ts — Adaptador Prisma para producción (Neon PostgreSQL)
+ * db-prisma.ts — Adaptador Neon PostgreSQL para producción
  *
- * Expone la misma interfaz que db.ts para que el código existente funcione
- * sin cambios en producción.
- *
- * Prisma 7 + @prisma/adapter-neon para serverless Neon PostgreSQL.
+ * Usa @neondatabase/serverless Pool directamente (más fiable que Prisma adapter en Next.js).
+ * Expone la misma interfaz que db.ts: query, queryOne, queryAll, insert, update, transaction.
  */
-import { PrismaClient } from '@prisma/client';
-import { PrismaNeon } from '@prisma/adapter-neon';
 import { Pool, neonConfig } from '@neondatabase/serverless';
+import { randomUUID } from 'crypto';
+import ws from 'ws';
 
+// En Node.js (Next.js API routes), WebSocket no es global — hay que inyectarlo
+if (typeof globalThis.WebSocket === 'undefined') {
+  neonConfig.webSocketConstructor = ws;
+}
+
+// ─── Pool singleton ──────────────────────────────────────────────────────────
 declare global {
-  // Evita instancias múltiples en desarrollo con hot reload
   // eslint-disable-next-line no-var
-  var __prisma: PrismaClient | undefined;
+  var __neonPool: Pool | undefined;
 }
 
-function getPrismaClient(): PrismaClient {
-  if (process.env.NODE_ENV === 'production') {
-    // En producción: nueva instancia con adapter Neon por invocación serverless
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const adapter = new PrismaNeon(pool);
-    return new PrismaClient({ adapter } as any);
+function getPool(): Pool {
+  if (!global.__neonPool) {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error(
+        '[DB:Neon] DATABASE_URL no está definido. Verifica tu .env o variables de entorno en Vercel.'
+      );
+    }
+    global.__neonPool = new Pool({ connectionString });
   }
-  // En desarrollo: reusar instancia global para evitar múltiples pools
-  if (!global.__prisma) {
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const adapter = new PrismaNeon(pool);
-    global.__prisma = new PrismaClient({ adapter } as any);
-  }
-  return global.__prisma;
+  return global.__neonPool;
 }
 
-const prisma = getPrismaClient();
-
-// Converts PostgreSQL-style $1, $2 placeholders (no-op for Prisma raw queries — already uses $1 style)
-function toPositionalParams(sql: string, params?: any[]): { query: string; values: any[] } {
-  return { query: sql, values: params || [] };
-}
-
+// ─── Interfaz compatible con db.ts ───────────────────────────────────────────
 export const dbPrisma = {
   async query<T = any>(
     text: string,
     params?: any[]
   ): Promise<{ rows: T[]; rowCount: number }> {
     const start = Date.now();
-    const { query, values } = toPositionalParams(text, params);
+    const operation = text.trim().split(/\s+/)[0].toUpperCase();
 
-    try {
-      const rows = await prisma.$queryRawUnsafe<T[]>(query, ...values);
-      const duration = Date.now() - start;
-      const operation = text.trim().split(/\s+/)[0].toUpperCase();
-      if (process.env.NODE_ENV === 'development' || duration > 800) {
-        console.log(`[DB:Prisma] ${operation} → ${duration}ms`);
-      }
-      return { rows: Array.isArray(rows) ? rows : [], rowCount: Array.isArray(rows) ? rows.length : 0 };
-    } catch (err: any) {
-      // Prisma raw execute returns affected count for INSERT/UPDATE/DELETE
-      if (err?.code === 'P2010' || typeof err?.message === 'string') {
-        throw err;
-      }
-      throw err;
+    const result = await getPool().query<T>(text, params || []);
+    const duration = Date.now() - start;
+
+    if (process.env.NODE_ENV === 'development' || duration > 800) {
+      console.log(`[DB:Neon] ${operation} → ${duration}ms`);
     }
+
+    return { rows: result.rows, rowCount: result.rowCount ?? result.rows.length };
   },
 
   async queryOne<T = any>(
@@ -81,16 +68,24 @@ export const dbPrisma = {
   },
 
   async getClient() {
-    // Prisma doesn't expose raw connections the same way — return a transaction-like object
-    return prisma;
+    return getPool().connect();
   },
 
   async transaction<T>(
-    callback: (client: PrismaClient) => Promise<T>
+    callback: (client: any) => Promise<T>
   ): Promise<T> {
-    return prisma.$transaction(async (tx) => {
-      return callback(tx as unknown as PrismaClient);
-    });
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const result = await callback(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   },
 
   async insert<T = any>(
@@ -102,6 +97,12 @@ export const dbPrisma = {
       throw new Error(`No data provided for insert into table "${table}"`);
     }
 
+    // UUID tables get auto-generated IDs if not provided
+    const isUuidTable = ['usuarios', 'tenants', 'emisores', 'comprobantes', 'tenant_settings'].includes(table);
+    if (isUuidTable && !data.id) {
+      data.id = randomUUID();
+    }
+
     const keys = Object.keys(data);
     const values = Object.values(data);
     const columns = keys.map((k) => `"${k}"`).join(', ');
@@ -109,8 +110,8 @@ export const dbPrisma = {
     const returningClause = returning === '*' ? '*' : returning;
 
     const queryStr = `INSERT INTO "${table}" (${columns}) VALUES (${placeholders}) RETURNING ${returningClause}`;
-    const rows = await prisma.$queryRawUnsafe<T[]>(queryStr, ...values);
-    return (rows as T[])[0] || null;
+    const result = await getPool().query<T>(queryStr, values);
+    return result.rows[0] || null;
   },
 
   async update<T = any>(
@@ -128,21 +129,19 @@ export const dbPrisma = {
     const keys = Object.keys(data);
     const values = Object.values(data);
     const setClause = keys.map((key, i) => `"${key}" = $${i + 1}`).join(', ');
-    const whereClause = where.replace(/\?/g, (_, i) => `$${values.length + i + 1}`);
 
-    // Re-index $N params in where clause
+    // Re-index $N or ? params in where clause relative to SET params
     let paramIndex = values.length + 1;
     const reindexedWhere = where.replace(/\?|\$\d+/g, () => `$${paramIndex++}`);
 
-    const queryStr = `UPDATE "${table}" SET ${setClause} WHERE ${reindexedWhere} RETURNING ${returning === '*' ? '*' : returning}`;
-    const rows = await prisma.$queryRawUnsafe<T[]>(queryStr, ...values, ...whereParams);
-    
-    if (options?.strict && rows.length === 0) {
+    const returningClause = returning === '*' ? '*' : returning;
+    const queryStr = `UPDATE "${table}" SET ${setClause} WHERE ${reindexedWhere} RETURNING ${returningClause}`;
+    const result = await getPool().query<T>(queryStr, [...values, ...whereParams]);
+
+    if (options?.strict && result.rows.length === 0) {
       throw new Error(`Record to update in "${table}" was not found.`);
     }
 
-    return rows;
+    return result.rows;
   },
 };
-
-export { prisma };
