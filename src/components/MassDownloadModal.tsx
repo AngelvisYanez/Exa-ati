@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Dialog from '@/components/ui/Dialog';
-import { useToast } from '@/contexts/ToastContext';
+import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   DownloadCloud, 
@@ -22,7 +21,12 @@ import {
   XCircle,
   Clock,
   Inbox,
-  Ban
+  Ban,
+  ArrowRight,
+  History,
+  Settings,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 interface MassDownloadModalProps {
@@ -30,11 +34,37 @@ interface MassDownloadModalProps {
   onClose: () => void;
 }
 
+type JobStatus = 'COMPLETED' | 'ERROR' | 'PROCESSING' | 'CANCELLED' | 'PENDING';
+
+const statusConfig: Record<JobStatus, { label: string; icon: typeof Loader2; className: string }> = {
+  COMPLETED: { label: 'Completado', icon: CheckCircle2, className: 'bg-success-pale text-success border-success/30' },
+  ERROR: { label: 'Error', icon: XCircle, className: 'bg-destructive/15 text-destructive border-destructive/30' },
+  PROCESSING: { label: 'Procesando', icon: Loader2, className: 'bg-amber-50 text-amber-700 border-amber-300' },
+  CANCELLED: { label: 'Cancelado', icon: Ban, className: 'bg-brand-gray-100 text-brand-gray-600 border-brand-gray-300' },
+  PENDING: { label: 'Pendiente', icon: Clock, className: 'bg-brand-gray-100 text-brand-gray-700 border-brand-gray-300' },
+};
+
 export default function MassDownloadModal({ open, onClose }: MassDownloadModalProps) {
-  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showDevOptions, setShowDevOptions] = useState(false);
+  const [isDevMode, setIsDevMode] = useState(false);
+
+  const [devOptions, setDevOptions] = useState({
+    connection_mode: 'cdp' as 'cdp' | 'new_browser' | 'headless_separate' | 'http',
+    captcha_strategy: 'auto' as 'auto' | 'anticaptcha' | 'buster' | 'manual',
+    debug_screenshots: false,
+    verbose_logging: false,
+    dom_dump_on_error: true,
+  });
+
+  useEffect(() => {
+    setIsDevMode(
+      process.env.NODE_ENV === 'development' ||
+      (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('dev') === 'true')
+    );
+  }, []);
   
   const [formData, setFormData] = useState({
     ruc: '',
@@ -65,21 +95,17 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
     try {
       const token = localStorage.getItem('sri_access_token');
       const res = await fetch('/api/sri/scraping', {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        }
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
       });
       const data = await res.json();
-      if (data.success && data.jobs) {
-        setJobs(data.jobs);
-      }
+      if (data.success && data.jobs) setJobs(data.jobs);
     } catch (e) {
       console.error(e);
       if (manual) toast.error('Error al actualizar los trabajos');
     } finally {
       if (manual) setTimeout(() => setIsRefreshing(false), 500);
     }
-  }, [toast, open]);
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -126,34 +152,29 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
     setLoading(true);
     try {
       const token = localStorage.getItem('sri_access_token');
+      const payload = isDevMode ? { ...formData, options: devOptions } : formData;
       const response = await fetch('/api/sri/scraping', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
 
       if (response.ok && data.jobId) {
         toast.success(data.message || 'Trabajo de descarga iniciado');
-
         fetch('/api/sri/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ jobId: data.jobId }),
-        }).then(async (syncRes) => {
-          if (!syncRes.ok) {
-            const syncData = await syncRes.json();
-            console.error('[Sync] Error en worker:', syncData.error);
-          }
-        }).catch(err => console.error('[Sync] Error de red al iniciar worker:', err));
+        }).catch(err => console.error('[Sync] Error:', err));
       } else {
         toast.error(data.error || 'Error al iniciar la descarga');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error de red al intentar comunicarse con el servidor');
     } finally {
       setLoading(false);
@@ -168,277 +189,289 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
       case '3': return 'Nota de Crédito';
       case '4': return 'Nota de Débito';
       case '6': return 'Retención';
-      case 'todos': return 'Todos';
-      default: return 'Desconocido';
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'COMPLETED':
-        return <Badge variant="default" className="bg-emerald-500 hover:bg-emerald-600 text-white flex items-center gap-1 text-[10px] font-medium"><CheckCircle2 className="w-3 h-3" /> Completado</Badge>;
-      case 'ERROR':
-        return <Badge variant="destructive" className="flex items-center gap-1 text-[10px] font-medium"><XCircle className="w-3 h-3" /> Error</Badge>;
-      case 'PROCESSING':
-        return <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200 flex items-center gap-1 text-[10px] font-medium"><Loader2 className="animate-spin w-3 h-3" /> Procesando</Badge>;
-      case 'CANCELLED':
-        return <Badge variant="outline" className="border-amber-300 text-amber-600 bg-amber-50 hover:bg-amber-100 flex items-center gap-1 text-[10px] font-medium"><Ban className="w-3 h-3" /> Cancelado</Badge>;
-      case 'PENDING':
-        return <Badge variant="outline" className="border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 flex items-center gap-1 text-[10px] font-medium"><Clock className="w-3 h-3" /> Pendiente</Badge>;
-      default:
-        return <Badge variant="outline" className="text-gray-500 flex items-center gap-1 text-[10px] font-medium"><Clock className="w-3 h-3" /> {status}</Badge>;
+      default: return tipo;
     }
   };
 
   return (
     <Dialog open={open} onClose={onClose} size="2xl" showClose>
-      <div className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-brand-gray-900 flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <DownloadCloud className="w-6 h-6 text-primary" />
-            </div>
-            Descarga Masiva SRI
-          </h2>
-          <p className="text-brand-gray-500 mt-2 text-sm max-w-2xl">
-            Sincroniza tus comprobantes electrónicos directamente desde el portal del SRI de forma segura.
-          </p>
+      <div className="flex flex-col gap-5">
+        {/* Header */}
+        <div className="flex items-center gap-3 pb-2 border-b border-border">
+          <div className="p-2 rounded-lg bg-brand-navy text-white shadow-sm">
+            <DownloadCloud className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-foreground">Descarga Masiva SRI</h2>
+            <p className="text-xs text-muted-foreground">Sincroniza comprobantes desde el portal SRI</p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Form Column */}
-          <div className="lg:col-span-5 space-y-6">
-            <Card className="border-brand-gray-200 shadow-sm transition-all duration-300">
-              <CardHeader className="bg-gradient-to-br from-brand-gray-50 to-white border-b border-brand-gray-100 rounded-t-xl py-4">
-                <CardTitle className="text-lg">Configurar Sincronización</CardTitle>
-                <CardDescription className="text-xs">
-                  Ingresa las credenciales del portal web del SRI.
-                </CardDescription>
-              </CardHeader>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          {/* Form */}
+          <div className="lg:col-span-5 space-y-4 order-2 lg:order-1">
+            <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
+              <div className="px-4 py-3 bg-muted/50 border-b border-border">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-brand-navy" />
+                  Credenciales SRI
+                </h3>
+              </div>
               
-              <form onSubmit={handleSubmit}>
-                <CardContent className="space-y-4 pt-5 pb-5">
-                  <div className="space-y-1.5 group">
-                    <Label htmlFor="ruc_modal" className="text-xs group-focus-within:text-primary transition-colors">RUC del Contribuyente</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-2.5 h-4 w-4 text-brand-gray-400 group-focus-within:text-primary transition-colors" />
-                      <Input 
-                        id="ruc_modal" 
-                        name="ruc" 
-                        placeholder="1790000000001" 
-                        value={formData.ruc}
-                        onChange={handleChange}
-                        autoComplete="off"
-                        className="pl-9 h-9 transition-all border-brand-gray-200 focus:border-primary focus:ring-primary/20 text-sm"
-                        required 
-                      />
-                    </div>
+              <form onSubmit={handleSubmit} className="p-4 space-y-3.5">
+                <div className="space-y-1">
+                  <Label htmlFor="ruc_modal" className="text-xs font-medium text-muted-foreground">RUC</Label>
+                  <div className="relative">
+                    <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <Input id="ruc_modal" name="ruc" placeholder="1790000000001" value={formData.ruc} onChange={handleChange} autoComplete="off" className="pl-8 h-9 text-sm" required />
                   </div>
-                  
-                  <div className="space-y-1.5 group">
-                    <Label htmlFor="clave_sri_modal" className="text-xs group-focus-within:text-primary transition-colors">Clave de Acceso</Label>
-                    <div className="relative">
-                      <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-brand-gray-400 group-focus-within:text-primary transition-colors" />
-                      <Input 
-                        id="clave_sri_modal" 
-                        name="clave_sri" 
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••" 
-                        value={formData.clave_sri}
-                        onChange={handleChange}
-                        autoComplete="off"
-                        className="pl-9 pr-10 h-9 transition-all border-brand-gray-200 focus:border-primary focus:ring-primary/20 text-sm"
-                        required 
-                      />
-                      <button 
-                        type="button" 
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-2.5 text-brand-gray-400 hover:text-brand-gray-600 transition-colors"
-                        tabIndex={-1}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
+                </div>
 
-                  <div className="space-y-1.5 group">
-                    <Label htmlFor="tipo_comprobante_modal" className="text-xs group-focus-within:text-primary transition-colors">Tipo de Comprobante</Label>
-                    <select
-                      id="tipo_comprobante_modal"
-                      name="tipo_comprobante"
-                      value={formData.tipo_comprobante}
-                      onChange={handleChange}
-                      className="w-full h-9 px-3 rounded-md border border-brand-gray-200 bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all border-brand-gray-200 focus:border-primary focus:ring-primary/20 text-brand-gray-800"
-                      required
+                <div className="space-y-1">
+                  <Label htmlFor="clave_sri_modal" className="text-xs font-medium text-muted-foreground">Clave de acceso</Label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <Input id="clave_sri_modal" name="clave_sri" type={showPassword ? "text" : "password"} placeholder="••••••••" value={formData.clave_sri} onChange={handleChange} autoComplete="off" className="pl-8 pr-9 h-9 text-sm" required />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer" tabIndex={-1}>
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="tipo_comprobante_modal" className="text-xs font-medium text-muted-foreground">Tipo de comprobante</Label>
+                  <select id="tipo_comprobante_modal" name="tipo_comprobante" value={formData.tipo_comprobante} onChange={handleChange} className="w-full h-9 px-3 rounded-lg border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" required>
+                    <option value="1">Factura</option>
+                    <option value="2">Liquidación de compra</option>
+                    <option value="3">Nota de Crédito</option>
+                    <option value="4">Nota de Débito</option>
+                    <option value="6">Comprobante de Retención</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="fecha_desde_modal" className="text-xs font-medium text-muted-foreground">Desde</Label>
+                    <div className="relative">
+                      <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                      <Input id="fecha_desde_modal" name="fecha_desde" type="date" value={formData.fecha_desde} onChange={handleChange} className="pl-8 h-9 text-xs" required />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="fecha_hasta_modal" className="text-xs font-medium text-muted-foreground">Hasta</Label>
+                    <div className="relative">
+                      <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                      <Input id="fecha_hasta_modal" name="fecha_hasta" type="date" value={formData.fecha_hasta} onChange={handleChange} min={formData.fecha_desde} className="pl-8 h-9 text-xs" required />
+                    </div>
+                  </div>
+                </div>
+
+                {isDevMode && (
+                  <div className="border border-dashed border-amber-300 rounded-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setShowDevOptions(!showDevOptions)}
+                      className="w-full flex items-center justify-between px-3 py-2 bg-amber-50 hover:bg-amber-100 transition-colors cursor-pointer"
                     >
-                      <option value="1">Factura</option>
-                      <option value="2">Liquidación de compra</option>
-                      <option value="3">Nota de Crédito</option>
-                      <option value="4">Nota de Débito</option>
-                      <option value="6">Comprobante de Retención</option>
-                    </select>
-                  </div>
+                      <span className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
+                        <Settings className="w-3.5 h-3.5" />
+                        Opciones de desarrollo
+                      </span>
+                      {showDevOptions ? <ChevronUp className="w-3.5 h-3.5 text-amber-700" /> : <ChevronDown className="w-3.5 h-3.5 text-amber-700" />}
+                    </button>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5 group">
-                      <Label htmlFor="fecha_desde_modal" className="text-xs group-focus-within:text-primary transition-colors">Fecha Desde</Label>
-                      <div className="relative">
-                        <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-brand-gray-400 group-focus-within:text-primary transition-colors pointer-events-none" />
-                        <Input 
-                          id="fecha_desde_modal" 
-                          name="fecha_desde" 
-                          type="date" 
-                          value={formData.fecha_desde}
-                          onChange={handleChange}
-                          className="pl-8 h-9 transition-all border-brand-gray-200 focus:border-primary focus:ring-primary/20 text-brand-gray-800 text-xs"
-                          required 
-                        />
+                    {showDevOptions && (
+                      <div className="p-3 space-y-3 bg-amber-50/50">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Modo de conexión</Label>
+                          {(['cdp', 'new_browser', 'headless_separate', 'http'] as const).map((mode) => (
+                            <label key={mode} className="flex items-center gap-2 py-0.5 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="connection_mode"
+                                checked={devOptions.connection_mode === mode}
+                                onChange={() => setDevOptions(prev => ({ ...prev, connection_mode: mode }))}
+                                className="accent-amber-600"
+                              />
+                              <span className="text-[11px] text-amber-900">
+                                {mode === 'cdp' && 'CDP (misma ventana Chrome, prof. ./browser_session/)'}
+                                {mode === 'new_browser' && 'Ventana separada (perfil nuevo)'}
+                                {mode === 'headless_separate' && 'Headless aislado (./browser_session/)'}
+                                {mode === 'http' && 'HTTP directo (sin navegador)'}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Estrategia CAPTCHA</Label>
+                          {(['auto', 'anticaptcha', 'buster', 'manual'] as const).map((strategy) => (
+                            <label key={strategy} className="flex items-center gap-2 py-0.5 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="captcha_strategy"
+                                checked={devOptions.captcha_strategy === strategy}
+                                onChange={() => setDevOptions(prev => ({ ...prev, captcha_strategy: strategy }))}
+                                className="accent-amber-600"
+                              />
+                              <span className="text-[11px] text-amber-900">
+                                {strategy === 'auto' && 'Auto (Anti-Captcha → Buster)'}
+                                {strategy === 'anticaptcha' && 'Solo Anti-Captcha'}
+                                {strategy === 'buster' && 'Solo Buster'}
+                                {strategy === 'manual' && 'Manual (modo visible)'}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+
+                        <div className="flex flex-wrap gap-3 pt-1">
+                          {([
+                            { key: 'debug_screenshots' as const, label: 'Debug screenshots' },
+                            { key: 'verbose_logging' as const, label: 'Verbose logging' },
+                            { key: 'dom_dump_on_error' as const, label: 'DOM dump on error' },
+                          ]).map(opt => (
+                            <label key={opt.key} className="flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={devOptions[opt.key]}
+                                onChange={() => setDevOptions(prev => ({ ...prev, [opt.key]: !prev[opt.key] }))}
+                                className="accent-amber-600"
+                              />
+                              <span className="text-[10px] text-amber-800">{opt.label}</span>
+                            </label>
+                          ))}
+                        </div>
+
+                        <span className="block border-t border-amber-200 my-1" />
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch('/api/system/restart-chrome', { method: 'POST' });
+                              const data = await res.json();
+                              if (data.success) {
+                                toast.success(data.message);
+                              } else {
+                                toast.error(data.error || 'Error al reiniciar Chrome');
+                              }
+                            } catch {
+                              toast.error('Error de red al intentar reiniciar Chrome');
+                            }
+                          }}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-md transition-colors cursor-pointer"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Reiniciar Chrome con debug port (usa tu sesión SRI activa)
+                        </button>
                       </div>
-                    </div>
-                    <div className="space-y-1.5 group">
-                      <Label htmlFor="fecha_hasta_modal" className="text-xs group-focus-within:text-primary transition-colors">Fecha Hasta</Label>
-                      <div className="relative">
-                        <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-brand-gray-400 group-focus-within:text-primary transition-colors pointer-events-none" />
-                        <Input 
-                          id="fecha_hasta_modal" 
-                          name="fecha_hasta" 
-                          type="date" 
-                          value={formData.fecha_hasta}
-                          onChange={handleChange}
-                          min={formData.fecha_desde}
-                          className="pl-8 h-9 transition-all border-brand-gray-200 focus:border-primary focus:ring-primary/20 text-brand-gray-800 text-xs"
-                          required 
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-                
-                <CardFooter className="bg-brand-gray-50 border-t border-brand-gray-100 rounded-b-xl py-4 flex flex-col gap-2">
-                  <Button 
-                    type="submit" 
-                    disabled={loading} 
-                    className="w-full bg-primary hover:bg-primary/90 text-white shadow-sm transition-all"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Iniciando Proceso...
-                      </>
-                    ) : (
-                      <>
-                        <DownloadCloud className="mr-2 h-4 w-4" />
-                        Iniciar Descarga
-                      </>
                     )}
-                  </Button>
-                </CardFooter>
+                  </div>
+                )}
+
+                <Button type="submit" disabled={loading} className="w-full mt-2 cursor-pointer">
+                  {loading ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Iniciando...</>
+                  ) : (
+                    <><DownloadCloud className="mr-2 h-4 w-4" /> Iniciar Descarga</>
+                  )}
+                </Button>
               </form>
-            </Card>
+            </div>
           </div>
 
-          {/* Jobs Column */}
-          <div className="lg:col-span-7">
-            <Card className="h-full border-brand-gray-200 shadow-sm flex flex-col min-h-[400px]">
-              <CardHeader className="flex flex-row items-center justify-between border-b border-brand-gray-100 bg-white rounded-t-xl pb-3 py-3">
-                <div>
-                  <CardTitle className="text-lg">Historial de Tareas</CardTitle>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => fetchJobs(true)}
-                  disabled={isRefreshing}
-                  className="gap-2 transition-all hover:bg-brand-gray-50 h-8 text-xs"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-primary' : 'text-brand-gray-500'}`} />
-                  <span className="hidden sm:inline font-medium">Actualizar</span>
+          {/* Jobs */}
+          <div className="lg:col-span-7 order-1 lg:order-2">
+            <div className="rounded-xl border border-border bg-card shadow-xs flex flex-col min-h-[400px] overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <History className="w-4 h-4 text-brand-navy" />
+                  Historial de Tareas
+                </h3>
+                <Button variant="outline" size="sm" onClick={() => fetchJobs(true)} disabled={isRefreshing} className="gap-1.5 h-8 text-xs cursor-pointer">
+                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-brand-navy' : ''}`} />
+                  <span className="hidden sm:inline">Actualizar</span>
                 </Button>
-              </CardHeader>
-              <CardContent className="p-0 flex-1 relative">
+              </div>
+
+              <div className="flex-1 relative">
                 {jobs.length === 0 ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-brand-gray-400 animate-in fade-in zoom-in-95 duration-500">
-                    <div className="bg-brand-gray-50 p-3 rounded-full mb-3 shadow-sm border border-brand-gray-100">
-                      <Inbox className="h-8 w-8 text-brand-gray-300" />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+                    <div className="p-3 rounded-full bg-muted mb-3">
+                      <Inbox className="h-8 w-8 text-muted-foreground" />
                     </div>
-                    <h3 className="text-base font-medium text-brand-gray-900 mb-1">Sin historial de descargas</h3>
-                    <p className="text-xs max-w-sm leading-relaxed text-brand-gray-500">
-                      Inicia tu primera descarga usando el formulario de la izquierda.
+                    <h4 className="text-sm font-semibold text-foreground mb-1">Sin descargas aún</h4>
+                    <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+                      Completa el formulario de la izquierda para iniciar tu primera sincronización.
                     </p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto h-[350px] overflow-y-auto rounded-b-xl">
+                  <div className="overflow-x-auto max-h-[40vh] md:max-h-[400px] overflow-y-auto">
                     <table className="w-full text-xs text-left">
-                      <thead className="bg-brand-gray-50 text-brand-gray-500 font-semibold uppercase tracking-wider sticky top-0 z-10 shadow-sm">
+                      <thead className="bg-muted/50 text-muted-foreground font-semibold uppercase tracking-wider sticky top-0 z-10">
                         <tr>
-                          <th className="px-4 py-2.5">Estado</th>
-                          <th className="px-4 py-2.5">RUC</th>
-                          <th className="px-4 py-2.5">Período</th>
-                          <th className="px-4 py-2.5">Tipo</th>
-                          <th className="px-4 py-2.5">Detalle</th>
-                          <th className="px-4 py-2.5 text-right">Fecha</th>
-                          <th className="px-4 py-2.5 text-center">Acciones</th>
+                          <th className="px-3 py-2.5">Estado</th>
+                          <th className="px-3 py-2.5">RUC</th>
+                          <th className="px-3 py-2.5">Período</th>
+                          <th className="px-3 py-2.5 hidden sm:table-cell">Tipo</th>
+                          <th className="px-3 py-2.5">Detalle</th>
+                          <th className="px-3 py-2.5 text-right hidden sm:table-cell">Fecha</th>
+                          <th className="px-3 py-2.5 text-center w-10"></th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-brand-gray-100">
-                        {jobs.map((job, index) => (
-                          <tr 
-                            key={job.id} 
-                            className="hover:bg-brand-gray-50/50 transition-colors bg-white animate-in fade-in slide-in-from-bottom-2"
-                            style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'both' }}
-                          >
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              {getStatusBadge(job.status)}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-brand-gray-600 font-mono">
-                              {job.ruc}
-                            </td>
-                            <td className="px-4 py-3 font-medium text-brand-gray-900 whitespace-nowrap">
-                              {job.fecha_desde 
-                                ? `${new Date(job.fecha_desde).toLocaleDateString()} al ${new Date(job.fecha_hasta).toLocaleDateString()}` 
-                                : `${job.mes?.toString().padStart(2, '0')}/${job.anio}`}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-brand-gray-600 font-medium">
-                              {getTipoLabel(job.tipo_comprobante)}
-                            </td>
-                            <td className="px-4 py-3 min-w-[180px]">
-                              <div className="flex flex-col gap-1">
-                                {job.status === 'PROCESSING' && (
-                                  <div className="w-24 h-1 bg-brand-gray-100 rounded-full overflow-hidden shrink-0">
-                                    <div className="h-full bg-blue-500 animate-pulse rounded-full w-2/3"></div>
-                                  </div>
-                                )}
-                                <span className="text-brand-gray-600 truncate max-w-[200px] text-[11px] leading-tight" title={job.progress_message || ''}>
-                                  {job.progress_message || 'Iniciando...'}
+                      <tbody className="divide-y divide-border">
+                        {jobs.map((job, i) => {
+                          const status = job.status as JobStatus;
+                          const cfg = statusConfig[status] || statusConfig.PENDING;
+                          const Icon = cfg.icon;
+                          return (
+                            <tr key={job.id} className="hover:bg-accent/50 transition-colors" style={{ animationDelay: `${i * 30}ms`, animationFillMode: 'both' }}>
+                              <td className="px-3 py-2.5 whitespace-nowrap">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${cfg.className} ${status === 'PROCESSING' ? 'animate-pulse' : ''}`}>
+                                  <Icon className={`w-3 h-3 ${status === 'PROCESSING' ? 'animate-spin' : ''}`} />
+                                  {cfg.label}
                                 </span>
-                              </div>
-                            </td>
-                          <td className="px-4 py-3 text-brand-gray-500 text-right whitespace-nowrap text-[10px]">
-                            {new Date(job.created_at).toLocaleString(undefined, {
-                              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                            })}
-                          </td>
-                          <td className="px-4 py-3 text-center whitespace-nowrap">
-                            {(job.status === 'PENDING' || job.status === 'PROCESSING') && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => cancelJob(job.id)}
-                                className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                title="Cancelar tarea"
-                              >
-                                <Ban className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                          </td>
-                        </tr>
-                        ))}
+                              </td>
+                              <td className="px-3 py-2.5 font-mono text-muted-foreground text-[10px]">{job.ruc}</td>
+                              <td className="px-3 py-2.5 font-medium text-foreground whitespace-nowrap text-[11px]">
+                                {job.fecha_desde
+                                  ? `${new Date(job.fecha_desde).toLocaleDateString()} - ${new Date(job.fecha_hasta).toLocaleDateString()}`
+                                  : `${job.mes?.toString().padStart(2, '0')}/${job.anio}`}
+                              </td>
+                              <td className="px-3 py-2.5 text-muted-foreground hidden sm:table-cell text-[11px]">{getTipoLabel(job.tipo_comprobante)}</td>
+                              <td className="px-3 py-2.5 min-w-[140px]">
+                                <div className="flex flex-col gap-1">
+                                  {status === 'PROCESSING' && (
+                                    <div className="w-20 h-1 bg-border rounded-full overflow-hidden">
+                                      <div className="h-full bg-brand-navy-light rounded-full w-2/3 animate-pulse" />
+                                    </div>
+                                  )}
+                                  <span className="text-muted-foreground truncate max-w-[160px] text-[10px] leading-tight" title={job.progress_message || ''}>
+                                    {job.progress_message || (status === 'PENDING' ? 'Esperando inicio...' : '')}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-3 py-2.5 text-muted-foreground text-right whitespace-nowrap text-[10px] hidden sm:table-cell">
+                                {new Date(job.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="px-3 py-2.5 text-center">
+                                {(status === 'PENDING' || status === 'PROCESSING') && (
+                                  <Button variant="ghost" size="sm" onClick={() => cancelJob(job.id)} className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer" title="Cancelar">
+                                    <Ban className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </div>
       </div>

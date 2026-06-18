@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSidebar } from "@/contexts/SidebarContext";
+import { useTheme } from "next-themes";
 import { sriClient } from "@/lib/sriClient";
 
 interface TopbarProps {
@@ -36,11 +38,36 @@ const typeStyles: Record<string, { color: string; bg: string; dot: string }> = {
 };
 
 export default function Topbar({ title, period = "Período actual", backLink }: TopbarProps) {
-  const { hasSriLinked, logout } = useAuth();
+  const { user, hasSriLinked } = useAuth();
+  const { setMobileOpen } = useSidebar();
+  const { theme, setTheme } = useTheme();
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [sriConnected, setSriConnected] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [userInitials, setUserInitials] = useState("—");
   const notifRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (user?.email) {
+      const emailName = user.email.split("@")[0];
+      setUserName(emailName);
+      setUserInitials(emailName.slice(0, 2).toUpperCase());
+    }
+    if (!hasSriLinked) return;
+    sriClient.getEmisor().then((res) => {
+      if (res.success && res.emisor) {
+        const name = res.emisor.razonSocial || res.emisor.ruc || "";
+        setUserName(name);
+        const parts = name.trim().split(/\s+/).filter(Boolean);
+        setUserInitials(
+          parts.length >= 2
+            ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+            : name.slice(0, 2).toUpperCase() || "—"
+        );
+      }
+    }).catch(() => {});
+  }, [user, hasSriLinked]);
 
   useEffect(() => {
     const load = async () => {
@@ -89,15 +116,11 @@ export default function Topbar({ title, period = "Período actual", backLink }: 
   };
 
   return (
-    <header className="bg-white border-b border-slate-200 px-4 md:px-6 h-14 flex items-center justify-between sticky top-0 z-40 select-none">
+    <header className="bg-background border-b border-border px-4 md:px-6 h-14 flex items-center justify-between sticky top-0 z-40 select-none">
       <div className="flex items-center gap-3">
         <button
-          onClick={() => {
-            if (typeof window !== "undefined") {
-              window.dispatchEvent(new CustomEvent("toggle-sidebar"));
-            }
-          }}
-          className="md:hidden w-8 h-8 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer flex items-center justify-center transition-colors"
+          onClick={() => setMobileOpen(true)}
+          className="md:hidden w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg cursor-pointer flex items-center justify-center transition-colors"
           aria-label="Abrir Menú"
         >
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -110,50 +133,52 @@ export default function Topbar({ title, period = "Período actual", backLink }: 
             <>
               <Link
                 href={backLink.href}
-                className="text-slate-400 hover:text-slate-700 flex items-center gap-1 text-[13px] transition-colors"
+                className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-[13px] transition-colors"
               >
                 <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                   <path d="M15 18l-6-6 6-6" />
                 </svg>
                 {backLink.label}
               </Link>
-              <span className="text-slate-300">/</span>
+              <span className="text-border">/</span>
             </>
           ) : null}
-          <span className="text-[15px] font-semibold text-slate-800">{title}</span>
-          <span className="bg-slate-100 text-slate-500 text-[11px] font-semibold rounded-full px-2.5 py-0.5">
+          <span className="text-[15px] font-semibold text-foreground">{title}</span>
+          <span className="bg-muted text-muted-foreground text-[11px] font-semibold rounded-full px-2.5 py-0.5">
             {period}
           </span>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className={`hidden sm:flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
-          sriConnected
-            ? "bg-emerald-50 border border-emerald-200 text-emerald-700"
-            : "bg-slate-50 border border-slate-200 text-slate-500"
-        }`}>
-          <div className={`w-1.5 h-1.5 rounded-full ${sriConnected ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
-          SRI
+      <div className="flex items-center gap-1.5">
+        <div className="hidden sm:flex items-center gap-2 mr-1 pr-2 border-r border-border">
+          <div className="text-right leading-tight">
+            <div className="text-[12px] font-semibold text-foreground truncate max-w-[110px]">{userName || user?.email || "Usuario"}</div>
+            <div className="text-[9px] text-muted-foreground truncate max-w-[110px]">{sriConnected ? "Conectado SRI" : "Sin SRI"}</div>
+          </div>
+          <div className="w-8 h-8 bg-gradient-to-br from-brand-navy-light to-brand-sky rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-sm">
+            {userInitials}
+          </div>
         </div>
 
         <button
           type="button"
-          onClick={logout}
-          className="hidden sm:flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700 cursor-pointer transition-colors"
-          title="Cerrar sesión"
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          title="Cambiar tema"
+          className="w-8 h-8 rounded-lg border border-input bg-card hover:bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
         >
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
-          </svg>
-          Salir
+          {theme === "dark" ? (
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" /></svg>
+          ) : (
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" /></svg>
+          )}
         </button>
 
         <div ref={notifRef} className="relative">
           <button
             id="notif-bell-btn"
             onClick={() => setNotifOpen((o) => !o)}
-            className="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-500 cursor-pointer relative transition-colors"
+            className="w-8 h-8 rounded-lg border border-input bg-card hover:bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer relative transition-colors"
             aria-label="Notificaciones"
           >
             <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -167,22 +192,22 @@ export default function Topbar({ title, period = "Período actual", backLink }: 
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 top-10 w-80 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-                <span className="text-[13px] font-bold text-slate-800">Notificaciones</span>
+            <div className="absolute right-0 top-10 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <span className="text-[13px] font-bold text-foreground">Notificaciones</span>
                 {unreadCount > 0 && (
                   <button
                     onClick={markAllRead}
-                    className="text-[11px] font-medium text-blue-600 hover:text-blue-800 cursor-pointer transition-colors"
+                    className="text-[11px] font-medium text-brand-navy-light hover:text-brand-navy cursor-pointer transition-colors"
                   >
                     Marcar todas como leídas
                   </button>
                 )}
               </div>
 
-              <div className="flex flex-col divide-y divide-slate-50 max-h-72 overflow-y-auto">
+              <div className="flex flex-col divide-y divide-border max-h-72 overflow-y-auto">
                 {notifications.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-[12px] text-slate-400">
+                  <div className="px-4 py-6 text-center text-[12px] text-muted-foreground">
                     {sriClient.isAuthenticated()
                       ? "No hay notificaciones pendientes"
                       : "Inicia sesión para ver notificaciones reales"}
@@ -198,20 +223,20 @@ export default function Topbar({ title, period = "Período actual", backLink }: 
                         );
                         setNotifOpen(false);
                       }}
-                      className={`flex items-start gap-3 px-4 py-3 ${n.unread ? "bg-blue-50/30" : "bg-white"} hover:bg-slate-50 transition-colors`}
+                      className={`flex items-start gap-3 px-4 py-3 ${n.unread ? "bg-brand-red-pale/30" : "bg-card"} hover:bg-accent transition-colors`}
                     >
-                      <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${n.unread ? n.dot : "bg-slate-200"}`} />
+                      <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${n.unread ? n.dot : "bg-muted-foreground/30"}`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-semibold text-slate-800 truncate">{n.title}</p>
-                        <p className="text-[11px] text-slate-500 truncate">{n.body}</p>
+                        <p className="text-[12px] font-semibold text-foreground truncate">{n.title}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">{n.body}</p>
                       </div>
-                      <span className="text-[10px] text-slate-400 shrink-0 whitespace-nowrap">{n.time}</span>
+                      <span className="text-[10px] text-muted-foreground/60 shrink-0 whitespace-nowrap">{n.time}</span>
                     </Link>
                   ))
                 )}
               </div>
 
-              <div className="border-t border-slate-100 px-4 py-2.5">
+              <div className="border-t border-border px-4 py-2.5">
                 <Link
                   href="/notificaciones"
                   onClick={() => setNotifOpen(false)}

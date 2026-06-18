@@ -130,9 +130,24 @@ export async function downloadReceivedComprobantes(
       await new Promise(r => setTimeout(r, 1000));
       
       let searchSuccess = false;
+      let captchaWasHandled = false;
       const MAX_SEARCH_ATTEMPTS = 5;
       for (let attempt = 0; attempt < MAX_SEARCH_ATTEMPTS; attempt++) {
         console.log(`[Worker Debug] Intento de búsqueda ${attempt + 1}/${MAX_SEARCH_ATTEMPTS}...`);
+
+        // Si el frame se desprendió entre intentos (Buster/CAPTCHA causa navegación),
+        // re-navegamos a la página de comprobantes
+        try {
+          await page.evaluate(() => 1);
+        } catch {
+          console.log('[Worker Debug] Frame detached, re-navegando a comprobantes...');
+          await page.goto('https://srienlinea.sri.gob.ec/tuportal-internet/accederAplicacion.jspa?redireccion=57&idGrupo=55', { 
+            waitUntil: 'domcontentloaded',
+            timeout: 60000
+          }).catch(() => {});
+          await page.waitForSelector('select[id*="ano"], body', { timeout: 30000 }).catch(() => {});
+          await new Promise(r => setTimeout(r, 3000));
+        }
 
         // Limpiar filas de la consulta anterior y mensajes para evitar falsos positivos
         await page.evaluate(() => {
@@ -142,7 +157,19 @@ export async function downloadReceivedComprobantes(
           msgs.forEach(m => m.remove());
         }).catch(() => {});
 
-        const searchBtn = await page.$('button[id*="btnConsultar"], button[id*="btnBuscar"], button[id*="Consultar"], button[id*="Buscar"]');
+        // Pre-resolver CAPTCHA con Anti-Captcha antes del clic
+        if (ANTICAPTCHA_KEY) {
+          console.log('[Worker CAPTCHA] Pre-resolviendo CAPTCHA con Anti-Captcha antes de buscar...');
+          await solveRecaptchaAntiCaptcha(page, 'consulta_cel_recibidos');
+        }
+
+        let searchBtn;
+        try {
+          searchBtn = await page.$('button[id*="btnConsultar"], button[id*="btnBuscar"], button[id*="Consultar"], button[id*="Buscar"]');
+        } catch {
+          console.log('[Worker Debug] Frame detached en searchBtn, saltando reintento...');
+          continue;
+        }
         if (searchBtn) {
           await realisticClick(page, 'button[id*="btnConsultar"], button[id*="btnBuscar"], button[id*="Consultar"], button[id*="Buscar"]');
         } else {
@@ -150,7 +177,7 @@ export async function downloadReceivedComprobantes(
         }
         await new Promise(r => setTimeout(r, 3000));
 
-        // Detectar y resolver CAPTCHA activo en caso de bloqueo
+        // Detectar y resolver CAPTCHA activo (Buster se usa DESPUÉS del clic)
         const hasChallenge = await page.evaluate(() => {
           const frames = Array.from(document.querySelectorAll('iframe'));
           return frames.some(f => f.src.includes('api2/bframe') || f.src.includes('bframe') || f.name.includes('c-'));
@@ -164,7 +191,25 @@ export async function downloadReceivedComprobantes(
           if (!solved) {
             solved = await trySolveRecaptcha(page);
           }
-          await new Promise(r => setTimeout(r, 4000));
+          if (solved) {
+            console.log('[Worker CAPTCHA] ✅ CAPTCHA resuelto. Re-enviando búsqueda vía PrimeFaces.ab...');
+            captchaWasHandled = true;
+            await new Promise(r => setTimeout(r, 2000));
+            await page.evaluate(() => {
+              try {
+                (window as any).PrimeFaces?.ab?.({source: 'frmPrincipal:btnBuscar'});
+              } catch (e) {
+                const form = document.getElementById('frmPrincipal') as HTMLFormElement;
+                if (form) form.submit();
+              }
+            }).catch((err: any) => {
+              console.log('[Worker CAPTCHA] Error en re-submit:', err.message);
+            });
+            await new Promise(r => setTimeout(r, 6000));
+          } else {
+            console.log('[Worker CAPTCHA] ⚠️ No se pudo resolver el CAPTCHA.');
+            await new Promise(r => setTimeout(r, 4000));
+          }
         }
 
         console.log('[Worker Debug] Esperando resultados...');
@@ -181,7 +226,7 @@ export async function downloadReceivedComprobantes(
             ) !== null;
             const hasCaptchaError = bodyText.includes('Captcha incorrecta') || bodyText.includes('CAPTCHA incorrecto');
             return hasNoResults || hasTable || hasCaptchaError;
-          }, { timeout: 30000 });
+          }, { timeout: 15000 });
 
           state = await page.evaluate(() => {
             const bodyText = document.body.innerText;
@@ -197,6 +242,17 @@ export async function downloadReceivedComprobantes(
           });
         } catch (waitErr) {
           console.log('[Worker Debug] Timeout esperando respuesta de la consulta.');
+          const bodyPreview = await page.evaluate(() => document.body?.innerText?.substring(0, 500)).catch(() => 'N/A');
+          console.log(`[Worker Debug] Diagnóstico - body text:\n${bodyPreview}`);
+          try {
+            const dbgPath = path.resolve(`./downloads/debug-${year}${month}${day}-${attempt}.png`);
+            await page.screenshot({ path: dbgPath });
+            console.log(`[Worker Debug] Screenshot guardado en: ${dbgPath}`);
+          } catch {}
+          if (captchaWasHandled) {
+            console.log('[Worker Debug] CAPTCHA ya resuelto y re-submit hecho. Asumiendo sin resultados.');
+            break;
+          }
         }
 
         if (state.hasTable || state.hasNoResults) {

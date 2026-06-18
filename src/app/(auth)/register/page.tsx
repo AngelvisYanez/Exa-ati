@@ -3,11 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/contexts/ToastContext";
+import { toast } from "sonner";
 
 export default function RegisterPage() {
   const { register } = useAuth();
-  const toast = useToast();
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

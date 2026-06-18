@@ -152,7 +152,7 @@ export default function NotificacionesPage() {
 
       <Topbar title="Notificaciones" period={formatDateRangeLabel(dateRange)} />
 
-      <main className="p-6 md:p-8 flex-1 flex flex-col gap-6 max-w-5xl mx-auto w-full">
+      <main className="p-3 flex-1 flex flex-col gap-6 w-full">
         <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-slate-200 rounded-xl px-4 py-3" />
         {error && (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3">{error}</div>

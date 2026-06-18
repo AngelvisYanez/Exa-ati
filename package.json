@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "smoke": "node scripts/smoke-test.mjs",
     "setup": "node scripts/setup-admin.mjs",
     "worker:sri": "node -r ts-node/register scripts/worker/index.ts"
@@ -22,6 +24,7 @@
     "@tanstack/react-table": "^8.21.3",
     "2captcha-ts": "^2.4.1",
     "bcrypt": "^6.0.0",
+    "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "csv-parse": "^7.0.0",
@@ -74,6 +77,7 @@
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   }
 }

@@ -36,6 +36,7 @@ const WSDL_TIMEOUT_MS = parseInt(process.env.SRI_WSDL_TIMEOUT_MS || '25000', 10)
 const SOAP_TIMEOUT_MS = parseInt(process.env.SRI_SOAP_TIMEOUT_MS || '45000', 10);
 const SOAP_MAX_RETRIES = parseInt(process.env.SRI_SOAP_MAX_RETRIES || '3', 10);
 const WSDL_FAILURE_COOLDOWN_MS = 60_000;
+const AUTH_DELAY_MS = parseInt(process.env.SRI_AUTH_DELAY_MS || '2000', 10);
 
 function resolveWsdlUrl(kind: 'recepcion' | 'autorizacion', ambiente: '1' | '2'): string {
   const fallback = kind === 'recepcion'
@@ -162,6 +163,10 @@ function extractMensajesRecepcion(response: any): SriMensaje[] {
     return mensajes;
 }
 
+function hasErrorCode(mensajes: SriMensaje[], codigo: string): boolean {
+  return mensajes.some((m) => m.identificador?.trim() === codigo);
+}
+
 export const sriSoapClient = {
   async enviarYAutorizar(xmlFirmado: string, claveAcceso: string): Promise<SriOperationResult> {
     const ambiente = claveAcceso.substring(23, 24) as '1' | '2';
@@ -178,12 +183,17 @@ export const sriSoapClient = {
         const estado = resp?.estado || 'DEVUELTA';
         
         if (estado !== 'RECIBIDA') {
-            return {
-                success: false,
-                claveAcceso,
-                estado,
-                mensajes: extractMensajesRecepcion(resp)
-            };
+            const mensajes = extractMensajesRecepcion(resp);
+
+            if (hasErrorCode(mensajes, '43')) {
+                return { success: false, claveAcceso, estado: 'DUPLICADO', mensajes };
+            }
+
+            if (hasErrorCode(mensajes, '35')) {
+                return { success: false, claveAcceso, estado: 'DOCUMENTO_INVALIDO', mensajes };
+            }
+
+            return { success: false, claveAcceso, estado, mensajes };
         }
     } catch (e: any) {
          return {
@@ -192,8 +202,8 @@ export const sriSoapClient = {
          };
     }
 
-    // Esperar un momento antes de autorizar
-    await new Promise(r => setTimeout(r, 2000));
+    // Esperar un momento antes de autorizar (delay parametrizable)
+    await new Promise(r => setTimeout(r, AUTH_DELAY_MS));
 
     // 2. Autorización
     const respAuth = await this.autorizarComprobante(claveAcceso);
@@ -218,10 +228,13 @@ export const sriSoapClient = {
         }));
     }
 
+    const error70 = hasErrorCode(mensajes, '70');
+    const estadoFinal = error70 ? 'EN_PROCESO' : estadoAuth;
+
     return {
-        success: estadoAuth === 'AUTORIZADO',
+        success: estadoFinal === 'AUTORIZADO',
         claveAcceso,
-        estado: estadoAuth,
+        estado: estadoFinal,
         fechaAutorizacion: auth.fechaAutorizacion,
         numeroAutorizacion: auth.numeroAutorizacion,
         xmlAutorizado: typeof auth.comprobante === 'string' ? auth.comprobante : undefined,

@@ -172,6 +172,61 @@ export async function buildNotifications(
   }
 
   try {
+    const haceUnaHora = new Date(Date.now() - 3600000).toISOString();
+    const autorizadosRecientes = await db.queryAll<any>(
+      `SELECT clave_acceso, secuencial, emisor_razon_social, updated_at
+       FROM comprobantes
+       WHERE estado = 'AUTORIZADO'
+         AND updated_at >= $1
+       ORDER BY updated_at DESC
+       LIMIT 3`,
+      [haceUnaHora]
+    ).catch(() => []);
+
+    for (const doc of autorizadosRecientes) {
+      const at = doc.updated_at ? new Date(doc.updated_at) : new Date();
+      const rel = formatRelative(at);
+      notifications.push({
+        id: `cron-auth-${doc.clave_acceso}`,
+        type: 'presentacion',
+        title: 'Comprobante autorizado automáticamente',
+        body: `CRON SRI: Secuencial ${doc.secuencial} · ${doc.emisor_razon_social || 'Emisor'} · AUTORIZADO`,
+        ...rel,
+        at: at.toISOString(),
+        channel: 'App',
+        unread: true,
+        actionLabel: 'Ver documento',
+        actionHref: '/documentos',
+      });
+    }
+
+    const timeoutsRecientes = await db.queryAll<any>(
+      `SELECT clave_acceso, secuencial, emisor_razon_social, updated_at
+       FROM comprobantes
+       WHERE estado = 'TIMEOUT_SRI'
+         AND updated_at >= $1
+       ORDER BY updated_at DESC
+       LIMIT 3`,
+      [haceUnaHora]
+    ).catch(() => []);
+
+    for (const doc of timeoutsRecientes) {
+      const at = doc.updated_at ? new Date(doc.updated_at) : new Date();
+      const rel = formatRelative(at);
+      notifications.push({
+        id: `cron-timeout-${doc.clave_acceso}`,
+        type: 'alerta',
+        title: 'Tiempo de espera SRI agotado',
+        body: `CRON SRI: Secuencial ${doc.secuencial} · ${doc.emisor_razon_social || 'Emisor'} · Tiempo máximo de 24h excedido.`,
+        ...rel,
+        at: at.toISOString(),
+        channel: 'App',
+        unread: true,
+        actionLabel: 'Ver documento',
+        actionHref: '/documentos',
+      });
+    }
+
     const scrapingJobs = await db.queryAll<any>(
       `SELECT * FROM scraping_jobs WHERE ruc = ? ORDER BY created_at DESC LIMIT 5`,
       [userRuc]
@@ -205,7 +260,7 @@ export async function buildNotifications(
         channel: 'App',
         unread: true,
         actionLabel: 'Ver detalles',
-        actionHref: '/sri-scraping',
+        actionHref: '/documentos',
       });
     }
   } catch (err) {

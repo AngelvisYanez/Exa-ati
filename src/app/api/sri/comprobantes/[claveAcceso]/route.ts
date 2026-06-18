@@ -4,6 +4,7 @@ import { db } from '@/lib/sri-api/db';
 
 const TIPO_COMPROBANTE_DESCRIPCIONES: Record<string, string> = {
   '01': 'FACTURA',
+  '03': 'LIQUIDACIÓN DE COMPRA',
   '04': 'NOTA DE CRÉDITO',
   '05': 'NOTA DE DÉBITO',
   '06': 'GUÍA DE REMISIÓN',

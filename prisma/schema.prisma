@@ -150,6 +150,7 @@ model ScrapingJob {
   actionType       String    @default("DOWNLOAD_RECEIVED") @map("action_type") @db.VarChar(50)
   status           String    @default("PENDING") @db.VarChar(50)
   progressMessage  String?   @map("progress_message") @db.Text
+  options          String?   @map("options") @db.Text
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 

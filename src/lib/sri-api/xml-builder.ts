@@ -5,6 +5,7 @@ export const NOTA_CREDITO_VERSION = '1.1.0';
 export const NOTA_DEBITO_VERSION = '1.0.0';
 export const RETENCION_VERSION = '2.0.0';
 export const GUIA_REMISION_VERSION = '1.1.0';
+export const LIQUIDACION_COMPRA_VERSION = '1.1.0';
 
 const builder = new xml2js.Builder({
   xmldec: { version: '1.0', encoding: 'UTF-8' },
@@ -364,6 +365,230 @@ export const xmlBuilder = {
     if (retencion.infoAdicional && retencion.infoAdicional.length > 0) {
       (xmlObj.comprobanteRetencion as any).infoAdicional = {
         campoAdicional: retencion.infoAdicional.map((campo: any) => ({
+          $: { nombre: campo.nombre },
+          _: campo.valor,
+        })),
+      };
+    }
+
+    return builder.buildObject(xmlObj);
+  },
+
+  buildLiquidacionCompra(liquidacion: any): string {
+    const infoLC = liquidacion.infoLiquidacionCompra || {};
+
+    const xmlObj: Record<string, any> = {
+      liquidacionCompra: {
+        $: {
+          id: 'comprobante',
+          version: LIQUIDACION_COMPRA_VERSION,
+        },
+        infoTributaria: buildInfoTributaria(liquidacion.infoTributaria),
+        infoLiquidacionCompra: {
+          fechaEmision: infoLC.fechaEmision,
+          dirEstablecimiento: infoLC.dirEstablecimiento || undefined,
+          contribuyenteEspecial: infoLC.contribuyenteEspecial || undefined,
+          obligadoContabilidad: infoLC.obligadoContabilidad,
+          tipoIdentificacionProveedor: infoLC.tipoIdentificacionProveedor,
+          razonSocialProveedor: infoLC.razonSocialProveedor,
+          identificacionProveedor: infoLC.identificacionProveedor,
+          direccionProveedor: infoLC.direccionProveedor || undefined,
+          totalSinImpuestos: formatDecimal(infoLC.totalSinImpuestos, 2),
+          totalDescuento: formatDecimal(infoLC.totalDescuento, 2),
+        },
+        totalConImpuestos: {
+          totalImpuesto: (liquidacion.totalConImpuestos || []).map((imp: any) => ({
+            codigo: imp.codigo,
+            codigoPorcentaje: imp.codigoPorcentaje,
+            descuentoAdicional: imp.descuentoAdicional !== undefined ? formatDecimal(imp.descuentoAdicional, 2) : undefined,
+            baseImponible: formatDecimal(imp.baseImponible, 2),
+            tarifa: imp.tarifa !== undefined ? formatDecimal(imp.tarifa, 2) : undefined,
+            valor: formatDecimal(imp.valor, 2),
+          })),
+        },
+        importeTotal: formatDecimal(liquidacion.importeTotal, 2),
+        moneda: liquidacion.moneda || 'USD',
+        pagos: {
+          pago: (liquidacion.pagos || []).map((p: any) => {
+            const pago: Record<string, any> = {
+              formaPago: p.formaPago,
+              total: formatDecimal(p.total, 2),
+            };
+            if (p.plazo !== undefined) {
+              pago.plazo = p.plazo;
+              pago.unidadTiempo = p.unidadTiempo || 'dias';
+            }
+            return pago;
+          }),
+        },
+        detalles: {
+          detalle: (liquidacion.detalles || []).map((d: any) => {
+            const detalle: Record<string, any> = {
+              codigoPrincipal: d.codigoPrincipal,
+            };
+            if (d.codigoAuxiliar) {
+              detalle.codigoAuxiliar = d.codigoAuxiliar;
+            }
+            detalle.descripcion = d.descripcion;
+            if (d.unidadMedida) {
+              detalle.unidadMedida = d.unidadMedida;
+            }
+            detalle.cantidad = formatDecimal(d.cantidad, 6);
+            detalle.precioUnitario = formatDecimal(d.precioUnitario, 6);
+            detalle.descuento = formatDecimal(d.descuento, 2);
+            detalle.precioTotalSinImpuesto = formatDecimal(d.precioTotalSinImpuesto, 2);
+
+            if (d.detallesAdicionales && d.detallesAdicionales.length > 0) {
+              detalle.detallesAdicionales = {
+                detAdicional: d.detallesAdicionales.map((da: any) => ({
+                  $: { nombre: da.nombre, valor: da.valor },
+                })),
+              };
+            }
+
+            detalle.impuestos = {
+              impuesto: d.impuestos.map((imp: any) => ({
+                codigo: imp.codigo,
+                codigoPorcentaje: imp.codigoPorcentaje,
+                tarifa: formatDecimal(imp.tarifa, 2),
+                baseImponible: formatDecimal(imp.baseImponible, 2),
+                valor: formatDecimal(imp.valor, 2),
+              })),
+            };
+
+            if (d.reembolsos && d.reembolsos.length > 0) {
+              detalle.reembolsos = {
+                reembolsoDetalle: d.reembolsos.map((r: any) => ({
+                  tipoIdentificacionProveedorReembolso: r.tipoIdentificacionProveedorReembolso,
+                  identificacionProveedorReembolso: r.identificacionProveedorReembolso,
+                  codPaisPagoPorProvReembolso: r.codPaisPagoPorProvReembolso,
+                  tipoProvReembolso: r.tipoProvReembolso || '01',
+                  codDocReembolso: r.codDocReembolso || '01',
+                  estabDocReembolso: r.estabDocReembolso,
+                  ptoEmiDocReembolso: r.ptoEmiDocReembolso,
+                  secuencialDocReembolso: r.secuencialDocReembolso,
+                  fechaEmisionDocReembolso: r.fechaEmisionDocReembolso,
+                  numeroAutorizacionDocReembolso: r.numeroAutorizacionDocReembolso,
+                  detalleImpuestos: {
+                    detalleImpuesto: (r.detalleImpuestos || []).map((di: any) => ({
+                      codigo: di.codigo,
+                      codigoPorcentaje: di.codigoPorcentaje,
+                      baseImponibleReembolso: formatDecimal(di.baseImponibleReembolso, 2),
+                      tarifa: formatDecimal(di.tarifa, 2),
+                      valorReembolso: formatDecimal(di.valorReembolso, 2),
+                    })),
+                  },
+                })),
+              };
+            }
+
+            return detalle;
+          }),
+        },
+      },
+    };
+
+    if (infoLC.codDocReembolso) {
+      (xmlObj.liquidacionCompra.infoLiquidacionCompra as any).codDocReembolso = infoLC.codDocReembolso;
+      if (infoLC.totalComprobantesReembolso !== undefined) {
+        (xmlObj.liquidacionCompra.infoLiquidacionCompra as any).totalComprobantesReembolso = formatDecimal(infoLC.totalComprobantesReembolso, 2);
+      }
+      if (infoLC.totalBaseImponibleReembolso !== undefined) {
+        (xmlObj.liquidacionCompra.infoLiquidacionCompra as any).totalBaseImponibleReembolso = formatDecimal(infoLC.totalBaseImponibleReembolso, 2);
+      }
+      if (infoLC.totalImpuestoReembolso !== undefined) {
+        (xmlObj.liquidacionCompra.infoLiquidacionCompra as any).totalImpuestoReembolso = formatDecimal(infoLC.totalImpuestoReembolso, 2);
+      }
+    }
+
+    if (liquidacion.maquinaFiscal) {
+      (xmlObj.liquidacionCompra as any).maquinaFiscal = {
+        marca: liquidacion.maquinaFiscal.marca,
+        modelo: liquidacion.maquinaFiscal.modelo,
+        serie: liquidacion.maquinaFiscal.serie,
+      };
+    }
+
+    if (liquidacion.infoAdicional && liquidacion.infoAdicional.length > 0) {
+      (xmlObj.liquidacionCompra as any).infoAdicional = {
+        campoAdicional: liquidacion.infoAdicional.map((campo: any) => ({
+          $: { nombre: campo.nombre },
+          _: campo.valor,
+        })),
+      };
+    }
+
+    return builder.buildObject(xmlObj);
+  },
+
+  buildGuiaRemision(guia: any): string {
+    const xmlObj: Record<string, any> = {
+      guiaRemision: {
+        $: {
+          id: 'comprobante',
+          version: GUIA_REMISION_VERSION,
+        },
+        infoTributaria: buildInfoTributaria(guia.infoTributaria),
+        infoGuiaRemision: {
+          dirEstablecimiento: guia.infoGuiaRemision.dirEstablecimiento || undefined,
+          dirPartida: guia.infoGuiaRemision.dirPartida,
+          razonSocialTransportista: guia.infoGuiaRemision.razonSocialTransportista,
+          tipoIdentificacionTransportista: guia.infoGuiaRemision.tipoIdentificacionTransportista,
+          rucTransportista: guia.infoGuiaRemision.rucTransportista,
+          rise: guia.infoGuiaRemision.rise || undefined,
+          obligadoContabilidad: guia.infoGuiaRemision.obligadoContabilidad,
+          contribuyenteEspecial: guia.infoGuiaRemision.contribuyenteEspecial || undefined,
+          fechaIniTransporte: guia.infoGuiaRemision.fechaIniTransporte,
+          fechaFinTransporte: guia.infoGuiaRemision.fechaFinTransporte,
+          placa: guia.infoGuiaRemision.placa,
+        },
+        destinatarios: {
+          destinatario: (guia.destinatarios || []).map((dest: any): Record<string, any> => {
+            const destinatario: Record<string, any> = {
+              identificacionDestinatario: dest.identificacionDestinatario,
+              razonSocialDestinatario: dest.razonSocialDestinatario,
+              dirDestinatario: dest.dirDestinatario || undefined,
+              motivoTraslado: dest.motivoTraslado,
+              docAduaneroUnico: dest.docAduaneroUnico || undefined,
+              codEstabDestino: dest.codEstabDestino || undefined,
+              ruta: dest.ruta || undefined,
+              codDocSustento: dest.codDocSustento,
+              numDocSustento: dest.numDocSustento,
+              numAutDocSustento: dest.numAutDocSustento,
+              fechaEmisionDocSustento: dest.fechaEmisionDocSustento,
+              detalles: {
+                detalle: (dest.detalles || []).map((d: any) => {
+                  const detalle: Record<string, any> = {
+                    codigoInterno: d.codigoInterno,
+                  };
+                  if (d.codigoAdicional) {
+                    detalle.codigoAdicional = d.codigoAdicional;
+                  }
+                  detalle.descripcion = d.descripcion;
+                  detalle.cantidad = formatDecimal(d.cantidad, 6);
+
+                  if (d.detallesAdicionales && d.detallesAdicionales.length > 0) {
+                    detalle.detallesAdicionales = {
+                      detAdicional: d.detallesAdicionales.map((da: any) => ({
+                        $: { nombre: da.nombre, valor: da.valor },
+                      })),
+                    };
+                  }
+
+                  return detalle;
+                }),
+              },
+            };
+
+            return destinatario;
+          }),
+        },
+      },
+    };
+
+    if (guia.infoAdicional && guia.infoAdicional.length > 0) {
+      (xmlObj.guiaRemision as any).infoAdicional = {
+        campoAdicional: guia.infoAdicional.map((campo: any) => ({
           $: { nombre: campo.nombre },
           _: campo.valor,
         })),

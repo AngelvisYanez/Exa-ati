@@ -14,7 +14,7 @@ import { sriClient, Comprobante } from "@/lib/sriClient";
 import TablePaginator, { DEFAULT_PAGE_SIZE } from "@/components/TablePaginator";
 import Dialog from "@/components/ui/Dialog";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { useToast } from "@/contexts/ToastContext";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import XmlImportZone from "@/components/XmlImportZone";
@@ -27,7 +27,6 @@ const TIPO_DESC: Record<string, string> = {
 };
 
 export default function Documentos() {
-  const toast = useToast();
   const { hasSriLinked } = useAuth();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("Todos");

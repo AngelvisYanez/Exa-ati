@@ -1,6 +1,8 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import Dialog from "./Dialog";
+import { Button } from "./button";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -34,28 +36,27 @@ export default function ConfirmDialog({
       closeOnOverlay={!loading}
       showClose={!loading}
     >
-      <p className="text-sm text-slate-600 leading-relaxed">{message}</p>
+      <p className="text-sm text-muted-foreground leading-relaxed">{message}</p>
       <div className="flex gap-2 mt-4">
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={onCancel}
           disabled={loading}
-          className="flex-1 bg-brand-gray-100 hover:bg-brand-gray-200 text-brand-gray-700 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50"
+          className="flex-1"
         >
           {cancelLabel}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant={variant === "danger" ? "destructive" : "default"}
           onClick={onConfirm}
           disabled={loading}
-          className={`flex-1 py-2.5 rounded-lg text-xs font-bold cursor-pointer transition-colors disabled:opacity-50 ${
-            variant === "danger"
-              ? "bg-red-600 hover:bg-red-700 text-white"
-              : "bg-brand-navy hover:bg-brand-navy-light text-white"
-          }`}
+          className="flex-1"
         >
+          {loading && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
           {loading ? "Procesando..." : confirmLabel}
-        </button>
+        </Button>
       </div>
     </Dialog>
   );

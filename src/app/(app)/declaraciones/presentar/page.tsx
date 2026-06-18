@@ -110,7 +110,7 @@ export default function PresentarDeclaracionPage() {
         backLink={{ href: "/declaraciones", label: "Declaraciones" }}
       />
 
-      <main className="p-6 md:p-8 flex-1 flex flex-col gap-6 max-w-3xl mx-auto w-full">
+      <main className="p-3 flex-1 flex flex-col gap-6 w-full">
         <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-slate-200 rounded-xl px-4 py-3" />
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>

@@ -294,7 +294,67 @@ En el módulo Documentos (`/documentos`), el botón **"Descarga Masiva SRI"** ab
 
 ---
 
-## 14. Cómo agregar soporte para un nuevo tipo de acción
+## 14. Browser Bridge — nuevo sistema de conexión
+
+A partir de junio 2026, se implementó el **Browser Bridge** (`src/lib/scraping/bridge.ts`) que resuelve el problema de CAPTCHA al reutilizar el navegador entre jobs.
+
+### 14.1 Modos de conexión
+
+| Modo | Descripción | CAPTCHA esperado |
+|------|-------------|------------------|
+| `cdp` | Se conecta al Chrome del usuario vía CDP (puerto 9222). Si no está abierto con debug port, lo lanza automáticamente. | Sin CAPTCHA (usa la sesión real del usuario) |
+| `new_browser` | Lanza Chrome nuevo con el perfil personal del usuario | Posible CAPTCHA en login |
+| `headless_separate` | Lanza Chrome headless con `./browser_session/` (comportamiento anterior) | Alto CAPTCHA |
+
+### 14.2 Browser caché
+
+El Bridge mantiene UNA sola instancia de Chrome viva (cacheada). Entre jobs:
+- **CDP**: se reusa el browser, solo se cierra la página. El browser del usuario nunca se cierra.
+- **new_browser / headless_separate**: se cierra el browser al terminar el job (comportamiento normal).
+
+Esto reduce drásticamente los CAPTCHA porque la sesión del SRI nunca se pierde entre jobs.
+
+### 14.3 Opciones de desarrollo en el modal
+
+Cuando `NEXT_PUBLIC_DEV_MODE=true` o `NODE_ENV=development`, el `MassDownloadModal` muestra una sección colapsable **"Opciones de desarrollo"** con:
+
+- **Modo de conexión**: CDP / Nuevo browser / Headless aislado
+- **Estrategia CAPTCHA**: Auto / Solo Anti-Captcha / Solo Buster / Manual
+- **Debug**: screenshots, verbose logging, DOM dump
+
+Las opciones se almacenan en la nueva columna `options` (JSONB/Text) de `scraping_jobs`.
+
+### 14.4 Arquitectura
+
+```
+┌─ Chrome del Usuario (opcional, con --remote-debugging-port=9222)
+│  └── CDP ← puppeteer.connect()
+│
+├─ Browser Bridge (src/lib/scraping/bridge.ts)
+│  ├── getConnectedBrowser(mode) → Browser
+│  ├── releasePage(page)         → solo cierra la página
+│  └── closeBrowser()            → limpia la caché
+│
+├─ browser.ts (Vercel) → usa Bridge en local, @sparticuz/chromium en Vercel
+├─ sync/route.ts       → usa Bridge, no cierra browser en CDP
+└─ worker/index.ts     → usa Bridge para CDP/new_browser,
+                         puppeteer-extra para headless_separate
+```
+
+### 14.5 Archivos modificados/creados
+
+| Archivo | Cambio |
+|---------|--------|
+| `src/lib/scraping/bridge.ts` | **Nuevo** — Browser Bridge Service |
+| `src/lib/scraping/browser.ts` | Refactorizado para delegar al Bridge |
+| `scripts/worker/index.ts` | Refactorizado para usar Bridge + leer `options` del job |
+| `src/app/api/sri/sync/route.ts` | Usa Bridge, no cierra browser en CDP |
+| `src/app/api/sri/scraping/route.ts` | Acepta campo `options` |
+| `src/components/MassDownloadModal.tsx` | Agrega sección "Opciones de desarrollo" |
+| `prisma/schema.prisma` | Agrega columna `options` a `ScrapingJob` |
+| `scripts/migrate-neon.mjs` | Agrega migración de `options` |
+
+## 15. Cómo agregar soporte para un nuevo tipo de acción
 
 1. Agregar el valor a `action_type` en la API (`route.ts`)
 2. En `index.ts`, agregar un nuevo `if (action === 'NUEVO_TIPO')` que llame al módulo correspondiente

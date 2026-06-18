@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { ruc, clave_sri, fecha_desde, fecha_hasta, tipo_comprobante, action_type } = body;
+    const { ruc, clave_sri, fecha_desde, fecha_hasta, tipo_comprobante, action_type, options } = body;
 
     if (!ruc || !clave_sri || !fecha_desde || !fecha_hasta) {
       return NextResponse.json(
@@ -38,6 +38,8 @@ export async function POST(req: Request) {
 
     const finalActionType = action_type || 'DOWNLOAD_RECEIVED';
 
+    const optionsStr = options && typeof options === 'object' ? JSON.stringify(options) : undefined;
+
     const jobData: Record<string, any> = {
       ruc,
       clave_sri,
@@ -48,6 +50,9 @@ export async function POST(req: Request) {
       action_type: finalActionType,
       tenant_id: tenantId,
     };
+    if (optionsStr !== undefined) {
+      jobData.options = optionsStr;
+    }
 
     const insertedJob = await db.insert('scraping_jobs', jobData, 'id');
     const jobId = insertedJob ? insertedJob.id : null;

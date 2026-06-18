@@ -59,7 +59,7 @@ export default function ComprobantesPage() {
 
       <Topbar title="Comprobantes" period={formatDateRangeLabel(dateRange)} />
 
-      <main className="p-6 md:p-8 flex-1 flex flex-col gap-6 max-w-4xl mx-auto w-full">
+      <main className="p-3 flex-1 flex flex-col gap-6 w-full">
         <DateRangeFilter value={dateRange} onChange={setDateRange} filterLabel="Período tributario" className="bg-white border border-slate-200 rounded-xl px-4 py-3" />
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -128,7 +128,7 @@ export default function ComprobantesPage() {
                       <td className="px-5 py-3.5 text-[12.5px] text-slate-600">{c.fecha}</td>
                       <td className="px-5 py-3.5 text-[13px] font-bold text-amber-700">${c.iva.toFixed(2)}</td>
                       <td className="px-5 py-3.5">
-                        <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-1 rounded-full">{c.estado}</span>
+                        <span className="text-[10px] font-bold bg-success-pale text-success px-2 py-1 rounded-full">{c.estado}</span>
                       </td>
                       <td className="px-5 py-3.5">
                         <Link

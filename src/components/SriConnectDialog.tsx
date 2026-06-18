@@ -2,14 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import Dialog from "@/components/ui/Dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/contexts/ToastContext";
+import { toast } from "sonner";
 import { sriClient } from "@/lib/sriClient";
 
 export default function SriConnectDialog() {
   const { isAuthenticated, hasSriLinked, isLoading, refreshSriStatus } = useAuth();
-  const toast = useToast();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -23,6 +25,8 @@ export default function SriConnectDialog() {
 
   const isForced = searchParams?.get("vincular") === "true";
   const show = (isAuthenticated && !hasSriLinked && !isLoading && !dismissed) || (isAuthenticated && !isLoading && isForced);
+
+  const isLoadingState = submitting || syncing;
 
   useEffect(() => {
     if (show && hasSriLinked && !ruc) {
@@ -108,16 +112,16 @@ export default function SriConnectDialog() {
           <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
             RUC / Cédula del Contribuyente
           </label>
-          <input
+          <Input
             type="text"
             required
             value={ruc}
             onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 13))}
-            className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-xs text-brand-gray-800 focus:border-brand-navy outline-none font-mono tracking-widest"
             placeholder="ej. 0704439892001"
             maxLength={13}
             inputMode="numeric"
-            disabled={submitting || syncing}
+            disabled={isLoadingState}
+            className="font-mono tracking-widest"
           />
         </div>
 
@@ -125,14 +129,13 @@ export default function SriConnectDialog() {
           <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
             Contraseña del SRI en línea
           </label>
-          <input
+          <Input
             type="password"
             required
             value={sriPassword}
             onChange={(e) => setSriPassword(e.target.value)}
-            className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-xs text-brand-gray-800 focus:border-brand-navy outline-none"
             placeholder="Contraseña del portal SRI"
-            disabled={submitting || syncing}
+            disabled={isLoadingState}
           />
         </div>
 
@@ -141,21 +144,23 @@ export default function SriConnectDialog() {
         </p>
 
         <div className="flex gap-2 mt-1">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={handleClose}
-            disabled={submitting || syncing}
-            className="flex-1 bg-brand-gray-100 hover:bg-brand-gray-200 text-brand-gray-700 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50"
+            disabled={isLoadingState}
+            className="flex-1"
           >
             {hasSriLinked ? "Cancelar" : "Configurar después"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
-            disabled={submitting || syncing}
-            className="flex-1 bg-brand-navy hover:bg-brand-navy-light text-white py-2.5 rounded-lg text-xs font-bold cursor-pointer transition-colors disabled:opacity-50"
+            disabled={isLoadingState}
+            className="flex-1"
           >
+            {isLoadingState && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
             {syncing ? "Sincronizando..." : submitting ? "Vinculando..." : hasSriLinked ? "Actualizar y sincronizar" : "Vincular y sincronizar"}
-          </button>
+          </Button>
         </div>
       </form>
     </Dialog>

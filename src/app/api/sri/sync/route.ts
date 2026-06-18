@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/sri-api/db';
-import { getBrowser } from '@/lib/scraping/browser';
+import { getBrowser, getCachedMode, releasePage } from '@/lib/scraping/browser';
+import { parseJobOptions } from '@/lib/scraping/bridge';
 import { ensureSession, solveRecaptchaAntiCaptcha, trySolveRecaptcha } from '@/lib/scraping/sri-auth';
 import { downloadReceivedComprobantes } from '@/lib/scraping/sri-downloader';
+import { runHttpScraping } from '@/lib/scraping/http-scraper';
 import { sincronizarConSri } from '@/lib/sri-api/sync-service';
 
 // Vercel Pro allows up to 300 seconds for background tasks.
@@ -44,34 +46,43 @@ export async function POST(req: Request) {
 
     // ─── Ejecutar Scraping ──────────────────────────────────────────────────────────
     let browser = null;
+    let page = null;
     try {
-      browser = await getBrowser();
-      const page = await browser.newPage();
-      page.setDefaultTimeout(120000);
-      page.setDefaultNavigationTimeout(120000);
+      const jobOpts = parseJobOptions(job.options);
+      const connectionMode = jobOpts.connection_mode || (getCachedMode() ?? undefined);
 
-      page.on('console', (msg: any) => console.log(`[Browser Console] ${msg.text()}`));
-
-      const loggedIn = await ensureSession(page, job.ruc, job.clave_sri, async (msg: string) => {
-        await updateProgress(jobId, msg);
-      });
-
-      if (!loggedIn) {
-        throw new Error('No se pudo iniciar sesión. Verifica credenciales o saldo AntiCaptcha.');
-      }
-
-      const action = job.action_type || 'DOWNLOAD_RECEIVED';
-
-      if (action === 'DOWNLOAD_RECEIVED') {
-        await downloadReceivedComprobantes(
-          page,
-          job,
-          updateProgress,
-          solveRecaptchaAntiCaptcha,
-          trySolveRecaptcha
-        );
+      if (connectionMode === 'http') {
+        await updateProgress(jobId, 'Usando scraper HTTP directo (sin navegador)...');
+        await runHttpScraping(job, updateProgress, job.tenant_id || null);
       } else {
-        throw new Error(`Acción no soportada: ${action}`);
+        browser = await getBrowser(connectionMode);
+        page = await browser.newPage();
+        page.setDefaultTimeout(120000);
+        page.setDefaultNavigationTimeout(120000);
+
+        page.on('console', (msg: any) => console.log(`[Browser Console] ${msg.text()}`));
+
+        const loggedIn = await ensureSession(page, job.ruc, job.clave_sri, async (msg: string) => {
+          await updateProgress(jobId, msg);
+        });
+
+        if (!loggedIn) {
+          throw new Error('No se pudo iniciar sesión. Verifica credenciales o saldo AntiCaptcha.');
+        }
+
+        const action = job.action_type || 'DOWNLOAD_RECEIVED';
+
+        if (action === 'DOWNLOAD_RECEIVED') {
+          await downloadReceivedComprobantes(
+            page,
+            job,
+            updateProgress,
+            solveRecaptchaAntiCaptcha,
+            trySolveRecaptcha
+          );
+        } else {
+          throw new Error(`Acción no soportada: ${action}`);
+        }
       }
 
       const tenantId = job.tenant_id || null;
@@ -97,7 +108,11 @@ export async function POST(req: Request) {
       await updateProgress(jobId, `Error crítico: ${scrapeError.message}`, 'ERROR');
       return NextResponse.json({ success: false, error: scrapeError.message }, { status: 500 });
     } finally {
-      if (browser) {
+      if (page) {
+        await releasePage(page).catch(() => {});
+      }
+      const mode = getCachedMode();
+      if (browser && mode !== 'cdp') {
         await browser.close().catch(() => {});
       }
     }

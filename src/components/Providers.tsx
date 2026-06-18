@@ -2,16 +2,19 @@
 
 import { type ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
-import { ToastProvider } from "@/contexts/ToastContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SidebarProvider } from "@/contexts/SidebarContext";
+import { ThemeProvider } from "next-themes";
 
 export default function Providers({ children }: { children: ReactNode }) {
   return (
-    <ToastProvider>
-      <AuthProvider>
-        {children}
-        <Toaster richColors position="top-right" />
-      </AuthProvider>
-    </ToastProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <SidebarProvider>
+        <AuthProvider>
+          {children}
+          <Toaster richColors position="bottom-right" />
+        </AuthProvider>
+      </SidebarProvider>
+    </ThemeProvider>
   );
 }

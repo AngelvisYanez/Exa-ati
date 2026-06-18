@@ -7,7 +7,7 @@ import Topbar from "@/components/Topbar";
 import WhatsAppMobilePanel from "@/components/WhatsAppMobilePanel";
 import IaConfigPanel from "@/components/IaConfigPanel";
 import { sriClient, setAuthToken } from "@/lib/sriClient";
-import { useToast } from "@/contexts/ToastContext";
+import { toast } from "sonner";
 
 type ConfigTab = "general" | "notificaciones" | "integraciones" | "ia";
 
@@ -19,7 +19,6 @@ const tabs: { id: ConfigTab; label: string; icon: string }[] = [
 ];
 
 function ConfiguracionContent() {
-  const toast = useToast();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as ConfigTab | null;
   const [activeTab, setActiveTab] = useState<ConfigTab>(
@@ -139,7 +138,7 @@ function ConfiguracionContent() {
 
       <Topbar title="Configuración" period="Sistema" />
 
-      <main className="p-6 md:p-8 flex-1 flex flex-col gap-6 max-w-5xl mx-auto w-full">
+      <main className="p-3 flex-1 flex flex-col gap-6 w-full">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Configuración</h1>
           <p className="text-sm text-slate-500 mt-1">

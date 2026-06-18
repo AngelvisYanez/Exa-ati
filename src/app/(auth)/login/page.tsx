@@ -1,17 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/contexts/ToastContext";
+import { useTheme } from "next-themes";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const toast = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,14 +38,15 @@ export default function LoginPage() {
 
   return (
     <div className="bg-white rounded-2xl shadow-2xl border border-brand-gray-200 p-8 flex flex-col gap-6">
-      <div className="text-center">
-        <div className="w-12 h-12 bg-brand-navy rounded-xl flex items-center justify-center mx-auto mb-4">
-          <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="2">
-            <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
-          </svg>
-        </div>
-        <h1 className="text-xl font-extrabold text-brand-navy">OFSERCONT IA</h1>
-        <p className="text-sm text-slate-500 mt-1">Inicia sesión en tu cuenta</p>
+      <div className="text-center flex flex-col items-center gap-4">
+        <Image
+          src={mounted && resolvedTheme === "dark" ? "/exa-ati-2.png" : "/exa-ati.png"}
+          alt="EXA-ATI"
+          width={156}
+          height={32}
+          priority
+        />
+        <p className="text-sm text-slate-500">Inicia sesión en tu cuenta</p>
       </div>
 
       {error && (

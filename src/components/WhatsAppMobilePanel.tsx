@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { sriClient } from "@/lib/sriClient";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { useToast } from "@/contexts/ToastContext";
+import { toast } from "sonner";
 
 interface WaMessage {
   id: string;
@@ -27,7 +27,6 @@ function getWaTime() {
 }
 
 export default function WhatsAppMobilePanel() {
-  const toast = useToast();
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [waMessages, setWaMessages] = useState<WaMessage[]>(initialWaMessages);
   const [waInput, setWaInput] = useState("");

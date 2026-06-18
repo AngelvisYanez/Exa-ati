@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useToast } from "@/contexts/ToastContext";
+import { toast } from "sonner";
 import Topbar from "@/components/Topbar";
 import DateRangeFilter, {
   DateRange,
@@ -50,7 +50,6 @@ const stepData: Record<StepId, { label: string; agent: string; aiText: string }>
 };
 
 export default function Declaraciones() {
-  const toast = useToast();
   const [step, setStep] = useState<StepId>(1);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [realDocs, setRealDocs] = useState<Comprobante[]>([]);
@@ -203,7 +202,7 @@ export default function Declaraciones() {
                       onClick={() => goStep(num)}
                       className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all cursor-pointer ${
                         isDone
-                          ? "bg-brand-green-light border-brand-green-light text-white"
+                          ? "bg-success-light border-success-light text-white"
                           : isActive
                           ? "bg-white border-brand-navy text-brand-navy ring-4 ring-brand-navy/12 relative after:absolute after:inset-[-6px] after:border-2 after:border-brand-navy/20 after:rounded-full after:animate-ping"
                           : "bg-brand-gray-50 border-brand-gray-300 text-brand-gray-400"
@@ -214,7 +213,7 @@ export default function Declaraciones() {
                     <span
                       className={`text-[10px] font-semibold text-center leading-tight max-w-[70px] hidden md:block ${
                         isDone
-                          ? "text-brand-green"
+                          ? "text-success"
                           : isActive
                           ? "text-brand-navy font-bold"
                           : "text-brand-gray-400"
@@ -270,7 +269,7 @@ export default function Declaraciones() {
                   <div className="bg-white border border-brand-gray-200 rounded-xl p-0 shadow-sm transition-all duration-300">
                     <div className="p-4 border-b border-brand-gray-100 flex items-center justify-between">
                       <h3 className="text-[13px] font-bold text-brand-gray-800">Clasificación Inteligente de Gastos</h3>
-                      <span className="text-[11px] text-brand-green font-semibold bg-brand-green-pale px-2.5 py-0.5 rounded-full">
+                      <span className="text-[11px] text-success font-semibold bg-success-pale px-2.5 py-0.5 rounded-full">
                         {compras.length} compras detectadas
                       </span>
                     </div>
@@ -383,7 +382,7 @@ export default function Declaraciones() {
                       </div>
                       <div className="flex justify-between items-center py-2 border-b border-brand-gray-100 text-[13px]">
                         <span className="text-brand-gray-600">IVA cobrado (15%)</span>
-                        <span className="font-bold text-brand-red">+ ${totalVentasIva.toFixed(2)}</span>
+                        <span className="font-bold text-success">+ ${totalVentasIva.toFixed(2)}</span>
                       </div>
 
                       <div className="text-[11px] font-bold text-brand-gray-400 mb-2 mt-4 uppercase tracking-wider">Compras y Gastos</div>
@@ -393,11 +392,11 @@ export default function Declaraciones() {
                       </div>
                       <div className="flex justify-between items-center py-2 border-b border-brand-gray-100 text-[13px]">
                         <span className="text-brand-gray-600">Crédito tributario IVA (15%)</span>
-                        <span className="font-bold text-brand-green">− ${totalComprasIva.toFixed(2)}</span>
+                        <span className="font-bold text-brand-red">− ${totalComprasIva.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between items-center py-2 text-[13px]">
                         <span className="text-brand-gray-600">Retenciones recibidas</span>
-                        <span className="font-bold text-brand-green">− ${totalRetencionesImporte.toFixed(2)}</span>
+                        <span className="font-bold text-brand-red">− ${totalRetencionesImporte.toFixed(2)}</span>
                       </div>
 
                       <div className="border-t-2 border-brand-navy mt-4 pt-3 flex justify-between items-center font-extrabold text-brand-navy">
@@ -406,7 +405,7 @@ export default function Declaraciones() {
                       </div>
 
                       {ivaAPagar < 0 && (
-                        <div className="mt-3 p-3 bg-brand-green-pale border border-[#A7F3D0] rounded-lg text-[12px] text-brand-green leading-normal text-left">
+                        <div className="mt-3 p-3 bg-success-pale border border-success/30 rounded-lg text-[12px] text-success leading-normal text-left">
                           <strong>✓ Crédito Tributario:</strong> Tu saldo de IVA compras excede a tus ventas. Cuentas con un saldo a favor de <strong>$${Math.abs(ivaAPagar).toFixed(2)}</strong> aplicable para el siguiente mes.
                         </div>
                       )}

@@ -27,8 +27,15 @@ export default function RootLayout({
     <html
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full bg-brand-gray-50">
+      <body className="min-h-full bg-brand-gray-50 dark:bg-brand-gray-800">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[200] focus:bg-brand-navy focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm focus:font-bold focus:outline-none"
+        >
+          Saltar al contenido principal
+        </a>
         <Providers>{children}</Providers>
       </body>
     </html>

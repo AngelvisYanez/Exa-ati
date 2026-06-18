@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import puppeteer from 'puppeteer-extra';
+import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import mysql from 'mysql2/promise';
 import fs from 'fs';
@@ -8,8 +8,10 @@ import path from 'path';
 import { ensureSession, solveRecaptchaAntiCaptcha, trySolveRecaptcha } from './auth.js';
 import { downloadReceivedComprobantes } from './modules/comprobantes.js';
 import { sincronizarConSri } from '../../src/lib/sri-api/sync-service';
+import { getConnectedBrowser, releasePage, parseJobOptions } from '../../src/lib/scraping/bridge';
+import type { ConnectionMode } from '../../src/lib/scraping/bridge';
 
-puppeteer.use(StealthPlugin());
+puppeteerExtra.use(StealthPlugin());
 
 const lockFilePath = path.resolve(process.cwd(), 'sri-worker.lock');
 
@@ -69,6 +71,30 @@ async function updateProgress(pool: any, jobId: number, message: string, status?
   await pool.query(query, params);
 }
 
+async function launchStandaloneBrowser() {
+  const isHeadless = process.env.HEADLESS !== 'false';
+  const busterPath = path.resolve('./scripts/buster');
+  const launchArgs = [
+    '--no-sandbox', 
+    '--disable-setuid-sandbox', 
+    '--disable-dev-shm-usage',
+    '--disable-blink-features=AutomationControlled'
+  ];
+
+  if (fs.existsSync(busterPath)) {
+    launchArgs.push(`--disable-extensions-except=${busterPath}`);
+    launchArgs.push(`--load-extension=${busterPath}`);
+  }
+
+  return await puppeteerExtra.launch({
+    headless: isHeadless ? 'shell' as any : false,
+    defaultViewport: null,
+    userDataDir: path.resolve('./browser_session'),
+    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    args: launchArgs
+  });
+}
+
 async function runWorker() {
   console.log('👷 Iniciando SriWorker (Modular) en modo polling y background...');
 
@@ -82,8 +108,9 @@ async function runWorker() {
 
   while (true) {
     let job: any = null;
-    let browser = null;
+    let browser: any = null;
     let page: any = null;
+    let currentMode: ConnectionMode = 'cdp';
     
     try {
       const [rows] = await pool.query("SELECT * FROM scraping_jobs WHERE status = 'PENDING' ORDER BY created_at ASC LIMIT 1");
@@ -95,30 +122,38 @@ async function runWorker() {
       }
       
       job = jobs[0];
-      
-      const isHeadless = process.env.HEADLESS !== 'false';
-      const busterPath = path.resolve('./scripts/buster');
-      const launchArgs = [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox', 
-        '--disable-dev-shm-usage',
-        '--disable-blink-features=AutomationControlled'
-      ];
+      const jobOpts = parseJobOptions(job.options);
+      currentMode = jobOpts.connection_mode || 'cdp';
 
-      if (fs.existsSync(busterPath)) {
-        launchArgs.push(`--disable-extensions-except=${busterPath}`);
-        launchArgs.push(`--load-extension=${busterPath}`);
+      if (currentMode === 'cdp' || currentMode === 'new_browser') {
+        console.log(`[Worker] Conectando navegador en modo: ${currentMode}`);
+        browser = await getConnectedBrowser(currentMode);
+        page = await browser.newPage();
+
+        const downloadsDir = path.resolve('./downloads');
+        const tempPath = path.join(downloadsDir, 'temp');
+        fs.mkdirSync(tempPath, { recursive: true });
+
+        const client = await page.target().createCDPSession();
+        await client.send('Page.setDownloadBehavior', {
+          behavior: 'allow',
+          downloadPath: tempPath,
+        });
+      } else {
+        console.log('[Worker] Lanzando navegador headless aislado...');
+        browser = await launchStandaloneBrowser();
+        page = await browser.newPage();
+
+        const downloadsDir = path.resolve('./downloads');
+        const tempPath = path.join(downloadsDir, 'temp');
+        fs.mkdirSync(tempPath, { recursive: true });
+
+        const client = await page.target().createCDPSession();
+        await client.send('Page.setDownloadBehavior', {
+          behavior: 'allow',
+          downloadPath: tempPath,
+        });
       }
-
-      browser = await puppeteer.launch({
-        headless: isHeadless ? 'shell' as any : false,
-        defaultViewport: null,
-        userDataDir: path.resolve('./browser_session'),
-        executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-        args: launchArgs
-      });
-
-      page = await browser.newPage();
       
       page.on('console', (msg: any) => {
         console.log(`[Browser Console] [${msg.type()}] ${msg.text()}`);
@@ -128,15 +163,6 @@ async function runWorker() {
       });
       page.on('requestfailed', (req: any) => {
         console.log(`[Browser ReqFailed] ${req.url()} - ${req.failure()?.errorText || 'unknown'}`);
-      });
-
-      const downloadsDir = path.resolve('./downloads');
-      const tempPath = path.join(downloadsDir, 'temp');
-      
-      const client = await page.target().createCDPSession();
-      await client.send('Page.setDownloadBehavior', {
-        behavior: 'allow',
-        downloadPath: tempPath,
       });
 
       const loggedIn = await ensureSession(page, job.ruc, job.clave_sri, async (msg: string) => {
@@ -194,7 +220,10 @@ async function runWorker() {
       }
       await new Promise(res => setTimeout(res, 10000));
     } finally {
-      if (browser) {
+      if (page) {
+        await releasePage(page).catch(() => {});
+      }
+      if (browser && currentMode !== 'cdp') {
         await browser.close().catch(() => {});
       }
     }

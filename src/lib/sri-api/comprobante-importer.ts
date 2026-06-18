@@ -71,6 +71,14 @@ export async function parseXmlComprobante(xmlString: string): Promise<ParsedComp
     tipo = '05';
     infoTributaria = parsed.notaDebito.infoTributaria;
     infoDoc = parsed.notaDebito.infoNotaDebito;
+  } else if (parsed.liquidacionCompra) {
+    tipo = '03';
+    infoTributaria = parsed.liquidacionCompra.infoTributaria;
+    infoDoc = parsed.liquidacionCompra.infoLiquidacionCompra;
+  } else if (parsed.guiaRemision) {
+    tipo = '06';
+    infoTributaria = parsed.guiaRemision.infoTributaria;
+    infoDoc = parsed.guiaRemision.infoGuiaRemision;
   } else {
     throw new Error('Tipo de comprobante no soportado en el XML');
   }
@@ -90,22 +98,29 @@ export async function parseXmlComprobante(xmlString: string): Promise<ParsedComp
   let receptorRazonSocial = '';
   let receptorEmail = '';
 
-  if (tipo === '01' || tipo === '04') {
-    receptorIdentificacion = infoDoc.identificacionComprador || '';
-    receptorRazonSocial = infoDoc.razonSocialComprador || '';
-    receptorEmail = infoDoc.correoElectronico || '';
-  } else if (tipo === '07') {
-    receptorIdentificacion = infoDoc.identificacionSujetoRetenido || '';
-    receptorRazonSocial = infoDoc.razonSocialSujetoRetenido || '';
-    receptorEmail = infoDoc.correoElectronico || '';
-  } else if (tipo === '05') {
-    receptorIdentificacion = infoDoc.identificacionComprador || '';
-    receptorRazonSocial = infoDoc.razonSocialComprador || '';
-  }
+    if (tipo === '01' || tipo === '04') {
+      receptorIdentificacion = infoDoc.identificacionComprador || '';
+      receptorRazonSocial = infoDoc.razonSocialComprador || '';
+      receptorEmail = infoDoc.correoElectronico || '';
+    } else if (tipo === '07') {
+      receptorIdentificacion = infoDoc.identificacionSujetoRetenido || '';
+      receptorRazonSocial = infoDoc.razonSocialSujetoRetenido || '';
+      receptorEmail = infoDoc.correoElectronico || '';
+    } else if (tipo === '05') {
+      receptorIdentificacion = infoDoc.identificacionComprador || '';
+      receptorRazonSocial = infoDoc.razonSocialComprador || '';
+    } else if (tipo === '03') {
+      receptorIdentificacion = infoDoc.identificacionProveedor || '';
+      receptorRazonSocial = infoDoc.razonSocialProveedor || '';
+    } else if (tipo === '06') {
+      receptorIdentificacion = infoDoc.rucTransportista || '';
+      receptorRazonSocial = infoDoc.razonSocialTransportista || '';
+    }
 
   const totalSinImpuestos = parseFloat(infoDoc.totalSinImpuestos) || 0;
   const totalDescuento = parseFloat(infoDoc.totalDescuento) || 0;
-  const importeTotal = parseFloat(infoDoc.importeTotal) || parseFloat(infoDoc.valorTotal) || 0;
+  const rootLevel = parsed.liquidacionCompra || parsed.guiaRemision || null;
+  const importeTotal = parseFloat(infoDoc.importeTotal) || parseFloat(infoDoc.valorTotal) || parseFloat(rootLevel?.importeTotal) || 0;
   const totalIva =
     parseFloat(infoDoc.totalIva) ||
     (tipo === '01' ? Math.max(0, importeTotal - totalSinImpuestos) : 0);

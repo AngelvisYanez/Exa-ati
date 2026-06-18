@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/contexts/ToastContext";
-import { sriClient } from "@/lib/sriClient";
+import { useSidebar } from "@/contexts/SidebarContext";
 
 type NavItem = {
   href: string;
@@ -136,67 +138,18 @@ const navGroups: NavGroup[] = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user, hasSriLinked, logout } = useAuth();
-  const toast = useToast();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [userName, setUserName] = useState("");
-  const [userRegimen, setUserRegimen] = useState<string | null>(null);
-  const [userInitials, setUserInitials] = useState("—");
-  const menuRef = useRef<HTMLDivElement>(null);
+  const { resolvedTheme } = useTheme();
+  const { logout } = useAuth();
+  const { collapsed, setCollapsed, mobileOpen, setMobileOpen } = useSidebar();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (user?.email) {
-      const emailName = user.email.split("@")[0];
-      setUserName(emailName);
-      setUserInitials(emailName.slice(0, 2).toUpperCase());
-    }
-    if (!hasSriLinked) return;
-    sriClient.getEmisor().then((res) => {
-      if (res.success && res.emisor) {
-        const name = res.emisor.razonSocial || res.emisor.ruc || "";
-        setUserName(name);
-        setUserRegimen(res.emisor.tipoContribuyente || null);
-        const parts = name.trim().split(/\s+/).filter(Boolean);
-        setUserInitials(
-          parts.length >= 2
-            ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-            : name.slice(0, 2).toUpperCase() || "—"
-        );
-      }
-    }).catch(() => {});
-  }, [user, hasSriLinked]);
-
-  useEffect(() => {
-    window.dispatchEvent(new CustomEvent("sidebar-resize", { detail: { collapsed } }));
-  }, [collapsed]);
-
-  useEffect(() => {
-    const handleToggle = () => setMobileOpen((prev) => !prev);
-    const handleClose = () => setMobileOpen(false);
-    window.addEventListener("toggle-sidebar", handleToggle);
-    window.addEventListener("close-sidebar", handleClose);
-    return () => {
-      window.removeEventListener("toggle-sidebar", handleToggle);
-      window.removeEventListener("close-sidebar", handleClose);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setUserMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    setMounted(true);
   }, []);
 
   const handleLogout = () => {
     logout();
     toast.info("Sesión cerrada correctamente");
-    setUserMenuOpen(false);
   };
 
   const sidebarWidth = collapsed ? "w-14" : "w-60";
@@ -205,64 +158,46 @@ export default function Sidebar() {
     <>
       <aside
         className={`
-          ${sidebarWidth} bg-white border-r border-slate-200
+          ${sidebarWidth} bg-sidebar border-r border-sidebar-border
           min-h-screen flex flex-col fixed top-0 left-0 z-50
           transition-all duration-200 ease-in-out select-none
           md:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        <div className="h-14 flex items-center justify-between px-3 border-b border-slate-100 shrink-0">
-          {!collapsed && (
-            <div className="flex items-center gap-2 overflow-hidden">
-              <div className="w-7 h-7 bg-brand-navy rounded-lg flex items-center justify-center shrink-0 shadow-sm">
-                <div className="w-2.5 h-2.5 bg-brand-green-light rounded-full animate-pulse" />
-              </div>
-              <div className="overflow-hidden">
-                <span className="text-[12px] font-bold text-brand-navy truncate block leading-tight">OFSERCONT IA</span>
-                <span className="text-[9px] text-slate-400 font-medium tracking-wide uppercase">Asistente Tributario</span>
-              </div>
-            </div>
+        {/* HEADER: logo + collapse */}
+        <div className="h-14 flex items-center justify-center px-3 border-b border-sidebar-border shrink-0 relative">
+          {collapsed ? (
+            <Image src="/favicon.png" alt="EXA-ATI" width={24} height={24} />
+          ) : (
+            <Image
+              src={mounted && resolvedTheme === "dark" ? "/exa-ati-2.png" : "/exa-ati.png"}
+              alt="EXA-ATI"
+              width={130}
+              height={26}
+              quality={100}
+              priority
+            />
           )}
-          {collapsed && (
-            <div className="w-full flex justify-center">
-              <div className="w-7 h-7 bg-brand-navy rounded-lg flex items-center justify-center shadow-sm">
-                <div className="w-2.5 h-2.5 bg-brand-green-light rounded-full animate-pulse" />
-              </div>
-            </div>
-          )}
-          {!collapsed && (
-            <button
-              onClick={() => setCollapsed(true)}
-              className="hidden md:flex w-7 h-7 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 items-center justify-center transition-colors shrink-0 cursor-pointer"
-              title="Colapsar menú"
-            >
-              <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path d="M15 18l-6-6 6-6" />
-              </svg>
-            </button>
-          )}
-          {collapsed && (
-            <button
-              onClick={() => setCollapsed(false)}
-              className="hidden md:flex absolute right-0 translate-x-full top-3 w-5 h-7 bg-white border border-slate-200 border-l-0 rounded-r-md text-slate-400 hover:text-slate-700 items-center justify-center transition-colors cursor-pointer shadow-sm"
-              title="Expandir menú"
-            >
-              <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
-          )}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 w-5 h-7 bg-sidebar border border-sidebar-border rounded-r-md text-muted-foreground hover:text-sidebar-foreground items-center justify-center transition-colors cursor-pointer shadow-sm z-10"
+            title={collapsed ? "Expandir menú" : "Colapsar menú"}
+          >
+            <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+              <path d={collapsed ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"} />
+            </svg>
+          </button>
         </div>
 
         <nav className="flex-1 py-2 flex flex-col overflow-y-auto overflow-x-hidden">
           {navGroups.map((group, gi) => (
             <div key={gi} className="flex flex-col">
               {!collapsed && (
-                <span className="px-4 pt-4 pb-1 text-[9px] font-bold text-slate-400 tracking-widest uppercase">
+                <span className="px-4 pt-4 pb-1 text-[9px] font-bold text-muted-foreground tracking-widest uppercase">
                   {group.group}
                 </span>
               )}
-              {collapsed && gi > 0 && <div className="mx-3 my-2 h-px bg-slate-100" />}
+              {collapsed && gi > 0 && <div className="mx-3 my-2 h-px bg-sidebar-border" />}
 
               <div className="flex flex-col gap-0.5 px-1.5">
                 {group.items.map((item) => {
@@ -278,7 +213,7 @@ export default function Sidebar() {
                         ${collapsed ? "px-0 py-2.5 justify-center" : "px-2.5 py-2"}
                         ${isActive
                           ? "bg-brand-navy text-white shadow-sm"
-                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                          : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                         }
                       `}
                     >
@@ -287,7 +222,7 @@ export default function Sidebar() {
                         <span className="text-[12.5px] font-medium truncate flex-1">{item.label}</span>
                       )}
                       {collapsed && (
-                        <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs font-medium px-2 py-1 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                        <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-popover text-popover-foreground text-xs font-medium px-2 py-1 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
                           {item.label}
                         </div>
                       )}
@@ -299,53 +234,23 @@ export default function Sidebar() {
           ))}
         </nav>
 
-        <div ref={menuRef} className={`border-t border-slate-100 p-2 shrink-0 relative ${collapsed ? "flex justify-center" : ""}`}>
-          {collapsed ? (
-            <button
-              type="button"
-              onClick={() => setUserMenuOpen((o) => !o)}
-              title={userName || "Usuario"}
-              className="w-8 h-8 bg-gradient-to-br from-brand-navy-light to-brand-sky rounded-lg flex items-center justify-center font-bold text-xs text-white cursor-pointer"
-            >
-              {userInitials}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setUserMenuOpen((o) => !o)}
-              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              <div className="w-8 h-8 bg-gradient-to-br from-brand-navy-light to-brand-sky rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0">
-                {userInitials}
-              </div>
-              <div className="leading-tight min-w-0 flex-1 text-left">
-                <div className="text-[12.5px] font-semibold text-slate-700 truncate">{userName || user?.email || "Usuario"}</div>
-                <div className="text-[10px] text-slate-400 truncate">{userRegimen || (hasSriLinked ? "—" : "Sin vincular SRI")}</div>
-              </div>
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${hasSriLinked ? "bg-emerald-100" : "bg-slate-100"}`}>
-                <div className={`w-1.5 h-1.5 rounded-full ${hasSriLinked ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
-              </div>
-            </button>
-          )}
-
-          {userMenuOpen && (
-            <div className={`absolute bg-white border border-slate-200 rounded-xl shadow-lg py-1 z-50 ${collapsed ? "left-full ml-2 bottom-2 w-44" : "left-2 right-2 bottom-full mb-1"}`}>
-              <Link
-                href="/configuracion"
-                onClick={() => setUserMenuOpen(false)}
-                className="block px-3 py-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Configuración
-              </Link>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="w-full text-left px-3 py-2 text-[12px] font-medium text-red-600 hover:bg-red-50 cursor-pointer"
-              >
-                Cerrar sesión
-              </button>
-            </div>
-          )}
+        <div className="shrink-0 border-t border-sidebar-border p-2">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={`flex items-center gap-2.5 rounded-lg transition-all duration-150 w-full cursor-pointer
+              ${collapsed
+                ? "justify-center px-0 py-2.5 text-muted-foreground hover:text-red-500 hover:bg-brand-red-pale"
+                : "px-2.5 py-2 text-muted-foreground hover:text-red-500 hover:bg-brand-red-pale"
+              }
+            `}
+            title="Cerrar sesión"
+          >
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
+            </svg>
+            {!collapsed && <span className="text-[12.5px] font-medium">Cerrar sesión</span>}
+          </button>
         </div>
       </aside>
 

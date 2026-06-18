@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { sriClient } from "@/lib/sriClient";
-import { useToast } from "@/contexts/ToastContext";
+import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,6 @@ const CLAUDE_MODELS = [
 ];
 
 export default function IaConfigPanel() {
-  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);

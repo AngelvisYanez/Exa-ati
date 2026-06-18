@@ -160,6 +160,8 @@ const statements = [
     CONSTRAINT "scraping_jobs_pkey" PRIMARY KEY ("id")
   )`,
 
+  `ALTER TABLE "scraping_jobs" ADD COLUMN IF NOT EXISTS "options" TEXT DEFAULT '{}'`,
+
   `CREATE TABLE IF NOT EXISTS "tenant_settings" (
     "id" SERIAL NOT NULL,
     "tenant_id" UUID NOT NULL,
