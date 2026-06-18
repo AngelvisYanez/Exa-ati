@@ -328,12 +328,13 @@ function ConfiguracionContent() {
 
   const savePrefs = async (app: boolean, whatsapp: boolean) => {
     try {
-      await sriClient.updateConfiguracion({
+      const res = await sriClient.updateConfiguracion({
         notifDocumentos: app,
         notifGeneracion: whatsapp,
       });
+      if (!res.success) toast.error(res.message || "Error al guardar preferencias");
     } catch (err) {
-      console.error("Error al guardar preferencias:", err);
+      toast.error("Error al guardar preferencias");
     }
   };
 
@@ -366,8 +367,8 @@ function ConfiguracionContent() {
 
       <main className="p-3 flex-1 flex flex-col gap-6 w-full">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Configuración</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <h1 className="text-2xl font-bold tracking-tight text-brand-gray-800">Configuración</h1>
+          <p className="text-sm text-brand-gray-600 mt-1">
             Perfil del emisor, canales de notificación e integración móvil/WhatsApp.
           </p>
         </div>
@@ -383,15 +384,15 @@ function ConfiguracionContent() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl overflow-x-auto">
+        <div className="flex gap-1 bg-brand-gray-100 p-1 rounded-xl overflow-x-auto">
           {allowedTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 activeTab === tab.id
-                  ? "bg-white dark:bg-slate-700 text-brand-navy dark:text-brand-sky shadow-sm"
-                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                  ? "bg-white text-brand-navy shadow-sm"
+                  : "text-brand-gray-500 hover:text-brand-gray-700"
               }`}
             >
               <span>{tab.icon}</span>
@@ -404,34 +405,34 @@ function ConfiguracionContent() {
         </div>
 
         {loading ? (
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-10 text-center text-sm text-slate-500">
+          <div className="bg-white border border-brand-gray-200 rounded-xl p-10 text-center text-sm text-brand-gray-500">
             Cargando configuración…
           </div>
         ) : (
           <>
             {activeTab === "general" && perfil && (
               <div className="flex flex-col gap-5">
-                <section className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-                  <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
-                    <h2 className="text-[13px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                <section className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
+                  <div className="px-5 py-4 border-b border-brand-gray-100">
+                    <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">
                       Perfil del contribuyente
                     </h2>
                   </div>
                   <div className="p-5 flex flex-col gap-4">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-brand-navy to-brand-sky rounded-xl flex items-center justify-center text-white font-extrabold text-xl shadow-sm">
+                      <div className="w-14 h-14 bg-gradient-to-br from-brand-navy to-brand-navy-light rounded-xl flex items-center justify-center text-white font-extrabold text-xl shadow-sm">
                         {initials}
                       </div>
                       <div>
-                        <p className="text-[14px] font-bold text-slate-900 dark:text-white">{perfil.razonSocial}</p>
-                        <p className="text-[12px] text-slate-500 dark:text-slate-400">{perfil.regimen} · Ambiente {perfil.ambiente}</p>
-                        <p className="text-[11px] font-mono text-slate-400 dark:text-slate-500 mt-0.5">RUC: {perfil.ruc}</p>
+                        <p className="text-[14px] font-bold text-brand-gray-800">{perfil.razonSocial}</p>
+                        <p className="text-[12px] text-brand-gray-500">{perfil.regimen} · Ambiente {perfil.ambiente}</p>
+                        <p className="text-[11px] font-mono text-brand-gray-400 mt-0.5">RUC: {perfil.ruc}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       {[
                         { label: "Régimen tributario", value: perfil.regimen },
-                        { label: "Estado en SRI", value: perfil.estadoSri, highlight: "emerald" as const },
+                        { label: "Estado en SRI", value: perfil.estadoSri, highlight: "emerald" },
                         { label: "Última sincronización", value: formatSync(perfil.ultimaSincronizacion) },
                         {
                           label: "Firma digital",
@@ -444,8 +445,8 @@ function ConfiguracionContent() {
                         { label: "Delay entre fases", value: "2 segundos (configurable)" },
                       ].map((f) => (
                         <div key={f.label} className="flex flex-col gap-0.5">
-                          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">{f.label}</p>
-                          <p className={`text-[12.5px] font-semibold ${f.highlight === "emerald" ? "text-emerald-700 dark:text-emerald-500" : "text-slate-900 dark:text-white"}`}>
+                          <p className="text-[10px] text-brand-gray-400 font-medium uppercase tracking-wide">{f.label}</p>
+                          <p className={`text-[12.5px] font-semibold ${f.highlight === "emerald" ? "text-emerald-700" : "text-brand-gray-800"}`}>
                             {f.value}
                           </p>
                         </div>
@@ -459,13 +460,13 @@ function ConfiguracionContent() {
                     <button
                       onClick={handleTestSriConnection}
                       disabled={testingConnection}
-                      className="flex-1 min-w-[180px] text-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-sm font-semibold py-2.5 rounded-lg disabled:opacity-50 transition-colors cursor-pointer"
+                      className="flex-1 min-w-[180px] text-center bg-brand-gray-100 hover:bg-brand-gray-200 text-brand-gray-700 text-sm font-semibold py-2.5 rounded-lg disabled:opacity-50 transition-colors cursor-pointer"
                     >
                       {testingConnection ? "Probando conexión..." : "Probar conexión SRI"}
                     </button>
                     <Link
                       href="/configuracion?vincular=true"
-                      className="flex-1 min-w-[180px] text-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-sm font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center"
+                      className="flex-1 min-w-[180px] text-center bg-brand-gray-100 hover:bg-brand-gray-200 text-brand-gray-700 text-sm font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center"
                     >
                       Actualizar contraseña SRI
                     </Link>
@@ -477,7 +478,7 @@ function ConfiguracionContent() {
                     </Link>
                     <button
                       onClick={() => setActiveTab("integraciones")}
-                      className="flex-1 min-w-[180px] text-center border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-semibold py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                      className="flex-1 min-w-[180px] text-center border border-brand-gray-200 text-brand-gray-600 text-sm font-semibold py-2.5 rounded-lg hover:bg-brand-gray-50 transition-colors cursor-pointer"
                     >
                       Configurar WhatsApp
                     </button>
@@ -485,13 +486,13 @@ function ConfiguracionContent() {
                 )}
 
                 {(user?.rol === "ADMIN" || user?.rol === "SUPERADMIN") && (
-                  <section className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden mt-2">
-                    <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center flex-wrap gap-2">
+                  <section className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden mt-2">
+                    <div className="px-5 py-4 border-b border-brand-gray-100 flex justify-between items-center flex-wrap gap-2">
                       <div>
-                        <h2 className="text-[13px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                        <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">
                           Empresas / RUCs Vinculados
                         </h2>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        <p className="text-[11px] text-brand-gray-500 mt-0.5">
                           Administra y conecta las diferentes cuentas del portal SRI.
                         </p>
                       </div>
@@ -504,17 +505,17 @@ function ConfiguracionContent() {
                     </div>
                     <div className="p-5 flex flex-col gap-3">
                       {emisores.length === 0 ? (
-                        <p className="text-sm text-slate-500 text-center py-4">No hay empresas vinculadas.</p>
+                        <p className="text-sm text-brand-gray-500 text-center py-4">No hay empresas vinculadas.</p>
                       ) : (
                         <div className="grid gap-3">
                           {emisores.map((e) => (
-                            <div key={e.ruc} className={`flex items-center justify-between p-3.5 border rounded-xl transition-all ${e.ruc === activeRuc ? 'border-brand-navy bg-slate-50/30 dark:border-brand-sky dark:bg-slate-800/10' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'}`}>
+                            <div key={e.ruc} className={`flex items-center justify-between p-3.5 border rounded-xl transition-all ${e.ruc === activeRuc ? 'border-brand-navy bg-brand-gray-50' : 'border-brand-gray-200 bg-white'}`}>
                               <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center text-slate-600 dark:text-slate-300 shadow-xs">
-                                  <Building2 className="w-4.5 h-4.5 text-slate-500 shrink-0" />
+                                <div className="w-9 h-9 bg-brand-gray-100 rounded-lg flex items-center justify-center text-brand-gray-500 shadow-xs">
+                                  <Building2 className="w-4.5 h-4.5 shrink-0" />
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+                                  <p className="text-[13px] font-semibold text-brand-gray-800 flex items-center gap-1.5 flex-wrap">
                                     <span className="truncate max-w-[200px]">{e.razonSocial}</span>
                                     {e.ruc === activeRuc && (
                                       <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold rounded-full px-1.5 py-0.5 shrink-0">
@@ -522,21 +523,21 @@ function ConfiguracionContent() {
                                       </span>
                                     )}
                                   </p>
-                                  <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">RUC: {e.ruc} · Ambiente: {e.ambiente}</p>
+                                  <p className="text-[11px] text-brand-gray-400 font-mono mt-0.5">RUC: {e.ruc} · Ambiente: {e.ambiente}</p>
                                 </div>
                               </div>
                               <div className="flex gap-2">
                                 {e.ruc !== activeRuc && (
                                   <button
                                     onClick={() => setActiveRuc(e.ruc)}
-                                    className="text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-semibold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                                    className="text-xs bg-brand-gray-100 hover:bg-brand-gray-200 text-brand-gray-700 font-semibold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
                                   >
                                     Seleccionar
                                   </button>
                                 )}
                                 <button
                                   onClick={() => handleDisconnectRuc(e.ruc)}
-                                  className="text-xs border border-red-200 hover:bg-red-50 dark:border-red-900/30 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 font-semibold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                                  className="text-xs border border-red-200 hover:bg-red-50 text-red-600 font-semibold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
                                 >
                                   Desconectar
                                 </button>
@@ -552,15 +553,15 @@ function ConfiguracionContent() {
             )}
 
             {activeTab === "general" && !perfil && (
-              <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl p-8 text-center flex flex-col items-center gap-4">
+              <div className="bg-white border border-brand-gray-200 rounded-xl p-8 text-center flex flex-col items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-brand-amber/10 flex items-center justify-center">
                   <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-brand-amber">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800 dark:text-white">No tienes una cuenta del SRI vinculada</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Vincula tu RUC y contraseña del SRI para comenzar a sincronizar tus comprobantes electrónicos automáticamente.</p>
+                  <h3 className="text-sm font-bold text-brand-gray-800">No tienes una cuenta del SRI vinculada</h3>
+                  <p className="text-xs text-brand-gray-500 mt-1 font-medium">Vincula tu RUC y contraseña del SRI para comenzar a sincronizar tus comprobantes electrónicos automáticamente.</p>
                 </div>
                 <Link
                   href="/configuracion?vincular=true"
@@ -568,18 +569,38 @@ function ConfiguracionContent() {
                 >
                   Vincular cuenta del SRI
                 </Link>
+                <div className="flex flex-wrap gap-2 justify-center mt-1">
+                  <button
+                    onClick={() => setActiveTab("ia")}
+                    className="border border-brand-gray-200 text-brand-gray-600 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-brand-gray-50 transition-colors cursor-pointer"
+                  >
+                    Configurar Inteligencia IA
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("integraciones")}
+                    className="border border-brand-gray-200 text-brand-gray-600 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-brand-gray-50 transition-colors cursor-pointer"
+                  >
+                    WhatsApp & Móvil
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("notificaciones")}
+                    className="border border-brand-gray-200 text-brand-gray-600 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-brand-gray-50 transition-colors cursor-pointer"
+                  >
+                    Notificaciones
+                  </button>
+                </div>
               </div>
             )}
 
             {activeTab === "clientes" && (
               <div className="flex flex-col gap-5">
-                <section className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-                  <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center flex-wrap gap-2">
+                <section className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
+                  <div className="px-5 py-4 border-b border-brand-gray-100 flex justify-between items-center flex-wrap gap-2">
                     <div>
-                      <h2 className="text-[13px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                      <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">
                         Gestión de Usuarios Clientes
                       </h2>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                      <p className="text-[11px] text-brand-gray-500 mt-0.5 font-medium">
                         Crea cuentas de acceso restringidas para tus clientes y asócialas a sus respectivos RUCs.
                       </p>
                     </div>
@@ -600,13 +621,13 @@ function ConfiguracionContent() {
                   </div>
                   <div className="p-5 overflow-x-auto">
                     {loadingClientes ? (
-                      <p className="text-sm text-slate-500 text-center py-6">Cargando usuarios...</p>
+                      <p className="text-sm text-brand-gray-500 text-center py-6">Cargando usuarios...</p>
                     ) : clientes.length === 0 ? (
-                      <p className="text-sm text-slate-500 text-center py-6">No hay usuarios registrados en tu oficina contable.</p>
+                      <p className="text-sm text-brand-gray-500 text-center py-6">No hay usuarios registrados en tu oficina contable.</p>
                     ) : (
                       <table className="w-full text-left border-collapse text-[12.5px]">
                         <thead>
-                          <tr className="border-b border-slate-100 dark:border-slate-700 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                          <tr className="border-b border-brand-gray-100 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider">
                             <th className="pb-3 font-semibold">Usuario</th>
                             <th className="pb-3 font-semibold">Correo</th>
                             <th className="pb-3 font-semibold">Rol</th>
@@ -615,33 +636,33 @@ function ConfiguracionContent() {
                             <th className="pb-3 font-semibold text-right">Acciones</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                        <tbody className="divide-y divide-brand-gray-50">
                           {clientes.map((c) => (
-                            <tr key={c.id} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/10 transition-colors">
-                              <td className="py-3.5 font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                                <div className="w-8 h-8 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 shadow-xs">
-                                  <User className="w-4 h-4 text-slate-500 shrink-0" />
+                            <tr key={c.id} className="hover:bg-brand-gray-50/40 transition-colors">
+                              <td className="py-3.5 font-bold text-brand-gray-800 flex items-center gap-2">
+                                <div className="w-8 h-8 bg-brand-gray-100 rounded-full flex items-center justify-center text-brand-gray-500 shadow-xs">
+                                  <User className="w-4 h-4 shrink-0" />
                                 </div>
                                 {c.nombre}
                               </td>
-                              <td className="py-3.5 text-slate-600 dark:text-slate-400 font-medium">{c.email}</td>
+                              <td className="py-3.5 text-brand-gray-600 font-medium">{c.email}</td>
                               <td className="py-3.5">
                                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
                                   c.rol === 'ADMIN' 
-                                    ? 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/30' 
-                                    : 'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700'
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                    : 'bg-brand-gray-100 text-brand-gray-700 border border-brand-gray-200'
                                 }`}>
                                   {c.rol === 'ADMIN' ? 'Administrador' : 'Cliente'}
                                 </span>
                               </td>
                               <td className="py-3.5">
                                 {c.rol === 'ADMIN' ? (
-                                  <span className="text-slate-400 dark:text-slate-500 italic">Acceso Global</span>
+                                  <span className="text-brand-gray-400 italic">Acceso Global</span>
                                 ) : (
                                   <select
                                     value={c.ruc || ""}
                                     onChange={(e) => handleUpdateClientRuc(c.id, e.target.value)}
-                                    className="bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:border-brand-navy outline-none cursor-pointer"
+                                    className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-brand-gray-800 focus:border-brand-navy outline-none cursor-pointer"
                                   >
                                     <option value="">Desasociado (Ninguno)</option>
                                     {emisores.map((e) => (
@@ -655,7 +676,7 @@ function ConfiguracionContent() {
                               <td className="py-3.5">
                                 <button
                                   onClick={() => handleToggleClientStatus(c.id, c.activo)}
-                                  className={`relative w-9 h-5 rounded-full transition-colors shrink-0 cursor-pointer ${c.activo ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-700"}`}
+                                  className={`relative w-9 h-5 rounded-full transition-colors shrink-0 cursor-pointer ${c.activo ? "bg-emerald-500" : "bg-brand-gray-200"}`}
                                 >
                                   <div
                                     className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${
@@ -667,7 +688,7 @@ function ConfiguracionContent() {
                               <td className="py-3.5 text-right whitespace-nowrap">
                                 <button
                                   onClick={() => handleOpenEditModal(c)}
-                                  className="text-brand-navy hover:text-brand-navy-light font-bold text-xs border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer mr-2 inline-flex items-center gap-1"
+                                  className="text-brand-navy hover:text-brand-navy-light font-bold text-xs border border-brand-gray-200 hover:bg-brand-gray-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer mr-2 inline-flex items-center gap-1"
                                   title="Editar usuario"
                                 >
                                   <Edit className="w-3.5 h-3.5" />
@@ -675,7 +696,7 @@ function ConfiguracionContent() {
                                 </button>
                                 <button
                                   onClick={() => handleDeleteClient(c.id, c.nombre)}
-                                  className="text-red-500 hover:text-red-750 font-bold text-xs border border-red-100 hover:bg-red-50 dark:border-red-950/20 dark:hover:bg-red-900/10 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
+                                  className="text-red-500 hover:text-red-700 font-bold text-xs border border-red-100 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
                                   title="Eliminar usuario"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -693,17 +714,17 @@ function ConfiguracionContent() {
             )}
 
             {activeTab === "notificaciones" && (
-              <section className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
-                  <h2 className="text-[13px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Canales de notificación</h2>
-                  <p className="text-[11px] text-slate-500 mt-1 font-medium">Elige cómo quieres recibir alertas tributarias.</p>
+              <section className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-brand-gray-100">
+                  <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">Canales de notificación</h2>
+                  <p className="text-[11px] text-brand-gray-500 mt-1 font-medium">Elige cómo quieres recibir alertas tributarias.</p>
                 </div>
-                <div className="p-5 flex flex-col divide-y divide-slate-50 dark:divide-slate-800">
+                <div className="p-5 flex flex-col divide-y divide-brand-gray-50">
                   {[
                     {
                       label: "Notificaciones en App",
                       desc: "Alertas dentro del sistema",
-                      icon: <Smartphone className="w-5 h-5 text-slate-500 dark:text-slate-400 shrink-0" />,
+                      icon: <Smartphone className="w-5 h-5 text-brand-gray-500 shrink-0" />,
                       state: appNotif,
                       toggle: (v: boolean) => {
                         setAppNotif(v);
@@ -713,7 +734,7 @@ function ConfiguracionContent() {
                     {
                       label: "Notificaciones por Email",
                       desc: "Copias de declaraciones y alertas (próximamente)",
-                      icon: <Mail className="w-5 h-5 text-slate-500 dark:text-slate-400 shrink-0" />,
+                      icon: <Mail className="w-5 h-5 text-brand-gray-500 shrink-0" />,
                       state: emailNotif,
                       toggle: setEmailNotif,
                       disabled: true,
@@ -721,7 +742,7 @@ function ConfiguracionContent() {
                     {
                       label: "Notificaciones por WhatsApp",
                       desc: "Mensajes del Agente Notificador",
-                      icon: <MessageSquare className="w-5 h-5 text-slate-500 dark:text-slate-400 shrink-0" />,
+                      icon: <MessageSquare className="w-5 h-5 text-brand-gray-500 shrink-0" />,
                       state: whatsappNotif,
                       toggle: (v: boolean) => {
                         setWhatsappNotif(v);
@@ -733,8 +754,8 @@ function ConfiguracionContent() {
                       <div className="flex items-center gap-3">
                         <span className="shrink-0">{item.icon}</span>
                         <div>
-                          <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-200">{item.label}</p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{item.desc}</p>
+                          <p className="text-[13px] font-semibold text-brand-gray-800">{item.label}</p>
+                          <p className="text-[11px] text-brand-gray-500 font-medium">{item.desc}</p>
                         </div>
                       </div>
                       <button
@@ -742,7 +763,7 @@ function ConfiguracionContent() {
                         disabled={item.disabled}
                         className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
                           item.disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
-                        } ${item.state ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-700"}`}
+                        } ${item.state ? "bg-emerald-500" : "bg-brand-gray-200"}`}
                       >
                         <div
                           className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
@@ -756,7 +777,7 @@ function ConfiguracionContent() {
                 <div className="px-5 pb-5">
                   <button
                     onClick={() => setActiveTab("integraciones")}
-                    className="text-sm text-brand-navy dark:text-brand-sky font-semibold hover:underline cursor-pointer"
+                    className="text-sm text-brand-navy font-semibold hover:underline cursor-pointer"
                   >
                     Ir a vincular WhatsApp →
                   </button>
@@ -767,23 +788,23 @@ function ConfiguracionContent() {
             {activeTab === "integraciones" && <WhatsAppMobilePanel />}
 
             {activeTab === "ia" && (
-              <section className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl p-5">
+              <section className="bg-white border border-brand-gray-200 rounded-xl p-5">
                 <IaConfigPanel />
               </section>
             )}
           </>
         )}
 
-        {activeTab === "general" && user?.rol !== "USER" && (
-          <section className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
-              <h2 className="text-[13px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Privacidad y control de datos</h2>
+        {activeTab === "general" && user?.rol !== "USER" && emisores.length > 0 && (
+          <section className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-brand-gray-100">
+              <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">Privacidad y control de datos</h2>
             </div>
             <div className="p-5">
               {!showRevokeConfirm ? (
                 <button
                   onClick={() => setShowRevokeConfirm(true)}
-                  className="text-[12.5px] font-semibold text-red-600 hover:text-red-800 border border-red-200 bg-red-50 dark:border-red-950/20 dark:bg-red-900/10 px-4 py-2 rounded-lg transition-colors cursor-pointer"
+                  className="text-[12.5px] font-semibold text-red-600 hover:text-red-800 border border-red-200 bg-red-50 px-4 py-2 rounded-lg transition-colors cursor-pointer"
                 >
                   Revocar acceso al SRI
                 </button>
@@ -794,7 +815,7 @@ function ConfiguracionContent() {
                   </p>
                   <button
                     onClick={() => setShowRevokeConfirm(false)}
-                    className="border border-slate-200 text-slate-700 text-[12px] font-semibold py-2 rounded-lg hover:bg-white transition-colors cursor-pointer"
+                    className="border border-brand-gray-200 text-brand-gray-700 text-[12px] font-semibold py-2 rounded-lg hover:bg-white transition-colors cursor-pointer"
                   >
                     Cerrar
                   </button>
@@ -808,19 +829,19 @@ function ConfiguracionContent() {
       {/* Modal de Creación de Cliente */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-              <h3 className="text-sm font-bold text-slate-800 dark:text-white">Agregar Usuario Cliente</h3>
+          <div className="bg-white rounded-2xl border border-brand-gray-200 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-5 py-4 border-b border-brand-gray-100 flex justify-between items-center">
+              <h3 className="text-sm font-bold text-brand-gray-800">Agregar Usuario Cliente</h3>
               <button
                 onClick={() => setIsCreateModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer text-xs"
+                className="text-brand-gray-400 hover:text-brand-gray-600 transition-colors cursor-pointer text-xs"
               >
                 ✕
               </button>
             </div>
             <form onSubmit={handleCreateClient} className="p-5 flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Nombre Completo
                 </label>
                 <input
@@ -828,13 +849,13 @@ function ConfiguracionContent() {
                   required
                   value={clientNombre}
                   onChange={(e) => setClientNombre(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-800 dark:text-white focus:border-brand-navy outline-none"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none"
                   placeholder="ej. Juan Pérez"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Correo Electrónico
                 </label>
                 <input
@@ -842,13 +863,13 @@ function ConfiguracionContent() {
                   required
                   value={clientEmail}
                   onChange={(e) => setClientEmail(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-800 dark:text-white focus:border-brand-navy outline-none"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none"
                   placeholder="cliente@correo.com"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Contraseña de Acceso
                 </label>
                 <input
@@ -856,19 +877,19 @@ function ConfiguracionContent() {
                   required
                   value={clientPassword}
                   onChange={(e) => setClientPassword(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-800 dark:text-white focus:border-brand-navy outline-none"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none"
                   placeholder="Mínimo 6 caracteres"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Empresa / RUC Asignado
                 </label>
                 <select
                   value={clientRuc}
                   onChange={(e) => setClientRuc(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-800 dark:text-white focus:border-brand-navy outline-none cursor-pointer"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none cursor-pointer"
                 >
                   <option value="">Ninguno (sin acceso a SRI)</option>
                   {emisores.map((e) => (
@@ -880,13 +901,13 @@ function ConfiguracionContent() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Rol de Usuario
                 </label>
                 <select
                   value={clientRol}
                   onChange={(e) => setClientRol(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-800 dark:text-white focus:border-brand-navy outline-none cursor-pointer"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none cursor-pointer"
                 >
                   <option value="USER">Cliente (Restringido)</option>
                   <option value="ADMIN">Administrador (Contador)</option>
@@ -897,7 +918,7 @@ function ConfiguracionContent() {
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-350 text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer"
+                  className="flex-1 bg-brand-gray-100 hover:bg-brand-gray-200 text-brand-gray-700 text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -917,19 +938,19 @@ function ConfiguracionContent() {
       {/* Modal de Edición de Usuario */}
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-              <h3 className="text-sm font-bold text-slate-800 dark:text-white">Editar Usuario</h3>
+          <div className="bg-white rounded-2xl border border-brand-gray-200 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-5 py-4 border-b border-brand-gray-100 flex justify-between items-center">
+              <h3 className="text-sm font-bold text-brand-gray-800">Editar Usuario</h3>
               <button
                 onClick={() => setIsEditModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer text-xs"
+                className="text-brand-gray-400 hover:text-brand-gray-600 transition-colors cursor-pointer text-xs"
               >
                 ✕
               </button>
             </div>
             <form onSubmit={handleUpdateClient} className="p-5 flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Nombre Completo
                 </label>
                 <input
@@ -937,13 +958,13 @@ function ConfiguracionContent() {
                   required
                   value={editNombre}
                   onChange={(e) => setEditNombre(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-800 dark:text-white focus:border-brand-navy outline-none"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none"
                   placeholder="ej. Juan Pérez"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Correo Electrónico
                 </label>
                 <input
@@ -951,33 +972,33 @@ function ConfiguracionContent() {
                   required
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-800 dark:text-white focus:border-brand-navy outline-none"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none"
                   placeholder="cliente@correo.com"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Nueva Contraseña (opcional)
                 </label>
                 <input
                   type="password"
                   value={editPassword}
                   onChange={(e) => setEditPassword(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-800 dark:text-white focus:border-brand-navy outline-none"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none"
                   placeholder="Dejar en blanco para conservar contraseña"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Empresa / RUC Asignado
                 </label>
                 <select
                   disabled={editRol === 'ADMIN'}
                   value={editRol === 'ADMIN' ? '' : editRuc}
                   onChange={(e) => setEditRuc(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-800 dark:text-white focus:border-brand-navy outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="">Ninguno (sin acceso a SRI)</option>
                   {emisores.map((e) => (
@@ -989,13 +1010,13 @@ function ConfiguracionContent() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Rol del Usuario
                 </label>
                 <select
                   value={editRol}
                   onChange={(e) => setEditRol(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-800 dark:text-white focus:border-brand-navy outline-none cursor-pointer"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none cursor-pointer"
                 >
                   <option value="USER">Cliente (Restringido)</option>
                   <option value="ADMIN">Administrador (Contador)</option>
@@ -1006,7 +1027,7 @@ function ConfiguracionContent() {
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-350 text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer"
+                  className="flex-1 bg-brand-gray-100 hover:bg-brand-gray-200 text-brand-gray-700 text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>

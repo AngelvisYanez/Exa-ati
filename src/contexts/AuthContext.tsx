@@ -25,7 +25,7 @@ interface AuthContextValue {
   activeRuc: string | null;
   rucList: { ruc: string; razonSocial: string }[];
   setActiveRuc: (ruc: string) => void;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<SessionUser>;
   register: (email: string, password: string, nombre?: string) => Promise<void>;
   logout: () => void;
   refreshSriStatus: () => Promise<void>;
@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (currentUser.rol === "USER") {
         const res = await sriClient.getEmisor();
         if (res.success && res.emisor) {
-          const item = { ruc: res.emisor.ruc, razonSocial: res.emisor.razonSocial || "Mi Empresa" };
+          const item = { ruc: res.emisor.ruc, razonSocial: res.emisor.razonSocial || res.emisor.ruc };
           setRucList([item]);
           setHasSriLinked(true);
           setActiveRucState(res.emisor.ruc);
@@ -107,11 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string) => {
       const data = await sriClient.login(email.trim(), password);
       setUser(data.user);
-      const redirect =
-        typeof window !== "undefined"
-          ? new URLSearchParams(window.location.search).get("redirect") || "/"
-          : "/";
-      window.location.href = redirect;
+      return data.user;
     },
     []
   );
@@ -120,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string, nombre?: string) => {
       await sriClient.register(email, password, "USER", nombre);
       await login(email, password);
+      window.location.href = "/";
     },
     [login]
   );

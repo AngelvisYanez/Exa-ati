@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import Dialog from "@/components/ui/Dialog";
@@ -21,12 +21,24 @@ export default function SriConnectDialog() {
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [forcedOpen, setForcedOpen] = useState(false);
   const [error, setError] = useState("");
 
-  const isForced = searchParams?.get("vincular") === "true";
-  const show = (isAuthenticated && !hasSriLinked && !isLoading && !dismissed) || (isAuthenticated && !isLoading && isForced);
+  const isUrlForced = searchParams?.get("vincular") === "true";
+  const isForced = isUrlForced || forcedOpen;
+  const show = isAuthenticated && !isLoading && (isForced || (!hasSriLinked && !dismissed));
 
   const isLoadingState = submitting || syncing;
+
+  const handleNoEmisor = useCallback(() => {
+    setDismissed(false);
+    setForcedOpen(true);
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('sri:no-emisor', handleNoEmisor);
+    return () => window.removeEventListener('sri:no-emisor', handleNoEmisor);
+  }, [handleNoEmisor]);
 
   useEffect(() => {
     if (show && hasSriLinked && !ruc) {
@@ -42,7 +54,8 @@ export default function SriConnectDialog() {
 
   const handleClose = () => {
     setDismissed(true);
-    if (isForced) {
+    setForcedOpen(false);
+    if (searchParams?.get("vincular") === "true") {
       const params = new URLSearchParams(searchParams?.toString() || "");
       params.delete("vincular");
       const qs = params.toString() ? `?${params.toString()}` : "";
@@ -75,7 +88,8 @@ export default function SriConnectDialog() {
       await refreshSriStatus();
       setRuc("");
       setSriPassword("");
-      if (isForced) {
+      if (isUrlForced || forcedOpen) {
+        setForcedOpen(false);
         const params = new URLSearchParams(searchParams?.toString() || "");
         params.delete("vincular");
         const qs = params.toString() ? `?${params.toString()}` : "";

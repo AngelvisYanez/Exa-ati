@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSidebar } from "@/contexts/SidebarContext";
@@ -120,14 +118,8 @@ const navGroups: NavGroup[] = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { resolvedTheme } = useTheme();
   const { logout, user } = useAuth();
   const { collapsed, setCollapsed, mobileOpen, setMobileOpen } = useSidebar();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const handleLogout = () => {
     logout();
@@ -160,7 +152,7 @@ export default function Sidebar() {
             <Image src="/favicon.png" alt="EXA-ATI" width={24} height={24} />
           ) : (
             <Image
-              src={mounted && resolvedTheme === "dark" ? "/exa-ati-2.png" : "/exa-ati.png"}
+              src="/exa-ati.png"
               alt="EXA-ATI"
               width={130}
               height={26}

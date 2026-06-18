@@ -7,18 +7,26 @@ export async function POST(req: Request) {
   try {
     const user = await verifyAuth(req);
     const userRuc = await getUserRuc(user);
-    const { numero } = await req.json();
 
+    // Read number from body if provided, otherwise use already-saved number
+    let { numero } = await req.json().catch(() => ({}));
     if (!numero) {
-      return NextResponse.json({ message: 'El número de teléfono es obligatorio' }, { status: 400 });
+      const emisor = await db.queryOne<any>(
+        `SELECT whatsapp_numero FROM emisores WHERE ruc = $1 AND activo = true`,
+        [userRuc]
+      );
+      numero = emisor?.whatsapp_numero;
     }
 
-    // Actualizar base de datos
+    if (!numero) {
+      return NextResponse.json({ message: 'Primero genera un código QR con tu número' }, { status: 400 });
+    }
+
     await db.query(
       `UPDATE emisores 
-       SET whatsapp_numero = ?, whatsapp_estado = 'CONECTADO', updated_at = NOW() 
-       WHERE ruc = ? AND activo = true`,
-      [numero, userRuc]
+       SET whatsapp_estado = 'CONECTADO', updated_at = NOW() 
+       WHERE ruc = $1 AND activo = true`,
+      [userRuc]
     );
 
     return NextResponse.json({

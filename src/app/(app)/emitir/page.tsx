@@ -128,6 +128,7 @@ export default function EmitirPage() {
   const [resultado, setResultado] = useState<any>(null);
 
   // Common fields
+  const [ambiente, setAmbiente] = useState('2');
   const [fechaEmision, setFechaEmision] = useState(new Date().toISOString().split('T')[0]);
   const [emisorRuc, setEmisorRuc] = useState('');
   const [secuencial, setSecuencial] = useState('');
@@ -333,7 +334,7 @@ export default function EmitirPage() {
     setEmitiendo(true);
     setResultado(null);
     try {
-      const res = await sriClient.emitirGeneral({ tipo: selectedTipo.cod, emisorRuc, datos: buildDatos() });
+      const res = await sriClient.emitirGeneral({ tipo: selectedTipo.cod, emisorRuc, ambiente, datos: buildDatos() });
       setResultado(res);
       if (res.requierePolling) toast.info(`Enviado al SRI. Clave: ${res.claveAcceso}. El sistema lo consultará automáticamente.`);
       else if (res.estado === 'AUTORIZADO') toast.success(`AUTORIZADO · Nro: ${res.numeroAutorizacion}`);
@@ -362,6 +363,21 @@ export default function EmitirPage() {
             <div className="flex flex-col gap-1.5"><Label>Fecha Emisión *</Label><Input type="date" value={fechaEmision} onChange={e => setFechaEmision(e.target.value)} /></div>
             <div className="flex flex-col gap-1.5"><Label>Secuencial (opcional)</Label><Input value={secuencial} onChange={e => setSecuencial(e.target.value)} placeholder="Auto si vacío" /></div>
             <div className="flex flex-col gap-1.5"><Label>Moneda</Label><Input value="USD" disabled className="text-slate-400" /></div>
+          </div>
+
+          {/* === AMBIENTE === */}
+          <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-lg border">
+            <span className="text-xs font-bold uppercase text-slate-500">Ambiente</span>
+            <div className="flex gap-1">
+              <button type="button" onClick={() => setAmbiente('1')}
+                className={`px-4 py-1.5 text-xs rounded-md border transition-all cursor-pointer ${ambiente === '1' ? 'bg-amber-100 border-amber-400 text-amber-800 font-semibold' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                Pruebas
+              </button>
+              <button type="button" onClick={() => setAmbiente('2')}
+                className={`px-4 py-1.5 text-xs rounded-md border transition-all cursor-pointer ${ambiente === '2' ? 'bg-emerald-100 border-emerald-400 text-emerald-800 font-semibold' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                Producción
+              </button>
+            </div>
           </div>
 
           {/* === RECEPTOR / PROVEEDOR / SUJETO RETENIDO === */}

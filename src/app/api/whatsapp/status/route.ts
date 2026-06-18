@@ -9,8 +9,8 @@ export async function GET(req: Request) {
     const userRuc = await getUserRuc(user);
 
     const emisor = await db.queryOne<any>(
-      `SELECT whatsapp_numero, whatsapp_estado, notif_documentos, notif_generacion 
-       FROM emisores WHERE ruc = ? AND activo = true`,
+      `SELECT whatsapp_numero, whatsapp_estado, whatsapp_notif_documentos, whatsapp_notif_generacion 
+       FROM emisores WHERE ruc = $1 AND activo = true`,
       [userRuc]
     );
 
@@ -22,8 +22,8 @@ export async function GET(req: Request) {
       success: true,
       whatsappNumero: emisor.whatsapp_numero,
       whatsappEstado: emisor.whatsapp_estado || 'DESCONECTADO',
-      notifDocumentos: !!emisor.notif_documentos,
-      notifGeneracion: !!emisor.notif_generacion
+      notifDocumentos: !!emisor.whatsapp_notif_documentos,
+      notifGeneracion: !!emisor.whatsapp_notif_generacion
     });
   } catch (error: any) {
     console.error('[WhatsApp Status Error]', error);

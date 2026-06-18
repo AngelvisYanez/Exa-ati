@@ -101,7 +101,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const ambiente = emisor.ambiente;
+    const ambiente = dto.ambiente || emisor.ambiente;
     const tipoEmision = dto.tipoEmision || emisor.tipo_emision || '1';
 
     let fechaEmision: Date;

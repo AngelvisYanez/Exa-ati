@@ -53,7 +53,7 @@ export default function IaConfigPanel() {
           setMaskedKeys(res.maskedKeys || { gemini: null, claude: null });
         }
       })
-      .catch(() => {})
+      .catch(() => toast.error("Error al cargar configuración de IA"))
       .finally(() => setLoading(false));
   }, []);
 

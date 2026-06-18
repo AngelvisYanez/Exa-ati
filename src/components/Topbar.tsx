@@ -4,9 +4,8 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSidebar } from "@/contexts/SidebarContext";
-import { useTheme } from "next-themes";
 import { sriClient } from "@/lib/sriClient";
-import { Building2, Menu, ChevronLeft, ChevronDown, Check, Sun, Moon, Bell } from "lucide-react";
+import { Menu, ChevronLeft, ChevronDown, Check, Bell } from "lucide-react";
 
 interface TopbarProps {
   title: string;
@@ -41,7 +40,6 @@ const typeStyles: Record<string, { color: string; bg: string; dot: string }> = {
 export default function Topbar({ title, period = "Período actual", backLink }: TopbarProps) {
   const { user, hasSriLinked, activeRuc, rucList, setActiveRuc } = useAuth();
   const { setMobileOpen } = useSidebar();
-  const { theme, setTheme } = useTheme();
   const [notifOpen, setNotifOpen] = useState(false);
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -147,65 +145,6 @@ export default function Topbar({ title, period = "Período actual", backLink }: 
           ) : null}
           <span className="text-[15px] font-semibold text-foreground">{title}</span>
           
-          {/* Selector de RUC/Empresa para contadores y admins */}
-          {(user?.rol === "ADMIN" || user?.rol === "SUPERADMIN") && rucList.length > 1 ? (
-            <div ref={companyRef} className="relative ml-2 inline-block text-left" id="company-selector">
-              <button
-                type="button"
-                onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
-                className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 rounded-full px-3 py-1 text-[12px] font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer shadow-sm active:scale-[0.98] outline-none"
-              >
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                <span className="max-w-[250px] truncate">
-                  {(() => {
-                    const activeCompany = rucList.find((r) => r.ruc === activeRuc);
-                    return activeCompany 
-                      ? `${activeCompany.razonSocial} (${activeCompany.ruc})` 
-                      : activeRuc || "Seleccionar Empresa";
-                  })()}
-                </span>
-                <ChevronDown className={`w-2.5 h-2.5 transition-transform duration-200 ${companyDropdownOpen ? "rotate-180" : ""}`} strokeWidth={2.5} />
-              </button>
-
-              {companyDropdownOpen && (
-                <div className="absolute left-0 mt-1.5 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-1 duration-150">
-                  <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-700 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                    Cambiar de Empresa / RUC
-                  </div>
-                  <div className="max-h-60 overflow-y-auto">
-                    {rucList.map((item) => (
-                      <button
-                        key={item.ruc}
-                        onClick={() => {
-                          setActiveRuc(item.ruc);
-                          setCompanyDropdownOpen(false);
-                        }}
-                        className={`w-full flex items-center justify-between px-3.5 py-2.5 text-left text-[12.5px] hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer ${
-                          item.ruc === activeRuc ? "text-brand-navy dark:text-brand-sky font-bold bg-slate-50/50 dark:bg-slate-700/50" : "text-slate-700 dark:text-slate-300"
-                        }`}
-                      >
-                        <div className="truncate pr-2">
-                          <p className="truncate">{item.razonSocial}</p>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">{item.ruc}</p>
-                        </div>
-                        {item.ruc === activeRuc && (
-                          <Check className="w-3.5 h-3.5 text-brand-navy dark:text-brand-sky shrink-0" strokeWidth={2.5} />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : rucList.length === 1 ? (
-            <span className="text-[12px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full px-3 py-1 font-semibold ml-2 flex items-center gap-1.5 shrink-0">
-              <Building2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
-              <span className="max-w-[280px] truncate">
-                {rucList[0].razonSocial} ({rucList[0].ruc})
-              </span>
-            </span>
-          ) : null}
-
           <span className="bg-muted text-muted-foreground text-[11px] font-semibold rounded-full px-2.5 py-0.5">
             {period}
           </span>
@@ -213,6 +152,60 @@ export default function Topbar({ title, period = "Período actual", backLink }: 
       </div>
 
       <div className="flex items-center gap-1.5">
+        {/* Selector de Empresa/RUC */}
+        {rucList.length > 0 && (
+          <div ref={companyRef} className="relative mr-1 hidden sm:block">
+            <button
+              type="button"
+              onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
+              className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-all cursor-pointer shadow-sm active:scale-[0.98] outline-none"
+            >
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0"></span>
+              <span className="max-w-[180px] truncate">
+                {(() => {
+                  const activeCompany = rucList.find((r) => r.ruc === activeRuc);
+                  return activeCompany
+                    ? `${activeCompany.razonSocial} (${activeCompany.ruc})`
+                    : activeRuc || "Seleccionar Empresa";
+                })()}
+              </span>
+              {rucList.length > 1 && (
+                <ChevronDown className={`w-2.5 h-2.5 transition-transform duration-200 ${companyDropdownOpen ? "rotate-180" : ""}`} strokeWidth={2.5} />
+              )}
+            </button>
+
+            {companyDropdownOpen && rucList.length > 1 && (
+              <div className="absolute right-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="px-3 py-2 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Cambiar de Empresa / RUC
+                </div>
+                <div className="max-h-60 overflow-y-auto">
+                  {rucList.map((item) => (
+                    <button
+                      key={item.ruc}
+                      onClick={() => {
+                        setActiveRuc(item.ruc);
+                        setCompanyDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 text-left text-xs hover:bg-slate-50 transition-colors cursor-pointer ${
+                        item.ruc === activeRuc ? "text-brand-navy font-bold bg-slate-50/50" : "text-slate-700"
+                      }`}
+                    >
+                      <div className="truncate pr-2">
+                        <p className="truncate">{item.razonSocial}</p>
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">{item.ruc}</p>
+                      </div>
+                      {item.ruc === activeRuc && (
+                        <Check className="w-3.5 h-3.5 text-brand-navy shrink-0" strokeWidth={2.5} />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="hidden sm:flex items-center gap-2 mr-1 pr-2 border-r border-border">
           <div className="text-right leading-tight">
             <div className="text-[12px] font-semibold text-foreground truncate max-w-[110px]">{userName || user?.email || "Usuario"}</div>
@@ -222,19 +215,6 @@ export default function Topbar({ title, period = "Período actual", backLink }: 
             {userInitials}
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          title="Cambiar tema"
-          className="w-8 h-8 rounded-lg border border-input bg-card hover:bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-        >
-          {theme === "dark" ? (
-            <Moon className="w-[15px] h-[15px]" strokeWidth={2} />
-          ) : (
-            <Sun className="w-[15px] h-[15px]" strokeWidth={2} />
-          )}
-        </button>
 
         <div ref={notifRef} className="relative">
           <button

@@ -11,8 +11,8 @@ export async function PUT(req: Request) {
 
     await db.query(
       `UPDATE emisores 
-       SET notif_documentos = ?, notif_generacion = ?, updated_at = NOW() 
-       WHERE ruc = ? AND activo = true`,
+       SET whatsapp_notif_documentos = $1, whatsapp_notif_generacion = $2, updated_at = NOW() 
+       WHERE ruc = $3 AND activo = true`,
       [Boolean(notifDocumentos), Boolean(notifGeneracion), userRuc]
     );
 

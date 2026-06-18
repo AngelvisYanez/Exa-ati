@@ -10,6 +10,7 @@ import DateRangeFilter, {
   toDateRangeParams,
 } from "@/components/DateRangeFilter";
 import { sriClient } from "@/lib/sriClient";
+import { useAuth } from "@/contexts/AuthContext";
 
 type DeclaracionRow = {
   id: string;
@@ -22,12 +23,14 @@ type DeclaracionRow = {
 };
 
 export default function ComprobantesPage() {
+  const { activeRuc } = useAuth();
   const [comprobantes, setComprobantes] = useState<DeclaracionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
 
   useEffect(() => {
+    if (!activeRuc) return;
     const load = async () => {
       if (!sriClient.isAuthenticated()) {
         setError("Inicia sesión para ver el historial de declaraciones.");
@@ -47,7 +50,7 @@ export default function ComprobantesPage() {
       }
     };
     load();
-  }, [dateRange]);
+  }, [dateRange, activeRuc]);
 
   const totalIva = comprobantes.reduce((s, c) => s + c.iva, 0);
   const aceptadas = comprobantes.filter((c) => c.estado === "REGISTRADA" || c.estado === "ACEPTADA").length;
@@ -59,6 +62,21 @@ export default function ComprobantesPage() {
 
       <Topbar title="Comprobantes" period={formatDateRangeLabel(dateRange)} />
 
+      {!activeRuc ? (
+        <main className="p-3 flex-1 flex flex-col gap-6 w-full">
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="w-14 h-14 rounded-full bg-brand-amber/10 flex items-center justify-center">
+              <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-brand-amber">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.545M12.75 21h7.5V10.75M2.25 21h1.5m18 0h-18M2.25 9l4.5-1.636M18.75 3l-1.5.545m0 6.205l3 1m1.5.5l-1.5-.5M6.75 7.364V3h-3v18m3-13.636l10.5-3.819" />
+              </svg>
+            </div>
+            <div className="text-center max-w-sm">
+              <p className="text-sm font-bold text-brand-gray-700">Selecciona una empresa</p>
+              <p className="text-xs text-brand-gray-400 mt-1">Usa el selector de empresa en la parte superior derecha para elegir un RUC y ver sus comprobantes de declaración.</p>
+            </div>
+          </div>
+        </main>
+      ) : (
       <main className="p-3 flex-1 flex flex-col gap-6 w-full">
         <DateRangeFilter value={dateRange} onChange={setDateRange} filterLabel="Período tributario" className="bg-white border border-slate-200 rounded-xl px-4 py-3" />
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -146,6 +164,7 @@ export default function ComprobantesPage() {
           </div>
         </div>
       </main>
+      )}
     </>
   );
 }

@@ -13,6 +13,7 @@ import DateRangeFilter, {
 } from "@/components/DateRangeFilter";
 import Link from "next/link";
 import { sriClient, Comprobante } from "@/lib/sriClient";
+import { useAuth } from "@/contexts/AuthContext";
 
 type StepId = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -50,10 +51,10 @@ const stepData: Record<StepId, { label: string; agent: string; aiText: string }>
 };
 
 export default function Declaraciones() {
+  const { activeRuc, rucList } = useAuth();
   const [step, setStep] = useState<StepId>(1);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [realDocs, setRealDocs] = useState<Comprobante[]>([]);
-  const [emisorRuc, setEmisorRuc] = useState("");
   const [emisorName, setEmisorName] = useState("");
   const [emisorRegimen, setEmisorRegimen] = useState<string | null>(null);
   const [tramiteNum, setTramiteNum] = useState("");
@@ -63,6 +64,7 @@ export default function Declaraciones() {
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
 
   useEffect(() => {
+    if (!activeRuc) return;
     const loadData = async () => {
       try {
         setLoading(true);
@@ -70,7 +72,6 @@ export default function Declaraciones() {
         // 1. Obtener Emisor
         const emRes = await sriClient.getEmisor();
         if (emRes.success && emRes.emisor) {
-          setEmisorRuc(emRes.emisor.ruc);
           setEmisorName(emRes.emisor.razonSocial);
           setEmisorRegimen(emRes.emisor.tipoContribuyente || null);
         }
@@ -106,11 +107,12 @@ export default function Declaraciones() {
     };
 
     loadData();
-  }, [dateRange]);
+  }, [dateRange, activeRuc]);
 
   // Filtrar documentos
-  const compras = realDocs.filter(d => d.emisor?.ruc !== emisorRuc && d.tipoComprobante === '01');
-  const ventas = realDocs.filter(d => d.emisor?.ruc === emisorRuc && d.tipoComprobante === '01');
+  const currentRuc = activeRuc ?? "";
+  const compras = realDocs.filter(d => d.emisor?.ruc !== currentRuc && d.tipoComprobante === '01');
+  const ventas = realDocs.filter(d => d.emisor?.ruc === currentRuc && d.tipoComprobante === '01');
   const retenciones = realDocs.filter(d => d.tipoComprobante === '07');
 
   // Calcular totales reales
@@ -132,7 +134,7 @@ export default function Declaraciones() {
     const data = {
       formulario: "104A",
       periodo: formatDateRangeLabel(dateRange),
-      ruc: emisorRuc,
+      ruc: currentRuc,
       razonSocial: emisorName,
       casilleros: {
         "401": parseFloat(totalVentasSub.toFixed(2)),
@@ -148,7 +150,7 @@ export default function Declaraciones() {
     )}`;
     const downloadAnchor = document.createElement("a");
     downloadAnchor.setAttribute("href", jsonString);
-    downloadAnchor.setAttribute("download", `borrador_sri_104a_${emisorRuc}.json`);
+    downloadAnchor.setAttribute("download", `borrador_sri_104a_${currentRuc}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -177,6 +179,21 @@ export default function Declaraciones() {
     <>
       <Topbar title="Nueva Declaración" period={formatDateRangeLabel(dateRange)} backLink={{ href: "/", label: "Dashboard" }} />
 
+      {!activeRuc ? (
+        <div className="p-7 flex-1 flex flex-col gap-6 text-brand-gray-800 select-none">
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="w-14 h-14 rounded-full bg-brand-amber/10 flex items-center justify-center">
+              <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-brand-amber">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.545M12.75 21h7.5V10.75M2.25 21h1.5m18 0h-18M2.25 9l4.5-1.636M18.75 3l-1.5.545m0 6.205l3 1m1.5.5l-1.5-.5M6.75 7.364V3h-3v18m3-13.636l10.5-3.819" />
+              </svg>
+            </div>
+            <div className="text-center max-w-sm">
+              <p className="text-sm font-bold text-brand-gray-700">Selecciona una empresa</p>
+              <p className="text-xs text-brand-gray-400 mt-1">Usa el selector de empresa en la parte superior derecha para elegir un RUC y gestionar sus declaraciones.</p>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="p-7 flex-1 flex flex-col gap-6 text-brand-gray-800 select-none">
         <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-brand-gray-200 rounded-xl px-4 py-3" />
         {/* PIPELINE STEPPER TRACK */}
@@ -449,7 +466,7 @@ export default function Declaraciones() {
                         <div className="flex flex-col gap-1.5">
                           <label className="text-[10px] font-semibold text-brand-gray-600 uppercase tracking-wider">RUC</label>
                           <div className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-xs font-semibold text-brand-navy-light font-mono">
-                            {emisorRuc}
+                            {currentRuc}
                           </div>
                         </div>
                         <div className="flex flex-col gap-1.5">
@@ -828,6 +845,7 @@ export default function Declaraciones() {
           </div>
         </div>
       </div>
+      )}
     </>
   );
 }

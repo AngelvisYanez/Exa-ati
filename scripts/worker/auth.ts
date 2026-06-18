@@ -103,7 +103,7 @@ export async function solveRecaptchaAntiCaptcha(page: any, action?: string): Pro
       return false;
     }
 
-    console.log('[Worker CAPTCHA] ✅ Token obtenido. Inyectando mock de grecaptcha.enterprise.execute...');
+    console.log('[Worker CAPTCHA] ✅ Token obtenido. Inyectando resolución de captcha...');
     await overrideGrecaptchaEnterprise(page, token);
 
     return true;

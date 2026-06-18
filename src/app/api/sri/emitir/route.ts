@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     const user = await verifyAuth(req);
     const body = await req.json();
 
-    const { tipo, emisorRuc, datos } = body;
+    const { tipo, emisorRuc, ambiente: ambienteOverride, datos } = body;
 
     if (!tipo || !emisorRuc || !datos) {
       return NextResponse.json(
@@ -57,7 +57,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!emisor.ambiente) {
+    const ambiente = ambienteOverride || emisor.ambiente;
+
+    if (!ambiente) {
       return NextResponse.json(
         { message: `El emisor ${emisorRuc} no tiene configurado el ambiente (1=Pruebas, 2=Producción)` },
         { status: 400 }
@@ -87,14 +89,14 @@ export async function POST(req: Request) {
       fechaEmision: new Date(datos.fechaEmision),
       tipoComprobante: tipo,
       ruc: emisor.ruc,
-      ambiente: emisor.ambiente,
+      ambiente,
       establecimiento,
       puntoEmision,
       secuencial,
     });
 
     const infoTributaria = {
-      ambiente: emisor.ambiente,
+      ambiente,
       tipoEmision: emisor.tipo_emision || '1',
       razonSocial: emisor.razon_social,
       nombreComercial: emisor.nombre_comercial || undefined,
@@ -128,7 +130,7 @@ export async function POST(req: Request) {
       tipo,
       serie: `${establecimiento}-${puntoEmision}`,
       secuencial,
-      ambiente: emisor.ambiente,
+      ambiente,
       fecha_emision: fechaEmision.toISOString().split('T')[0],
       estado: 'FIRMADO',
       estado_sri: 'FIRMADO',

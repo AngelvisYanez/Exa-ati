@@ -113,6 +113,22 @@ async function runMigration002(conn, dbName) {
   console.log('Migración 002 OK');
 }
 
+async function runMigration003(conn, dbName) {
+  console.log('\n--- Migración 003: separar preferencias WhatsApp ---');
+
+  await addColumnIfMissing(conn, dbName, 'emisores', 'whatsapp_notif_documentos', "TINYINT(1) DEFAULT 1");
+  await addColumnIfMissing(conn, dbName, 'emisores', 'whatsapp_notif_generacion', "TINYINT(1) DEFAULT 1");
+
+  await conn.query(
+    `UPDATE emisores SET
+      whatsapp_notif_documentos = COALESCE(notif_documentos, 1),
+      whatsapp_notif_generacion = COALESCE(notif_generacion, 1)
+     WHERE whatsapp_notif_documentos IS NULL OR whatsapp_notif_generacion IS NULL`
+  );
+
+  console.log('Migración 003 OK');
+}
+
 const env = loadEnv();
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@ofsercont.com';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Ofsercont2026';
@@ -131,6 +147,7 @@ async function main() {
 
   console.log('Conectado a MariaDB:', dbName);
   await runMigration002(conn, dbName);
+  await runMigration003(conn, dbName);
 
   const [existing] = await conn.query(
     'SELECT id, email, rol FROM usuarios WHERE email = ?',

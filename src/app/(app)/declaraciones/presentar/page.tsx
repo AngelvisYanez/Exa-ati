@@ -11,10 +11,12 @@ import DateRangeFilter, {
   toDateRangeParams,
 } from "@/components/DateRangeFilter";
 import { sriClient, Comprobante } from "@/lib/sriClient";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Step = "formulario" | "revision" | "presentar" | "exito";
 
 export default function PresentarDeclaracionPage() {
+  const { activeRuc } = useAuth();
   const [step, setStep] = useState<Step>("formulario");
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
@@ -23,7 +25,6 @@ export default function PresentarDeclaracionPage() {
   const [error, setError] = useState<string | null>(null);
   const [periodo, setPeriodo] = useState("");
   const [contribuyente, setContribuyente] = useState("");
-  const [ruc, setRuc] = useState("");
   const [regimen, setRegimen] = useState<string | null>(null);
   const [ventasSub, setVentasSub] = useState(0);
   const [ventasIva, setVentasIva] = useState(0);
@@ -36,6 +37,7 @@ export default function PresentarDeclaracionPage() {
   const ivaAPagar = ventasIva - comprasIva - retenciones;
 
   useEffect(() => {
+    if (!activeRuc) return;
     const load = async () => {
       if (!sriClient.isAuthenticated()) {
         setError("Inicia sesión para calcular la declaración con tus comprobantes reales.");
@@ -47,7 +49,6 @@ export default function PresentarDeclaracionPage() {
         const rangeParams = toDateRangeParams(dateRange);
         const emRes = await sriClient.getEmisor();
         if (emRes.success && emRes.emisor) {
-          setRuc(emRes.emisor.ruc);
           setContribuyente(emRes.emisor.razonSocial);
           setRegimen(emRes.emisor.tipoContribuyente || null);
         }
@@ -60,7 +61,7 @@ export default function PresentarDeclaracionPage() {
         const docs: Comprobante[] = compRes?.data || [];
         setDocsCount(docs.length);
 
-        const emisorRuc = emRes.emisor?.ruc || ruc;
+        const emisorRuc = activeRuc || emRes.emisor?.ruc || "";
         const compras = docs.filter((d) => d.emisor?.ruc !== emisorRuc && d.tipoComprobante === "01");
         const ventas = docs.filter((d) => d.emisor?.ruc === emisorRuc && d.tipoComprobante === "01");
         const rets = docs.filter((d) => d.tipoComprobante === "07");
@@ -77,7 +78,7 @@ export default function PresentarDeclaracionPage() {
       }
     };
     load();
-  }, [dateRange]);
+  }, [dateRange, activeRuc]);
 
   const handlePresentar = async () => {
     setLoading(true);
@@ -110,6 +111,21 @@ export default function PresentarDeclaracionPage() {
         backLink={{ href: "/declaraciones", label: "Declaraciones" }}
       />
 
+      {!activeRuc ? (
+        <main className="p-3 flex-1 flex flex-col gap-6 w-full">
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="w-14 h-14 rounded-full bg-brand-amber/10 flex items-center justify-center">
+              <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-brand-amber">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.545M12.75 21h7.5V10.75M2.25 21h1.5m18 0h-18M2.25 9l4.5-1.636M18.75 3l-1.5.545m0 6.205l3 1m1.5.5l-1.5-.5M6.75 7.364V3h-3v18m3-13.636l10.5-3.819" />
+              </svg>
+            </div>
+            <div className="text-center max-w-sm">
+              <p className="text-sm font-bold text-brand-gray-700">Selecciona una empresa</p>
+              <p className="text-xs text-brand-gray-400 mt-1">Usa el selector de empresa en la parte superior derecha para elegir un RUC y presentar su declaración.</p>
+            </div>
+          </div>
+        </main>
+      ) : (
       <main className="p-3 flex-1 flex flex-col gap-6 w-full">
         <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-slate-200 rounded-xl px-4 py-3" />
         {error && (
@@ -174,7 +190,7 @@ export default function PresentarDeclaracionPage() {
                 </div>
                 <div>
                   <p className="text-slate-400 text-[11px] font-medium">RUC</p>
-                  <p className="font-mono font-bold text-slate-900">{ruc}</p>
+                  <p className="font-mono font-bold text-slate-900">{activeRuc || "—"}</p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-slate-400 text-[11px] font-medium">Régimen</p>
@@ -283,7 +299,7 @@ export default function PresentarDeclaracionPage() {
               <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Resumen de la declaración</p>
               {[
                 { label: "Contribuyente", value: contribuyente },
-                { label: "RUC", value: ruc },
+                { label: "RUC", value: activeRuc || "—" },
                 { label: "Período", value: periodo },
                 { label: "IVA en Ventas", value: `$${ventasIva.toFixed(2)}` },
                 { label: "Crédito Tributario", value: `$${comprasIva.toFixed(2)}` },
@@ -451,6 +467,7 @@ export default function PresentarDeclaracionPage() {
         </>
         )}
       </main>
+      )}
     </>
   );
 }

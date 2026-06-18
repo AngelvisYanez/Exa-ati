@@ -22,7 +22,7 @@ const TIPO_MAP: Record<string, string> = {
 };
 
 export default function Dashboard() {
-  const { hasSriLinked } = useAuth();
+  const { hasSriLinked, activeRuc } = useAuth();
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
   const {
     loading,
@@ -44,7 +44,7 @@ export default function Dashboard() {
     syncStatus,
     enProcesoCount,
     pprCount,
-  } = useDashboardData(dateRange);
+  } = useDashboardData(dateRange, activeRuc);
 
   const lastSyncLabel = syncStatus?.lastSyncAt
     ? new Date(syncStatus.lastSyncAt).toLocaleString("es-EC", {
@@ -65,6 +65,33 @@ export default function Dashboard() {
 
       <Topbar title="Dashboard" period={formatDateRangeLabel(dateRange)} />
 
+      {!activeRuc ? (
+        <main className="p-3 flex-1 flex flex-col gap-5 w-full">
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="w-14 h-14 rounded-full bg-brand-amber/10 flex items-center justify-center">
+              <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-brand-amber">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.545M12.75 21h7.5V10.75M2.25 21h1.5m18 0h-18M2.25 9l4.5-1.636M18.75 3l-1.5.545m0 6.205l3 1m1.5.5l-1.5-.5M6.75 7.364V3h-3v18m3-13.636l10.5-3.819" />
+              </svg>
+            </div>
+            <div className="text-center max-w-sm">
+              <p className="text-sm font-bold text-brand-gray-700">Selecciona una empresa</p>
+              <p className="text-xs text-brand-gray-400 mt-1">Usa el selector de empresa en la parte superior derecha para elegir un RUC y ver su dashboard.</p>
+              {!hasSriLinked && (
+                <button
+                  onClick={() => window.dispatchEvent(new CustomEvent('sri:no-emisor'))}
+                  className="mt-4 inline-flex items-center gap-1.5 bg-brand-navy text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-brand-navy-light transition-colors cursor-pointer"
+                >
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path d="M15 7h3a5 5 0 015 5 5 5 0 01-5 5h-3m-6 0H6a5 5 0 01-5-5 5 5 0 015-5h3" />
+                    <line x1="8" y1="12" x2="16" y2="12" />
+                  </svg>
+                  Vincular empresa al SRI
+                </button>
+              )}
+            </div>
+          </div>
+        </main>
+      ) : (
       <main className="p-3 flex-1 flex flex-col gap-5 w-full">
         <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-slate-200 rounded-xl px-4 py-3" />
         {/* CERTIFICATE WARNING IF ANY */}
@@ -505,6 +532,7 @@ export default function Dashboard() {
 
         </div>
       </main>
+      )}
     </>
   );
 }

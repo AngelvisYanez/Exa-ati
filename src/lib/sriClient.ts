@@ -9,6 +9,8 @@ export interface SessionUser {
   email: string;
   rol: string;
   tenantId: string | null;
+  ruc?: string;
+  nombre?: string;
 }
 
 export interface Comprobante {
@@ -109,7 +111,15 @@ async function request(endpoint: string, options: RequestInit = {}) {
       clearSession();
     }
     const errData = await response.json().catch(() => ({}));
-    throw new Error(errData.message || `API request failed: ${response.status}`);
+    const message = errData.message || `API request failed: ${response.status}`;
+    if (
+      typeof window !== 'undefined' &&
+      message.includes('No se encontró un emisor vinculado')
+    ) {
+      window.dispatchEvent(new CustomEvent('sri:no-emisor', { detail: { message } }));
+      return { success: false, message, needVincular: true };
+    }
+    throw new Error(message);
   }
 
   return response.json();
@@ -202,7 +212,7 @@ export const sriClient = {
     return response.text();
   },
 
-  async emitirGeneral(data: { tipo: string; emisorRuc: string; datos: any }) {
+  async emitirGeneral(data: { tipo: string; emisorRuc: string; ambiente?: string; datos: any }) {
     return request('/sri/emitir', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -345,7 +355,7 @@ export const sriClient = {
     return request(`/whatsapp/qr${query}`);
   },
 
-  async connectWhatsapp(numero: string) {
+  async connectWhatsapp(numero?: string) {
     return request('/whatsapp/connect', {
       method: 'POST',
       body: JSON.stringify({ numero }),

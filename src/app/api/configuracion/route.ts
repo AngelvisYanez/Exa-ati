@@ -16,7 +16,8 @@ export async function GET(req: Request) {
       emisor = await db.queryOne<any>(
         `SELECT ruc, razon_social, nombre_comercial, tipo_contribuyente, ambiente,
                 cert_valido_hasta, certificado_valido_hasta,
-                whatsapp_numero, whatsapp_estado, notif_documentos, notif_generacion
+                whatsapp_numero, whatsapp_estado, notif_documentos, notif_generacion,
+                whatsapp_notif_documentos, whatsapp_notif_generacion
          FROM emisores WHERE ruc = $1 AND activo = true`,
         [userRuc]
       );

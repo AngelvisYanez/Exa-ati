@@ -122,6 +122,7 @@ export default function WhatsAppMobilePanel() {
       const res = await sriClient.connectWhatsapp(waNumero);
       if (res.success) {
         setWaEstado("CONECTADO");
+        setWaNumero(res.numero || waNumero);
         setActionMsg("WhatsApp vinculado correctamente.");
       }
     } catch (err: any) {
@@ -158,12 +159,16 @@ export default function WhatsAppMobilePanel() {
   };
 
   const handleUpdatePreferences = async (docVal: boolean, genVal: boolean) => {
+    const prevDoc = notifDocumentos;
+    const prevGen = notifGeneracion;
     setNotifDocumentos(docVal);
     setNotifGeneracion(genVal);
     try {
       await sriClient.updateWhatsappPreferences(docVal, genVal);
     } catch (err) {
-      console.error("Error al actualizar preferencias:", err);
+      setNotifDocumentos(prevDoc);
+      setNotifGeneracion(prevGen);
+      toast.error("Error al guardar preferencias de WhatsApp");
     }
   };
 

@@ -65,7 +65,7 @@ export type SyncStatus = {
   };
 };
 
-export function useDashboardData(dateRange: DateRange) {
+export function useDashboardData(dateRange: DateRange, activeRuc?: string | null) {
   const [docs, setDocs] = useState<Comprobante[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -77,7 +77,7 @@ export function useDashboardData(dateRange: DateRange) {
   const [pprCount, setPprCount] = useState(0);
 
   useEffect(() => {
-    if (!sriClient.isAuthenticated()) {
+    if (!sriClient.isAuthenticated() || !activeRuc) {
       setLoading(false);
       return;
     }

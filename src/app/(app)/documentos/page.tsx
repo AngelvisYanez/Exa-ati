@@ -27,13 +27,12 @@ const TIPO_DESC: Record<string, string> = {
 };
 
 export default function Documentos() {
-  const { hasSriLinked } = useAuth();
+  const { hasSriLinked, activeRuc } = useAuth();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("Todos");
   const [flowTab, setFlowTab] = useState<"todos" | "emitidos" | "recibidos">("todos");
   const [realDocs, setRealDocs] = useState<Comprobante[]>([]);
   const [isApiConnected, setIsApiConnected] = useState(false);
-  const [ruc, setRuc] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<Comprobante | null>(null);
   const [certWarning, setCertWarning] = useState<string | null>(null);
@@ -439,7 +438,7 @@ export default function Documentos() {
   const handleDownloadCsv = (doc: Comprobante) => {
     try {
       const tipoLabel = TIPO_DESC[doc.tipoComprobante] || doc.tipoComprobante;
-      const isDocVenta = doc.emisor?.ruc === ruc;
+      const isDocVenta = doc.emisor?.ruc === activeRuc;
       const partnerLabel = isDocVenta ? "Receptor" : "Emisor";
       const partnerName = isDocVenta ? doc.receptorRazonSocial : (doc.emisor?.razonSocial || "—");
       const partnerIdent = isDocVenta ? doc.receptorIdentificacion : (doc.emisor?.ruc || "—");
@@ -517,7 +516,7 @@ export default function Documentos() {
       ];
 
       const rows = filteredDocs.map(doc => {
-        const isDocVenta = doc.emisor?.ruc === ruc;
+    const isDocVenta = doc.emisor?.ruc === activeRuc;
         const partnerName = isDocVenta ? doc.receptorRazonSocial : (doc.emisor?.razonSocial || "—");
         const partnerIdent = isDocVenta ? doc.receptorIdentificacion : (doc.emisor?.ruc || "—");
         const tipoLabel = TIPO_DESC[doc.tipoComprobante] || doc.tipoComprobante;
@@ -557,21 +556,16 @@ export default function Documentos() {
   };
 
   useEffect(() => {
-    if (hasSriLinked) {
-      sriClient.getEmisor().then((res) => {
-        if (res.success && res.emisor?.ruc) setRuc(res.emisor.ruc);
-      }).catch(() => {});
-    }
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setSelectedDoc(null);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [hasSriLinked]);
+  }, []);
 
   useEffect(() => {
-    if (hasSriLinked && ruc) loadRealDocuments(dateRange);
-  }, [dateRange, hasSriLinked, ruc]);
+    if (hasSriLinked && activeRuc) loadRealDocuments(dateRange);
+  }, [dateRange, hasSriLinked, activeRuc]);
 
   useEffect(() => {
     setPage(1);
@@ -581,11 +575,11 @@ export default function Documentos() {
   const docsInRange = filterByDateRange(realDocs, (doc) => doc.fechaEmision, dateRange);
 
   const filteredDocs = docsInRange.filter((doc) => {
-    const prov = doc.emisor?.ruc === ruc
+    const prov = doc.emisor?.ruc === activeRuc
       ? (doc.receptorRazonSocial || "")
       : (doc.emisor?.razonSocial || "");
     const num = doc.secuencial || "";
-    const rucStr = doc.emisor?.ruc === ruc
+    const rucStr = doc.emisor?.ruc === activeRuc
       ? (doc.receptorIdentificacion || "")
       : (doc.emisor?.ruc || "");
     const matchesSearch =
@@ -594,8 +588,8 @@ export default function Documentos() {
       rucStr.toLowerCase().includes(search.toLowerCase());
 
     let matchesType = true;
-    const isVenta = doc.emisor?.ruc === ruc;
-    const isCompra = doc.emisor?.ruc !== ruc && doc.tipoComprobante === "01";
+    const isVenta = doc.emisor?.ruc === activeRuc;
+    const isCompra = doc.emisor?.ruc !== activeRuc && doc.tipoComprobante === "01";
     const isRetencion = doc.tipoComprobante === "07";
 
     if (typeFilter === "Compras") matchesType = isCompra;
@@ -624,8 +618,8 @@ export default function Documentos() {
   // Stats from real data (filtradas por fecha de emisión)
   const totalDocs = totalEnPeriodo ?? docsInRange.length;
   const listaTruncada = totalEnPeriodo != null && docsInRange.length < totalEnPeriodo;
-  const totalCompras = docsInRange.filter(d => d.emisor?.ruc !== ruc && d.tipoComprobante === '01').reduce((s, d) => s + (d.importeTotal || 0), 0);
-  const totalVentas = docsInRange.filter(d => d.emisor?.ruc === ruc).reduce((s, d) => s + (d.importeTotal || 0), 0);
+  const totalCompras = docsInRange.filter(d => d.emisor?.ruc !== activeRuc && d.tipoComprobante === '01').reduce((s, d) => s + (d.importeTotal || 0), 0);
+  const totalVentas = docsInRange.filter(d => d.emisor?.ruc === activeRuc).reduce((s, d) => s + (d.importeTotal || 0), 0);
   const totalRetenciones = docsInRange.filter(d => d.tipoComprobante === '07').length;
   const noAutorizados = docsInRange.filter(d => d.estado !== 'AUTORIZADO').length;
 
@@ -671,6 +665,21 @@ export default function Documentos() {
         </div>
       )}
 
+      {hasSriLinked && !activeRuc ? (
+        <div className="p-7 flex-1 flex flex-col gap-5 text-brand-gray-800 select-none">
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="w-14 h-14 rounded-full bg-brand-amber/10 flex items-center justify-center">
+              <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-brand-amber">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.545M12.75 21h7.5V10.75M2.25 21h1.5m18 0h-18M2.25 9l4.5-1.636M18.75 3l-1.5.545m0 6.205l3 1m1.5.5l-1.5-.5M6.75 7.364V3h-3v18m3-13.636l10.5-3.819" />
+              </svg>
+            </div>
+            <div className="text-center max-w-sm">
+              <p className="text-sm font-bold text-brand-gray-700">Selecciona una empresa</p>
+              <p className="text-xs text-brand-gray-400 mt-1">Usa el selector de empresa en la parte superior derecha para elegir un RUC y ver sus comprobantes.</p>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="p-7 flex-1 flex flex-col gap-5 text-brand-gray-800 select-none">
         <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-brand-gray-200 rounded-xl px-4 py-3" />
 
@@ -1003,6 +1012,7 @@ export default function Documentos() {
           </div>
         )}
       </div>
+      )}
 
       {/* DETAIL PANEL OVERLAY */}
       {selectedDoc && (
@@ -1069,7 +1079,7 @@ export default function Documentos() {
               </div>
 
               {/* Category selector for purchases */}
-              {selectedDoc.emisor?.ruc !== ruc && (
+              {selectedDoc.emisor?.ruc !== activeRuc && (
                 <div className="bg-brand-gray-50 rounded-lg p-3">
                   <div className="text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider">Categoría Tributaria</div>
                   <select

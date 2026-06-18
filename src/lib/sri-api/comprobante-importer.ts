@@ -190,7 +190,7 @@ export async function upsertComprobanteFromParsed(
     [data.claveAcceso]
   );
 
-  const estado = auth?.estado === 'AUTORIZADO' ? 'AUTORIZADO' : auth?.estado || 'AUTORIZADO';
+  const estado = auth?.estado === 'AUTORIZADO' ? 'AUTORIZADO' : auth?.estado || 'PENDIENTE';
   const fechaAuth = auth?.fechaAutorizacion ? new Date(auth.fechaAutorizacion) : new Date();
   const numeroAuth = auth?.numeroAutorizacion || data.claveAcceso;
 

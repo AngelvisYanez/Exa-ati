@@ -180,7 +180,7 @@ export const sriSoapClient = {
             'SOAP validarComprobante'
         );
         const resp = recResult?.RespuestaRecepcionComprobante || recResult;
-        const estado = resp?.estado || 'DEVUELTA';
+        const estado = resp?.estado || 'ERROR';
         
         if (estado !== 'RECIBIDA') {
             const mensajes = extractMensajesRecepcion(resp);

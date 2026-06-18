@@ -8,7 +8,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const { collapsed } = useSidebar();
 
   return (
-    <div className="min-h-screen flex text-brand-gray-800 bg-brand-gray-50 dark:bg-brand-gray-800">
+    <div className="min-h-screen flex text-brand-gray-800 bg-brand-gray-50">
       <Sidebar />
       <div
         id="main-content"
