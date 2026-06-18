@@ -7,7 +7,7 @@
   "crons": [
     {
       "path": "/api/cron/sri-check",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }
