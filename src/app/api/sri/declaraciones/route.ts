@@ -17,29 +17,16 @@ export async function GET(req: Request) {
     const conditions = ["tenant_id = ?", "accion = 'PRESENTAR_DECLARACION'", 'exitoso = true'];
     const params: string[] = [tenantId];
 
-    if (fechaDesde) {
-      conditions.push(`(
-        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(datos_nuevos, '$.fechaHasta')), DATE(created_at)) >= ?
-      )`);
-      params.push(fechaDesde);
-    }
-    if (fechaHasta) {
-      conditions.push(`(
-        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(datos_nuevos, '$.fechaDesde')), DATE(created_at)) <= ?
-      )`);
-      params.push(fechaHasta);
-    }
-
     const rows = await db.queryAll<any>(
       `SELECT id, descripcion, datos_nuevos, created_at
        FROM auditoria
        WHERE ${conditions.join(' AND ')}
        ORDER BY created_at DESC
-       LIMIT 50`,
+       LIMIT 100`,
       params
     );
 
-    const declaraciones = rows.map((row) => {
+    let declaraciones = rows.map((row) => {
       const data = typeof row.datos_nuevos === 'string'
         ? JSON.parse(row.datos_nuevos)
         : row.datos_nuevos;
@@ -61,8 +48,22 @@ export async function GET(req: Request) {
         estado: data?.estado || null,
         iva: parseFloat(data?.ivaAPagar || 0),
         createdAt: row.created_at,
+        _raw: data,
       };
     });
+
+    if (fechaDesde) {
+      declaraciones = declaraciones.filter(
+        (d) => d._raw?.fechaHasta && d._raw.fechaHasta >= fechaDesde
+      );
+    }
+    if (fechaHasta) {
+      declaraciones = declaraciones.filter(
+        (d) => d._raw?.fechaDesde && d._raw.fechaDesde <= fechaHasta
+      );
+    }
+
+    // _raw is kept for filter but returned as-is; type requires it
 
     return NextResponse.json({ success: true, data: declaraciones });
   } catch (error: any) {
