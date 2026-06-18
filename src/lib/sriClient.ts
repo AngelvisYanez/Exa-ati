@@ -198,6 +198,13 @@ export const sriClient = {
     return response.text();
   },
 
+  async emitirGeneral(data: { tipo: string; emisorRuc: string; datos: any }) {
+    return request('/sri/emitir', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   async emitirFactura(facturaData: any) {
     return request('/sri/emitir/factura', {
       method: 'POST',
@@ -217,6 +224,22 @@ export const sriClient = {
       method: 'POST',
       body: JSON.stringify(retencionData),
     });
+  },
+
+  async retryPendientesSri() {
+    return request('/sri/comprobantes/retry-pending', {
+      method: 'POST',
+    });
+  },
+
+  async getEnProcesoCount(): Promise<number> {
+    const res = await request('/sri/comprobantes?estado=EN_PROCESO&limit=1');
+    return (res as any)?.meta?.total || 0;
+  },
+
+  async getPprCount(): Promise<number> {
+    const res = await request('/sri/comprobantes?estado=PPR&limit=1');
+    return (res as any)?.meta?.total || 0;
   },
 
   async verificarEstadoSri(claveAcceso: string) {

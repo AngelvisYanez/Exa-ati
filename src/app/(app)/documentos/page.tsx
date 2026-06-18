@@ -235,7 +235,14 @@ export default function Documentos() {
       const response = await fetch(`/api/sri/comprobantes/${doc.claveAcceso}/xml`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!response.ok) throw new Error("No se pudo obtener el XML");
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => null);
+        let msg = "No se pudo obtener el XML";
+        if (errBody) {
+          try { const j = JSON.parse(errBody); if (j.message) msg = j.message; } catch {}
+        }
+        throw new Error(msg);
+      }
       const xmlText = await response.text();
       const blob = new Blob([xmlText], { type: "application/xml" });
       const url = window.URL.createObjectURL(blob);
@@ -260,7 +267,14 @@ export default function Documentos() {
       const response = await fetch(`/api/sri/comprobantes/${doc.claveAcceso}/pdf`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!response.ok) throw new Error("No se pudo obtener el PDF");
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => null);
+        let msg = "No se pudo obtener el PDF";
+        if (errBody) {
+          try { const j = JSON.parse(errBody); if (j.message) msg = j.message; } catch {}
+        }
+        throw new Error(msg);
+      }
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");

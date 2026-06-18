@@ -54,21 +54,32 @@ model Usuario {
 // EMISORES (contribuyentes del SRI)
 // ─────────────────────────────────────────────
 model Emisor {
-  id                     String   @id @default(uuid()) @db.Uuid
-  tenantId               String   @map("tenant_id") @db.Uuid
-  ruc                    String   @db.VarChar(20)
-  razonSocial            String?  @map("razon_social") @db.VarChar(500)
-  nombreComercial        String?  @map("nombre_comercial") @db.VarChar(500)
-  ambiente               String   @default("1") @db.VarChar(2)
-  tipoEmision            String   @default("1") @map("tipo_emision") @db.VarChar(2)
-  certificadoP12         Bytes?   @map("certificado_p12")
-  certificadoPassword    String?  @map("certificado_password") @db.VarChar(500)
-  certValidoHasta        DateTime? @map("cert_valido_hasta")
-  certificadoValidoHasta DateTime? @map("certificado_valido_hasta")
-  claveSriEncrypted      String?  @map("clave_sri_encrypted") @db.Text
-  activo                 Boolean  @default(true)
-  createdAt              DateTime @default(now()) @map("created_at")
-  updatedAt              DateTime @updatedAt @map("updated_at")
+  id                          String   @id @default(uuid()) @db.Uuid
+  tenantId                    String   @map("tenant_id") @db.Uuid
+  ruc                         String   @db.VarChar(20)
+  razonSocial                 String?  @map("razon_social") @db.VarChar(500)
+  nombreComercial             String?  @map("nombre_comercial") @db.VarChar(500)
+  ambiente                    String   @default("1") @db.VarChar(2)
+  tipoEmision                 String   @default("1") @map("tipo_emision") @db.VarChar(2)
+  establecimiento             String?  @default("001") @db.VarChar(3)
+  puntoEmision                String?  @map("punto_emision") @default("001") @db.VarChar(3)
+  dirMatriz                   String?  @map("dir_matriz") @db.VarChar(500)
+  direccionMatriz             String?  @map("direccion_matriz") @db.VarChar(500)
+  obligadoContabilidad        String?  @map("obligado_contabilidad") @db.VarChar(2)
+  agenteRetencion             String?  @map("agente_retencion") @db.VarChar(2)
+  contribuyenteRimpe          String?  @map("contribuyente_rimpe") @db.VarChar(2)
+  tipoContribuyente           String?  @map("tipo_contribuyente") @db.VarChar(50)
+  whatsappNumero              String?  @map("whatsapp_numero") @db.VarChar(20)
+  certificadoP12              Bytes?   @map("certificado_p12")
+  certificadoPassword         String?  @map("certificado_password") @db.VarChar(500)
+  passwordCertificado         String?  @map("password_certificado") @db.Text
+  certificadoPasswordEncrypted String? @map("certificado_password_encrypted") @db.Text
+  certificadoNombre           String?  @map("certificado_nombre") @db.VarChar(500)
+  certificadoValidoHasta      DateTime? @map("certificado_valido_hasta")
+  claveSriEncrypted           String?  @map("clave_sri_encrypted") @db.Text
+  activo                      Boolean  @default(true)
+  createdAt                   DateTime @default(now()) @map("created_at")
+  updatedAt                   DateTime @updatedAt @map("updated_at")
 
   tenant       Tenant        @relation(fields: [tenantId], references: [id])
   comprobantes Comprobante[]
@@ -89,6 +100,7 @@ model Comprobante {
   serie                  String?   @db.VarChar(10)
   secuencial             String?   @db.VarChar(20)
   ambiente               String?   @db.VarChar(2)
+  tipoEmision            String?   @map("tipo_emision") @db.VarChar(2)
   estado                 String    @default("PENDIENTE") @db.VarChar(50)
   estadoSri              String?   @map("estado_sri") @db.VarChar(50)
   fechaEmision           DateTime? @map("fecha_emision") @db.Date
@@ -99,6 +111,9 @@ model Comprobante {
   subtotalSinImpuesto    Decimal?  @map("subtotal_sin_impuesto") @db.Decimal(10, 2)
   totalIva               Decimal?  @map("total_iva") @db.Decimal(10, 2)
   totalDescuento         Decimal?  @map("total_descuento") @db.Decimal(10, 2)
+  propina                Decimal?  @default(0) @db.Decimal(10, 2)
+  moneda                 String?   @default("USD") @db.VarChar(10)
+  receptorTipoId         String?   @map("receptor_tipo_id") @db.VarChar(5)
   receptorIdentificacion String?   @map("receptor_identificacion") @db.VarChar(20)
   receptorRazonSocial    String?   @map("receptor_razon_social") @db.VarChar(500)
   receptorEmail          String?   @map("receptor_email") @db.VarChar(255)
@@ -132,6 +147,22 @@ model ComprobanteXml {
 
   @@unique([comprobanteId, tipo])
   @@map("comprobante_xmls")
+}
+
+// ─────────────────────────────────────────────
+// SECUENCIALES (auto-incremento por emisor + tipo)
+// ─────────────────────────────────────────────
+model Secuencial {
+  id              Int       @id @default(autoincrement())
+  emisorId        String    @map("emisor_id") @db.Uuid
+  tipoComprobante String    @map("tipo_comprobante") @db.VarChar(5)
+  serie           String    @db.VarChar(10)
+  ultimoSecuencial Int      @default(0) @map("ultimo_secuencial")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([emisorId, tipoComprobante, serie])
+  @@map("secuenciales")
 }
 
 // ─────────────────────────────────────────────

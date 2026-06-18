@@ -57,3 +57,5 @@ scripts/trigger-job.mjs
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel

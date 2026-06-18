@@ -72,6 +72,8 @@ export function useDashboardData(dateRange: DateRange) {
   const [rucEmisor, setRucEmisor] = useState("");
   const [certWarning, setCertWarning] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [enProcesoCount, setEnProcesoCount] = useState(0);
+  const [pprCount, setPprCount] = useState(0);
 
   useEffect(() => {
     if (!sriClient.isAuthenticated()) {
@@ -84,16 +86,21 @@ export function useDashboardData(dateRange: DateRange) {
 
     Promise.all([
       sriClient.getComprobantes({ limit: getComprobantesListLimit(dateRange), ...rangeParams }),
+      sriClient.getComprobantes({ estado: 'EN_PROCESO', limit: 1 }).catch(() => ({ meta: { total: 0 } })),
+      sriClient.getComprobantes({ estado: 'PPR', limit: 1 }).catch(() => ({ meta: { total: 0 } })),
       sriClient.getEmisor().catch(() => null),
       sriClient.getSyncStatus().catch(() => null),
     ])
-      .then(([compRes, emisorRes, syncRes]) => {
+      .then(([compRes, enProcesoRes, pprRes, emisorRes, syncRes]) => {
         if (compRes?.data) {
           setDocs(compRes.data);
           setIsConnected(true);
         } else {
           setIsConnected(false);
         }
+
+        setEnProcesoCount((enProcesoRes as any)?.meta?.total || 0);
+        setPprCount((pprRes as any)?.meta?.total || 0);
 
         if (emisorRes?.success && emisorRes.emisor) {
           setRucEmisor(emisorRes.emisor.ruc);
@@ -169,5 +176,7 @@ export function useDashboardData(dateRange: DateRange) {
     notasCreditoCount: docsInRange.filter((d) => d.tipoComprobante === "04").length,
     recentDocs: docsInRange.slice(0, 6),
     syncStatus,
+    enProcesoCount,
+    pprCount,
   };
 }

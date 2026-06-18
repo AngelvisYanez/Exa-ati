@@ -41,6 +41,8 @@ export default function Dashboard() {
     notasCreditoCount,
     recentDocs,
     syncStatus,
+    enProcesoCount,
+    pprCount,
   } = useDashboardData(dateRange);
 
   const lastSyncLabel = syncStatus?.lastSyncAt
@@ -107,6 +109,15 @@ export default function Dashboard() {
                 <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
                 API SRI Conectado
               </div>
+            )}
+            {(pprCount > 0 || enProcesoCount > 0) && (
+              <Link
+                href="/documentos?estado=EN_PROCESO"
+                className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-amber-700 flex items-center gap-2 hover:bg-amber-100 transition-colors"
+              >
+                <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
+                {pprCount + enProcesoCount} en proceso
+              </Link>
             )}
             <Link
               href="/declaraciones/presentar"
