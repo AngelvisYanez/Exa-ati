@@ -79,7 +79,7 @@ export async function POST(req: Request) {
   try {
     const user = await verifyAuth(req);
     const body = await req.json();
-    const userRuc = await getUserRuc(user);
+    const userRuc = await getUserRuc(user, req);
     const tenantId = requireTenantId(user);
 
     const range = {

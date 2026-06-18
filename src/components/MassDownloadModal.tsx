@@ -52,11 +52,15 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
   const [isDevMode, setIsDevMode] = useState(false);
 
   const [devOptions, setDevOptions] = useState({
-    connection_mode: 'cdp' as 'cdp' | 'new_browser' | 'headless_separate' | 'http',
+    connection_mode: 'http' as 'cdp' | 'new_browser' | 'headless_separate' | 'http',
     captcha_strategy: 'auto' as 'auto' | 'anticaptcha' | 'buster' | 'manual',
     debug_screenshots: false,
     verbose_logging: false,
     dom_dump_on_error: true,
+    use_listado_txt: true,
+    parallel_days: 1,
+    soap_sync_limit: 30,
+    http_retry_count: 3,
   });
 
   useEffect(() => {
@@ -65,6 +69,8 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
       (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('dev') === 'true')
     );
   }, []);
+
+  const isHttpMode = devOptions.connection_mode === 'http';
   
   const [formData, setFormData] = useState({
     ruc: '',
@@ -75,6 +81,10 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
   });
 
   const [jobs, setJobs] = useState<any[]>([]);
+  const [selectedJob, setSelectedJob] = useState<any | null>(null);
+  const [logs, setLogs] = useState<{ id: number; level: string; message: string; created_at: string }[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState<string | null>(null);
   const { hasSriLinked } = useAuth();
 
   useEffect(() => {
@@ -106,6 +116,34 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
       if (manual) setTimeout(() => setIsRefreshing(false), 500);
     }
   }, [open]);
+
+  const fetchLogs = useCallback(async (job: any) => {
+    if (!job?.id) return;
+    setLogsLoading(true);
+    setLogsError(null);
+    try {
+      const token = localStorage.getItem('sri_access_token');
+      const res = await fetch(`/api/sri/scraping/${job.id}/logs`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLogs(data.logs);
+      } else {
+        setLogsError(data.error || 'Error al cargar logs');
+      }
+    } catch (e) {
+      setLogsError('Error de red al cargar logs');
+    }
+    finally { setLogsLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (selectedJob && selectedJob.status === 'PROCESSING') {
+      const interval = setInterval(() => fetchLogs(selectedJob), 3000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedJob, fetchLogs]);
 
   useEffect(() => {
     if (open) {
@@ -266,110 +304,254 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
                   </div>
                 </div>
 
-                {isDevMode && (
-                  <div className="border border-dashed border-amber-300 rounded-lg overflow-hidden">
+                {/* ─── Selector rápido de scraper ─── */}
+                <div className="grid grid-cols-2 gap-2">
+                  {(['http', 'cdp'] as const).map((mode) => (
                     <button
+                      key={mode}
                       type="button"
-                      onClick={() => setShowDevOptions(!showDevOptions)}
-                      className="w-full flex items-center justify-between px-3 py-2 bg-amber-50 hover:bg-amber-100 transition-colors cursor-pointer"
+                      onClick={() => isDevMode && setDevOptions(prev => ({ ...prev, connection_mode: mode }))}
+                      className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all cursor-pointer ${
+                        devOptions.connection_mode === mode
+                          ? 'border-brand-navy bg-brand-navy/5 shadow-xs'
+                          : 'border-border bg-card hover:border-muted-foreground/30'
+                      } ${!isDevMode && devOptions.connection_mode !== mode ? 'opacity-60' : ''}`}
+                      title={!isDevMode && mode === 'http' ? 'HTTP es el único modo disponible en producción' : undefined}
                     >
-                      <span className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
-                        <Settings className="w-3.5 h-3.5" />
-                        Opciones de desarrollo
+                      <div className={`p-1.5 rounded-lg ${devOptions.connection_mode === mode ? 'bg-brand-navy text-white' : 'bg-muted text-muted-foreground'}`}>
+                        {mode === 'http' ? (
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className={`text-[11px] font-semibold leading-tight text-center ${devOptions.connection_mode === mode ? 'text-brand-navy' : 'text-muted-foreground'}`}>
+                        {mode === 'http' ? 'HTTP directo' : 'Puppeteer + Chrome'}
                       </span>
-                      {showDevOptions ? <ChevronUp className="w-3.5 h-3.5 text-amber-700" /> : <ChevronDown className="w-3.5 h-3.5 text-amber-700" />}
+                      <span className={`text-[9px] leading-tight text-center ${devOptions.connection_mode === mode ? 'text-brand-navy/70' : 'text-muted-foreground/60'}`}>
+                        {mode === 'http' ? 'Sin navegador' : 'Con navegador real'}
+                      </span>
+                      {devOptions.connection_mode === mode && (
+                        <div className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-brand-navy rounded-full" />
+                      )}
+                      {!isDevMode && mode === 'http' && (
+                        <span className="text-[8px] font-medium text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full mt-0.5">recomendado</span>
+                      )}
                     </button>
+                  ))}
+                </div>
 
-                    {showDevOptions && (
-                      <div className="p-3 space-y-3 bg-amber-50/50">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Modo de conexión</Label>
-                          {(['cdp', 'new_browser', 'headless_separate', 'http'] as const).map((mode) => (
-                            <label key={mode} className="flex items-center gap-2 py-0.5 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="connection_mode"
-                                checked={devOptions.connection_mode === mode}
-                                onChange={() => setDevOptions(prev => ({ ...prev, connection_mode: mode }))}
-                                className="accent-amber-600"
-                              />
-                              <span className="text-[11px] text-amber-900">
-                                {mode === 'cdp' && 'CDP (misma ventana Chrome, prof. ./browser_session/)'}
-                                {mode === 'new_browser' && 'Ventana separada (perfil nuevo)'}
-                                {mode === 'headless_separate' && 'Headless aislado (./browser_session/)'}
-                                {mode === 'http' && 'HTTP directo (sin navegador)'}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
+                {/* ─── Opciones específicas por scraper ─── */}
+                <div className="border border-dashed border-amber-300 rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowDevOptions(!showDevOptions)}
+                    className="w-full flex items-center justify-between px-3 py-2 bg-amber-50 hover:bg-amber-100 transition-colors cursor-pointer"
+                  >
+                    <span className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
+                      <Settings className="w-3.5 h-3.5" />
+                      Configuración avanzada
+                    </span>
+                    {showDevOptions ? <ChevronUp className="w-3.5 h-3.5 text-amber-700" /> : <ChevronDown className="w-3.5 h-3.5 text-amber-700" />}
+                  </button>
 
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Estrategia CAPTCHA</Label>
-                          {(['auto', 'anticaptcha', 'buster', 'manual'] as const).map((strategy) => (
-                            <label key={strategy} className="flex items-center gap-2 py-0.5 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="captcha_strategy"
-                                checked={devOptions.captcha_strategy === strategy}
-                                onChange={() => setDevOptions(prev => ({ ...prev, captcha_strategy: strategy }))}
-                                className="accent-amber-600"
-                              />
-                              <span className="text-[11px] text-amber-900">
-                                {strategy === 'auto' && 'Auto (Anti-Captcha → Buster)'}
-                                {strategy === 'anticaptcha' && 'Solo Anti-Captcha'}
-                                {strategy === 'buster' && 'Solo Buster'}
-                                {strategy === 'manual' && 'Manual (modo visible)'}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
+                  {showDevOptions && (
+                    <div className="p-3 space-y-3 bg-amber-50/50">
 
-                        <div className="flex flex-wrap gap-3 pt-1">
-                          {([
-                            { key: 'debug_screenshots' as const, label: 'Debug screenshots' },
-                            { key: 'verbose_logging' as const, label: 'Verbose logging' },
-                            { key: 'dom_dump_on_error' as const, label: 'DOM dump on error' },
-                          ]).map(opt => (
-                            <label key={opt.key} className="flex items-center gap-1.5 cursor-pointer">
+                      {/* HTTP-specific options */}
+                      {isHttpMode && (
+                        <>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Optimización HTTP</Label>
+
+                            <label className="flex items-center gap-2 py-0.5 cursor-pointer">
                               <input
                                 type="checkbox"
-                                checked={devOptions[opt.key]}
-                                onChange={() => setDevOptions(prev => ({ ...prev, [opt.key]: !prev[opt.key] }))}
+                                checked={devOptions.use_listado_txt}
+                                onChange={() => setDevOptions(prev => ({ ...prev, use_listado_txt: !prev.use_listado_txt }))}
                                 className="accent-amber-600"
                               />
-                              <span className="text-[10px] text-amber-800">{opt.label}</span>
+                              <span className="text-[11px] text-amber-900">
+                                Usar listado TXT (más rápido){' '}
+                                <span className="text-amber-600/70">— descarga lista de claves en vez de página HTML</span>
+                              </span>
                             </label>
-                          ))}
-                        </div>
 
-                        <span className="block border-t border-amber-200 my-1" />
+                            <div className="flex items-center gap-2 py-0.5">
+                              <span className="text-[11px] text-amber-900 min-w-[90px]">Días en paralelo:</span>
+                              <div className="flex items-center gap-1">
+                                {[1, 2, 3, 5].map(n => (
+                                  <button
+                                    key={n}
+                                    type="button"
+                                    onClick={() => setDevOptions(prev => ({ ...prev, parallel_days: n }))}
+                                    className={`px-2 py-0.5 text-[10px] font-medium rounded border cursor-pointer transition-colors ${
+                                      devOptions.parallel_days === n
+                                        ? 'bg-amber-200 text-amber-900 border-amber-400'
+                                        : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-100'
+                                    }`}
+                                  >
+                                    {n}
+                                  </button>
+                                ))}
+                                <span className="text-[9px] text-amber-600/70 ml-1">(max días simultáneos)</span>
+                              </div>
+                            </div>
 
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              const res = await fetch('/api/system/restart-chrome', { method: 'POST' });
-                              const data = await res.json();
-                              if (data.success) {
-                                toast.success(data.message);
-                              } else {
-                                toast.error(data.error || 'Error al reiniciar Chrome');
-                              }
-                            } catch {
-                              toast.error('Error de red al intentar reiniciar Chrome');
-                            }
-                          }}
-                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-md transition-colors cursor-pointer"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                          Reiniciar Chrome con debug port (usa tu sesión SRI activa)
-                        </button>
+                            <div className="flex items-center gap-2 py-0.5">
+                              <span className="text-[11px] text-amber-900 min-w-[90px]">Reintentos HTTP:</span>
+                              <div className="flex items-center gap-1">
+                                {[1, 2, 3, 5].map(n => (
+                                  <button
+                                    key={n}
+                                    type="button"
+                                    onClick={() => setDevOptions(prev => ({ ...prev, http_retry_count: n }))}
+                                    className={`px-2 py-0.5 text-[10px] font-medium rounded border cursor-pointer transition-colors ${
+                                      devOptions.http_retry_count === n
+                                        ? 'bg-amber-200 text-amber-900 border-amber-400'
+                                        : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-100'
+                                    }`}
+                                  >
+                                    {n}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          <span className="block border-t border-amber-200" />
+                        </>
+                      )}
+
+                      {/* Browser-specific options */}
+                      {!isHttpMode && (
+                        <>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Modo de conexión</Label>
+                            {(['cdp', 'new_browser', 'headless_separate'] as const).map((mode) => (
+                              <label key={mode} className="flex items-center gap-2 py-0.5 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="connection_mode_browser"
+                                  checked={devOptions.connection_mode === mode}
+                                  onChange={() => setDevOptions(prev => ({ ...prev, connection_mode: mode }))}
+                                  className="accent-amber-600"
+                                />
+                                <span className="text-[11px] text-amber-900">
+                                  {mode === 'cdp' && 'CDP (misma ventana Chrome, prof. ./browser_session/)'}
+                                  {mode === 'new_browser' && 'Ventana separada (perfil nuevo)'}
+                                  {mode === 'headless_separate' && 'Headless aislado (./browser_session/)'}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+
+                          <span className="block border-t border-amber-200" />
+                        </>
+                      )}
+
+                      {/* CAPTCHA (common to both) */}
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Estrategia CAPTCHA</Label>
+                        {(['auto', 'anticaptcha', 'buster', 'manual'] as const).map((strategy) => (
+                          <label key={strategy} className="flex items-center gap-2 py-0.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="captcha_strategy"
+                              checked={devOptions.captcha_strategy === strategy}
+                              onChange={() => setDevOptions(prev => ({ ...prev, captcha_strategy: strategy }))}
+                              className="accent-amber-600"
+                            />
+                            <span className="text-[11px] text-amber-900">
+                              {strategy === 'auto' && `Auto ${isHttpMode ? '(Anti-Captcha → 2captcha)' : '(Anti-Captcha → Buster)'}`}
+                              {strategy === 'anticaptcha' && 'Solo Anti-Captcha'}
+                              {strategy === 'buster' && `Solo Buster ${isHttpMode ? '(no disponible en HTTP)' : ''}`}
+                              {strategy === 'manual' && `Manual ${isHttpMode ? '(no aplica en HTTP)' : '(modo visible)'}`}
+                            </span>
+                          </label>
+                        ))}
                       </div>
-                    )}
-                  </div>
-                )}
+
+                      <span className="block border-t border-amber-200" />
+
+                      {/* Post-scrape SOAP sync */}
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Post-procesamiento SOAP</Label>
+                        <div className="flex items-center gap-2 py-0.5">
+                          <span className="text-[11px] text-amber-900 min-w-[70px]">Sync límite:</span>
+                          <div className="flex items-center gap-1">
+                            {[0, 10, 30, 50, 100].map(n => (
+                              <button
+                                key={n}
+                                type="button"
+                                onClick={() => setDevOptions(prev => ({ ...prev, soap_sync_limit: n }))}
+                                className={`px-2 py-0.5 text-[10px] font-medium rounded border cursor-pointer transition-colors ${
+                                  devOptions.soap_sync_limit === n
+                                    ? 'bg-amber-200 text-amber-900 border-amber-400'
+                                    : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-100'
+                                }`}
+                              >
+                                {n === 0 ? 'Off' : n}
+                              </button>
+                            ))}
+                            <span className="text-[9px] text-amber-600/70 ml-1">(comprobantes vía SOAP después del scrape)</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <span className="block border-t border-amber-200" />
+
+                      {/* Debug toggles */}
+                      <div className="flex flex-wrap gap-3 pt-1">
+                        {([
+                          { key: 'debug_screenshots' as const, label: 'Debug screenshots' },
+                          { key: 'verbose_logging' as const, label: 'Verbose logging' },
+                          { key: 'dom_dump_on_error' as const, label: 'DOM dump on error' },
+                        ]).map(opt => (
+                          <label key={opt.key} className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={devOptions[opt.key]}
+                              onChange={() => setDevOptions(prev => ({ ...prev, [opt.key]: !prev[opt.key] }))}
+                              className="accent-amber-600"
+                            />
+                            <span className="text-[10px] text-amber-800">{opt.label}</span>
+                          </label>
+                        ))}
+                      </div>
+
+                      <span className="block border-t border-amber-200 my-1" />
+
+                      {/* Restart Chrome */}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/system/restart-chrome', { method: 'POST' });
+                            const data = await res.json();
+                            if (data.success) {
+                              toast.success(data.message);
+                            } else {
+                              toast.error(data.error || 'Error al reiniciar Chrome');
+                            }
+                          } catch {
+                            toast.error('Error de red al intentar reiniciar Chrome');
+                          }
+                        }}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-md transition-colors cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Reiniciar Chrome con debug port (usa tu sesión SRI activa)
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <Button type="submit" disabled={loading} className="w-full mt-2 cursor-pointer">
                   {loading ? (
@@ -427,7 +609,7 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
                           const cfg = statusConfig[status] || statusConfig.PENDING;
                           const Icon = cfg.icon;
                           return (
-                            <tr key={job.id} className="hover:bg-accent/50 transition-colors" style={{ animationDelay: `${i * 30}ms`, animationFillMode: 'both' }}>
+                            <tr key={job.id} onClick={() => { setSelectedJob(selectedJob?.id === job.id ? null : job); fetchLogs(job); }} className={`hover:bg-accent/50 transition-colors cursor-pointer ${selectedJob?.id === job.id ? 'bg-accent/70 ring-1 ring-inset ring-brand-navy/20' : ''}`} style={{ animationDelay: `${i * 30}ms`, animationFillMode: 'both' }}>
                               <td className="px-3 py-2.5 whitespace-nowrap">
                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${cfg.className} ${status === 'PROCESSING' ? 'animate-pulse' : ''}`}>
                                   <Icon className={`w-3 h-3 ${status === 'PROCESSING' ? 'animate-spin' : ''}`} />
@@ -468,6 +650,68 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
                         })}
                       </tbody>
                     </table>
+                  </div>
+                )}
+
+                {/* ─── Log Viewer ─── */}
+                {selectedJob && (
+                  <div className="border-t border-border mt-0">
+                    <div className="flex items-center justify-between px-4 py-2 bg-muted/30">
+                      <h4 className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h12" />
+                        </svg>
+                        Logs — {selectedJob.ruc}
+                        {selectedJob.status === 'PROCESSING' && (
+                          <span className="inline-flex items-center gap-1 ml-1 text-[9px] font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                            en vivo
+                          </span>
+                        )}
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedJob(null); setLogs([]); setLogsError(null); }}
+                        className="text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        cerrar
+                      </button>
+                    </div>
+                    <div className="max-h-[180px] overflow-y-auto bg-[#0d1117] font-mono text-[10px] leading-relaxed">
+                      {logsLoading && logs.length === 0 ? (
+                        <div className="flex items-center gap-2 p-3 text-[#8b949e]">
+                          <span className="w-2 h-2 bg-[#8b949e] rounded-full animate-pulse" />
+                          Cargando logs...
+                        </div>
+                      ) : logsError ? (
+                        <div className="p-3 text-[#f85149] text-[10px]">
+                          {logsError}
+                        </div>
+                      ) : logs.length === 0 ? (
+                        <div className="p-3 text-[#8b949e] italic">
+                          Sin registros de log disponibles.
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-[#21262d]">
+                          {logs.map((log) => (
+                            <div key={log.id} className="flex gap-2 px-3 py-1 hover:bg-[#161b22]">
+                              <span className="text-[#484f58] whitespace-nowrap shrink-0 w-[68px]">
+                                {new Date(log.created_at).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                              </span>
+                              <span className={`shrink-0 w-[52px] text-[9px] font-semibold uppercase tracking-wider ${
+                                log.level === 'error' ? 'text-[#f85149]' :
+                                log.level === 'success' ? 'text-[#3fb950]' :
+                                log.level === 'warn' ? 'text-[#d29922]' :
+                                'text-[#58a6ff]'
+                              }`}>
+                                {log.level}
+                              </span>
+                              <span className="text-[#e6edf3] break-words">{log.message}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

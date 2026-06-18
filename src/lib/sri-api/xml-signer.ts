@@ -121,6 +121,7 @@ export const xmlSigner = {
       try {
         password = await encryption.decrypt(emisor.password_certificado);
       } catch {
+        console.warn(`[Signer] No se pudo descifrar password_certificado para ${ruc}, usando valor directo`);
         password = emisor.password_certificado;
       }
     } else if (emisor.certificado_password_encrypted) {

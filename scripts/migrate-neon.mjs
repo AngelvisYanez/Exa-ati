@@ -73,6 +73,7 @@ const statements = [
   )`,
 
   `ALTER TABLE "emisores" ADD COLUMN IF NOT EXISTS "tipo_contribuyente" VARCHAR(100)`,
+  `ALTER TABLE "usuarios" ADD COLUMN IF NOT EXISTS "ruc" VARCHAR(20)`,
   `ALTER TABLE "emisores" ADD COLUMN IF NOT EXISTS "notif_documentos" BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE "emisores" ADD COLUMN IF NOT EXISTS "notif_generacion" BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE "emisores" ADD COLUMN IF NOT EXISTS "whatsapp_numero" VARCHAR(20)`,
@@ -155,12 +156,22 @@ const statements = [
     "action_type" VARCHAR(50) NOT NULL DEFAULT 'DOWNLOAD_RECEIVED',
     "status" VARCHAR(50) NOT NULL DEFAULT 'PENDING',
     "progress_message" TEXT,
+    "options" TEXT DEFAULT '{}',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "scraping_jobs_pkey" PRIMARY KEY ("id")
   )`,
 
-  `ALTER TABLE "scraping_jobs" ADD COLUMN IF NOT EXISTS "options" TEXT DEFAULT '{}'`,
+  `CREATE TABLE IF NOT EXISTS "scraping_job_logs" (
+    "id" SERIAL NOT NULL,
+    "job_id" INTEGER NOT NULL,
+    "level" VARCHAR(20) NOT NULL DEFAULT 'info',
+    "message" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "scraping_job_logs_pkey" PRIMARY KEY ("id")
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS "idx_scraping_job_logs_job_id" ON "scraping_job_logs"("job_id")`,
 
   `CREATE TABLE IF NOT EXISTS "tenant_settings" (
     "id" SERIAL NOT NULL,
@@ -240,6 +251,12 @@ const statements = [
   `DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'secuenciales_emisor_id_fkey') THEN
       ALTER TABLE "secuenciales" ADD CONSTRAINT "secuenciales_emisor_id_fkey" FOREIGN KEY ("emisor_id") REFERENCES "emisores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scraping_job_logs_job_id_fkey') THEN
+      ALTER TABLE "scraping_job_logs" ADD CONSTRAINT "scraping_job_logs_job_id_fkey" FOREIGN KEY ("job_id") REFERENCES "scraping_jobs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
     END IF;
   END $$`,
 ];

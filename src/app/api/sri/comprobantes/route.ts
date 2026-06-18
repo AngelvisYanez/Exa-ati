@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     const user = await verifyAuth(req);
     let userRuc: string | null = null;
     try {
-      userRuc = await getUserRuc(user);
+      userRuc = await getUserRuc(user, req);
     } catch {
       userRuc = null;
     }

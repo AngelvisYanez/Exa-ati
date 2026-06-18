@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     const encryptedPassword = await encryption.encrypt(sriPassword);
 
     const existing = await db.queryOne<any>(
-      `SELECT id, tenant_id FROM emisores WHERE ruc = $1 AND activo = true`,
+      `SELECT id, tenant_id FROM emisores WHERE ruc = $1`,
       [ruc]
     );
 
@@ -54,6 +54,7 @@ export async function POST(req: Request) {
         `UPDATE emisores SET
           clave_sri_encrypted = $1,
           tenant_id = $2,
+          activo = true,
           updated_at = NOW()
          WHERE id = $3`,
         [encryptedPassword, tenantId, existing.id]

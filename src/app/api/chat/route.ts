@@ -60,7 +60,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const userRuc = await getUserRuc(user);
+    const userRuc = await getUserRuc(user, req);
 
     const emisor = await db.queryOne<any>(
       `SELECT razon_social, tipo_contribuyente, ambiente,

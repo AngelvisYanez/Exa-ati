@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 
     const emisor = await db.queryOne<any>(
       `SELECT id, ruc, razon_social, nombre_comercial, direccion_matriz, obligado_contabilidad,
-              ambiente, tenant_id, certificado_p12, password_certificado
+              ambiente, establecimiento, punto_emision, tenant_id, certificado_p12, password_certificado
        FROM emisores WHERE ruc = ? AND activo = true`,
       [ruc]
     );
@@ -48,8 +48,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const estab = (dto.emisor.establecimiento || '001').padStart(3, '0');
-    const ptoEmi = (dto.emisor.puntoEmision || '001').padStart(3, '0');
+    if (!emisor.ambiente) {
+      return NextResponse.json(
+        { message: `El emisor con RUC ${ruc} no tiene configurado el ambiente (1=Pruebas, 2=Producción)` },
+        { status: 400 }
+      );
+    }
+
+    const estab = (dto.emisor?.establecimiento || emisor.establecimiento || '').padStart(3, '0');
+    const ptoEmi = (dto.emisor?.puntoEmision || emisor.puntoEmision || '').padStart(3, '0');
+    if (!estab || estab === '000' || !ptoEmi || ptoEmi === '000') {
+      return NextResponse.json(
+        { message: `El emisor con RUC ${ruc} no tiene configurados establecimiento y punto de emisión` },
+        { status: 400 }
+      );
+    }
     const serie = `${estab}-${ptoEmi}`;
 
     let secuencial = dto.secuencial?.padStart(9, '0');
@@ -88,8 +101,8 @@ export async function POST(req: Request) {
       });
     }
 
-    const ambiente = dto.ambiente || emisor.ambiente || '1';
-    const tipoEmision = dto.tipoEmision || '1';
+    const ambiente = emisor.ambiente;
+    const tipoEmision = dto.tipoEmision || emisor.tipo_emision || '1';
 
     let fechaEmision: Date;
     if (dto.fechaEmision?.includes('/')) {

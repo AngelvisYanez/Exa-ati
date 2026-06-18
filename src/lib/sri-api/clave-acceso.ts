@@ -20,6 +20,7 @@ export interface ClaveAccesoData {
   secuencial: string;
   codigoNumerico?: string;
   tipoEmision?: TipoEmision;
+  establecimientoTemporal?: boolean;
 }
 
 function formatDate(date: Date): string {
@@ -37,7 +38,12 @@ function validateRuc(ruc: string): string {
   return cleanRuc;
 }
 
-function generateCodigoNumerico(): string {
+function generateCodigoNumerico(establecimientoTemporal?: boolean): string {
+  if (establecimientoTemporal) {
+    const diaSemana = new Date().getDay() || 7; // 0=Sun→7, 1=Mon..6=Sat
+    const resto = randomInt(1000000, 10000000).toString();
+    return diaSemana + resto;
+  }
   return randomInt(10000000, 100000000).toString();
 }
 
@@ -72,7 +78,7 @@ export const claveAccesoService = {
     const establecimiento = data.establecimiento.padStart(3, '0');
     const puntoEmision = data.puntoEmision.padStart(3, '0');
     const secuencial = data.secuencial.padStart(9, '0');
-    const codigoNumerico = data.codigoNumerico || generateCodigoNumerico();
+    const codigoNumerico = data.codigoNumerico || generateCodigoNumerico(data.establecimientoTemporal);
     const tipoEmision = data.tipoEmision || TipoEmision.NORMAL;
 
     const claveBase =

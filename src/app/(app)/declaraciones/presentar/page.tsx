@@ -164,7 +164,9 @@ export default function PresentarDeclaracionPage() {
 
             {/* Datos del contribuyente */}
             <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-3">
-              <h2 className="text-[13px] font-bold text-slate-700 uppercase tracking-wide">Datos del Contribuyente</h2>
+              <h2 className="text-[13px] font-bold text-slate-700 uppercase tracking-wide">
+                Datos de {contribuyente || "Contribuyente"}
+              </h2>
               <div className="grid grid-cols-2 gap-3 text-[13px]">
                 <div>
                   <p className="text-slate-400 text-[11px] font-medium">Nombre / Razón Social</p>

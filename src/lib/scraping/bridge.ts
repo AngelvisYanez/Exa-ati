@@ -11,6 +11,10 @@ export interface ScrapingJobOptions {
   debug_screenshots?: boolean;
   verbose_logging?: boolean;
   dom_dump_on_error?: boolean;
+  use_listado_txt?: boolean;
+  parallel_days?: number;
+  soap_sync_limit?: number;
+  http_retry_count?: number;
 }
 
 let cachedBrowser: Browser | null = null;

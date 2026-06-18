@@ -12,15 +12,28 @@ import { sincronizarConSri } from '@/lib/sri-api/sync-service';
 export const maxDuration = 300; 
 export const dynamic = 'force-dynamic';
 
+async function insertJobLog(jobId: string | number, level: string, message: string) {
+  try {
+    await db.query(
+      `INSERT INTO scraping_job_logs (job_id, level, message) VALUES ($1, $2, $3)`,
+      [jobId, level, message]
+    );
+  } catch (err: any) {
+    console.error(`[LogDB] Error inserting log for job ${jobId}:`, err.message);
+  }
+}
+
 async function updateProgress(jobId: string, message: string, status?: string) {
   console.log(`[Sync Job ${jobId}] ${message}`);
   let query = "UPDATE scraping_jobs SET progress_message = $1, updated_at = NOW() WHERE id = $2";
-  let params = [message, jobId];
+  let params: any[] = [message, jobId];
   if (status) {
     query = "UPDATE scraping_jobs SET progress_message = $1, status = $2, updated_at = NOW() WHERE id = $3";
     params = [message, status, jobId];
   }
   await db.query(query, params);
+  const level = status === 'ERROR' ? 'error' : status === 'COMPLETED' ? 'success' : 'info';
+  await insertJobLog(jobId, level, message);
 }
 
 export async function POST(req: Request) {
@@ -42,7 +55,8 @@ export async function POST(req: Request) {
     }
 
     // Marcar como en proceso (esto es rápido, no interfiere con el tiempo de scraping)
-    await updateProgress(jobId, 'Iniciando sincronización Vercel Serverless...', 'PROCESSING');
+    const isLocal = process.env.NODE_ENV === 'development' || !process.env.VERCEL;
+    await updateProgress(jobId, isLocal ? 'Iniciando sincronización local...' : 'Iniciando sincronización Vercel Serverless...', 'PROCESSING');
 
     // ─── Ejecutar Scraping ──────────────────────────────────────────────────────────
     let browser = null;
@@ -53,7 +67,15 @@ export async function POST(req: Request) {
 
       if (connectionMode === 'http') {
         await updateProgress(jobId, 'Usando scraper HTTP directo (sin navegador)...');
-        await runHttpScraping(job, updateProgress, job.tenant_id || null);
+        await runHttpScraping(
+          job,
+          updateProgress,
+          job.tenant_id || null,
+          {
+            useListadoTxt: jobOpts.use_listado_txt,
+            parallelDays: jobOpts.parallel_days,
+          }
+        );
       } else {
         browser = await getBrowser(connectionMode);
         page = await browser.newPage();
@@ -86,14 +108,15 @@ export async function POST(req: Request) {
       }
 
       const tenantId = job.tenant_id || null;
-      if (tenantId && job.ruc && job.fecha_desde && job.fecha_hasta) {
+      const soapLimit = jobOpts.soap_sync_limit ?? 30;
+      if (soapLimit > 0 && tenantId && job.ruc && job.fecha_desde && job.fecha_hasta) {
         try {
           await updateProgress(jobId, 'Sincronizando comprobantes pendientes con SOAP del SRI...');
           const syncResult = await sincronizarConSri(tenantId, job.ruc, {
             fechaDesde: job.fecha_desde,
             fechaHasta: job.fecha_hasta,
             modo: 'completo',
-            limite: 30,
+            limite: soapLimit,
           });
           console.log(`[Sync Job ${jobId}] Post-scrape SOAP sync: ${syncResult.message}`);
         } catch (syncErr: any) {

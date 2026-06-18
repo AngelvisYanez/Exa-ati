@@ -5,8 +5,6 @@ export function resolveDir(pathStr: string): string {
   if (pathStr.startsWith('/') || pathStr.includes(':')) {
     return pathStr;
   }
-  // Se asume que el frontend corre en /frontend, por lo que resolvemos desde la raíz del workspace
-  // si es necesario, o desde process.cwd()
   return resolve(process.cwd(), pathStr);
 }
 
@@ -16,14 +14,22 @@ export function ensureDir(dir: string): void {
   }
 }
 
+function requireEnv(name: string): string {
+  const val = process.env[name];
+  if (!val) {
+    throw new Error(`Variable de entorno requerida: ${name}`);
+  }
+  return val;
+}
+
 export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   jwt: {
-    secret: process.env.JWT_SECRET || 'sri-jwt-secret-key-32bytes-long-now',
+    secret: requireEnv('JWT_SECRET'),
     expiration: process.env.JWT_EXPIRATION || '24h',
   },
-  encryptionKey: process.env.ENCRYPTION_KEY || '12345678901234567890123456789012',
-  encryptionSalt: process.env.ENCRYPTION_SALT || 'sri-salt-1234',
+  encryptionKey: requireEnv('ENCRYPTION_KEY'),
+  encryptionSalt: requireEnv('ENCRYPTION_SALT'),
   sri: {
     environment: process.env.SRI_ENVIRONMENT || 'development',
     wsdl: {
@@ -33,22 +39,22 @@ export const config = {
   },
   directories: {
     get templates(): string {
-      const dir = resolveDir(process.env.TEMPLATES_DIR || '../backend/templates');
+      const dir = resolveDir(requireEnv('TEMPLATES_DIR'));
       ensureDir(dir);
       return dir;
     },
     get pdfs(): string {
-      const dir = resolveDir(process.env.PDFS_DIR || '../backend/pdfs');
+      const dir = resolveDir(requireEnv('PDFS_DIR'));
       ensureDir(dir);
       return dir;
     },
     get certs(): string {
-      const dir = resolveDir(process.env.CERTS_DIR || '../backend/certs');
+      const dir = resolveDir(requireEnv('CERTS_DIR'));
       ensureDir(dir);
       return dir;
     },
     get xmls(): string {
-      const dir = resolveDir(process.env.XMLS_DIR || '../backend/xmls');
+      const dir = resolveDir(requireEnv('XMLS_DIR'));
       ensureDir(dir);
       return dir;
     },

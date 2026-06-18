@@ -120,8 +120,8 @@ async function procesarUnaClave(
             fecha,
             xmlAutorizado
           );
-        } catch {
-          // Fallback: ya se actualizó el estado en DB
+        } catch (err) {
+          console.warn(`[Polling] No se pudo guardar XML autorizado para ${comp.claveAcceso}:`, err);
         }
       }
 
@@ -268,13 +268,16 @@ export async function checkPendingAutorizaciones(
         rechazados++;
       else if (resultado.estadoFinal === 'EN_PROCESO') enProceso++;
       else errores++;
-    } catch {
+    } catch (err) {
+      console.error(`[Polling] Error inesperado procesando ${comp.claveAcceso}:`, err);
       errores++;
       resultados.push({
         claveAcceso: comp.claveAcceso,
         estadoAnterior: comp.estado,
         estadoFinal: 'EN_PROCESO',
-        mensajes: [],
+        mensajes: [
+          { identificador: 'POLLING_UNEXPECTED', mensaje: String(err), tipo: 'ERROR' }
+        ],
         actualizado: false,
       });
     }

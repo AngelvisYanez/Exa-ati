@@ -165,6 +165,21 @@ export async function upsertComprobanteFromParsed(
     throw new Error('El comprobante no pertenece a este contribuyente');
   }
 
+  // Actualizar la razón social del emisor en la tabla 'emisores' si estaba con el valor por defecto
+  const companyName = data.rucEmisor === userRuc ? data.razonSocialEmisor : (data.receptorIdentificacion === userRuc ? data.receptorRazonSocial : null);
+  if (companyName && companyName !== `Contribuyente ${userRuc}`) {
+    const activeEmisor = await db.queryOne<any>(
+      'SELECT razon_social FROM emisores WHERE ruc = ? AND tenant_id = ? AND activo = true',
+      [userRuc, tenantId]
+    );
+    if (activeEmisor && (activeEmisor.razon_social === `Contribuyente ${userRuc}` || !activeEmisor.razon_social || activeEmisor.razon_social.startsWith('Contribuyente '))) {
+      await db.query(
+        'UPDATE emisores SET razon_social = ?, nombre_comercial = ?, updated_at = NOW() WHERE ruc = ? AND tenant_id = ? AND activo = true',
+        [companyName, companyName, userRuc, tenantId]
+      );
+    }
+  }
+
   const emisor = await db.queryOne<any>(
     'SELECT id FROM emisores WHERE ruc = ? AND tenant_id = ? AND activo = true',
     [data.rucEmisor, tenantId]

@@ -570,8 +570,8 @@ export default function Documentos() {
   }, [hasSriLinked]);
 
   useEffect(() => {
-    if (hasSriLinked) loadRealDocuments(dateRange);
-  }, [dateRange, hasSriLinked]);
+    if (hasSriLinked && ruc) loadRealDocuments(dateRange);
+  }, [dateRange, hasSriLinked, ruc]);
 
   useEffect(() => {
     setPage(1);
@@ -636,9 +636,28 @@ export default function Documentos() {
   };
 
   const getEstadoBadge = (estado: string) => {
-    if (estado === 'AUTORIZADO') return "bg-emerald-50 text-emerald-700";
-    if (estado === 'RECHAZADO') return "bg-red-50 text-red-700";
-    return "bg-amber-50 text-amber-700";
+    const map: Record<string, string> = {
+      AUTORIZADO: 'bg-emerald-50 text-emerald-700',
+      EN_PROCESO: 'bg-amber-50 text-amber-700',
+      PPR: 'bg-amber-50 text-amber-700',
+      DUPLICADO: 'bg-purple-50 text-purple-700',
+      DOCUMENTO_INVALIDO: 'bg-red-50 text-red-700',
+      TIMEOUT_SRI: 'bg-orange-50 text-orange-700',
+      RECHAZADO: 'bg-red-50 text-red-700',
+      FIRMADO: 'bg-blue-50 text-blue-700',
+      PENDIENTE: 'bg-slate-100 text-slate-600',
+    };
+    return map[estado] || 'bg-amber-50 text-amber-700';
+  };
+
+  const getEstadoLabel = (estado: string) => {
+    const map: Record<string, string> = {
+      EN_PROCESO: 'EN PROCESO',
+      DOCUMENTO_INVALIDO: 'DOC. INVÁLIDO',
+      TIMEOUT_SRI: 'TIMEOUT SRI',
+      PPR: 'EN PROCESO',
+    };
+    return map[estado] || estado;
   };
 
   return (
@@ -844,6 +863,7 @@ export default function Documentos() {
                     <th className="p-3.5">Clave de acceso / Nro. Autorización</th>
                     <th className="p-3.5">Fecha y hora de autorización</th>
                     <th className="p-3.5">Fecha emisión</th>
+                    <th className="p-3.5 text-center">Estado SRI</th>
                     <th className="p-3.5 text-right">Valor sin impuestos</th>
                     <th className="p-3.5 text-right">IVA</th>
                     <th className="p-3.5 text-right">Importe Total</th>
@@ -910,6 +930,11 @@ export default function Documentos() {
                           {doc.fechaEmision
                             ? new Date(doc.fechaEmision).toLocaleDateString('es-EC')
                             : "—"}
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <span className={`text-[9px] font-bold rounded-full px-2 py-0.5 inline-block ${getEstadoBadge(doc.estado || '')}`}>
+                            {getEstadoLabel(doc.estado || 'PENDIENTE')}
+                          </span>
                         </td>
                         <td className="p-3.5 text-right font-medium text-brand-gray-700">
                           ${(doc.subtotal || 0).toFixed(2)}
@@ -1003,7 +1028,7 @@ export default function Documentos() {
                     {TIPO_DESC[selectedDoc.tipoComprobante || '01']}
                   </span>
                   <span className={`text-[10px] font-semibold rounded-full px-2 py-0.5 ${getEstadoBadge(selectedDoc.estado || '')}`}>
-                    {selectedDoc.estado || 'PENDIENTE'}
+                    {getEstadoLabel(selectedDoc.estado || 'PENDIENTE')}
                   </span>
                 </div>
                 <div className="text-sm font-extrabold text-brand-navy mt-1">

@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     const user = await verifyAuth(req);
     const body = await req.json().catch(() => ({}));
     const tenantId = requireTenantId(user);
-    const userRuc = await getUserRuc(user);
+    const userRuc = await getUserRuc(user, req);
     const modo = resolveModo(body);
 
     const result = await sincronizarConSri(tenantId, userRuc, {

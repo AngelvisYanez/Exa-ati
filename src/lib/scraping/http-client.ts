@@ -1,4 +1,6 @@
 import * as cheerio from 'cheerio';
+import fs from 'fs';
+import path from 'path';
 
 export interface HttpResponse {
   status: number;
@@ -7,17 +9,86 @@ export interface HttpResponse {
   url: string;
 }
 
+export interface HttpRequestOptions {
+  body?: string;
+  contentType?: string;
+  redirect?: 'follow' | 'manual';
+  headers?: Record<string, string>;
+  retry?: number;
+  retryDelay?: number;
+}
+
+const MAX_REDIRECTS = 15;
+const DEFAULT_TIMEOUT = 60_000;
+const DEFAULT_RETRIES = 2;
+const DEFAULT_RETRY_DELAY = 2_000;
+
 export class HttpClient {
   private cookies = new Map<string, string>();
   private defaultHeaders: Record<string, string>;
+  private proxyAgent?: any;
+  private cookieJarPath?: string;
 
-  constructor(headers?: Record<string, string>) {
+  constructor(opts?: {
+    headers?: Record<string, string>;
+    proxyUrl?: string;
+    cookieJarPath?: string;
+  }) {
     this.defaultHeaders = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'es-EC,es;q=0.9,en;q=0.8',
-      ...headers,
+      ...opts?.headers,
     };
+    this.cookieJarPath = opts?.cookieJarPath;
+
+    if (opts?.proxyUrl) {
+      this.initProxy(opts.proxyUrl);
+    }
+  }
+
+  private initProxy(proxyUrl: string): void {
+    try {
+      const { HttpsProxyAgent } = require('https-proxy-agent');
+      this.proxyAgent = new HttpsProxyAgent(proxyUrl);
+    } catch {
+      console.warn('[HttpClient] https-proxy-agent no disponible, omitiendo proxy');
+    }
+  }
+
+  private fetchOptions(): RequestInit {
+    const opts: RequestInit = {};
+    if (this.proxyAgent) {
+      (opts as any).agent = this.proxyAgent;
+    }
+    return opts;
+  }
+
+  loadCookiesFromDisk(): boolean {
+    if (!this.cookieJarPath) return false;
+    try {
+      if (fs.existsSync(this.cookieJarPath)) {
+        const raw = fs.readFileSync(this.cookieJarPath, 'utf-8');
+        const data = JSON.parse(raw);
+        if (typeof data === 'object' && data !== null) {
+          for (const [k, v] of Object.entries(data)) {
+            this.cookies.set(k, String(v));
+          }
+        }
+        return true;
+      }
+    } catch {}
+    return false;
+  }
+
+  saveCookiesToDisk(): boolean {
+    if (!this.cookieJarPath) return false;
+    try {
+      fs.mkdirSync(path.dirname(this.cookieJarPath), { recursive: true });
+      fs.writeFileSync(this.cookieJarPath, JSON.stringify(Object.fromEntries(this.cookies), null, 2), 'utf-8');
+      return true;
+    } catch {}
+    return false;
   }
 
   private mergeCookies(setCookie: string[] | undefined): void {
@@ -38,20 +109,38 @@ export class HttpClient {
   }
 
   private async request(
-    method: string, url: string, opts: {
-      body?: string;
-      contentType?: string;
-      redirect?: 'follow' | 'manual';
-      headers?: Record<string, string>;
-    } = {}
+    method: string, url: string, opts: HttpRequestOptions = {}
   ): Promise<HttpResponse> {
-    const maxRedirects = 15;
-    let currentUrl = url;
-    for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount++) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
+    const retries = opts.retry ?? DEFAULT_RETRIES;
+    const retryDelay = opts.retryDelay ?? DEFAULT_RETRY_DELAY;
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const res = await fetch(currentUrl, {
+        return await this._requestOnce(method, url, opts);
+      } catch (err: any) {
+        lastError = err;
+        if (attempt < retries) {
+          const delay = retryDelay * Math.pow(2, attempt);
+          await new Promise(r => setTimeout(r, delay));
+        }
+      }
+    }
+
+    throw lastError || new Error(`Request failed for ${url}`);
+  }
+
+  private async _requestOnce(
+    method: string, url: string, opts: HttpRequestOptions = {}
+  ): Promise<HttpResponse> {
+    let currentUrl = url;
+    for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
+      try {
+        const reqInit: RequestInit = {
+          ...this.fetchOptions(),
           method,
           headers: {
             ...this.defaultHeaders,
@@ -62,13 +151,14 @@ export class HttpClient {
           body: opts.body,
           redirect: 'manual',
           signal: controller.signal,
-        });
+        };
+        const res = await fetch(currentUrl, reqInit);
         this.mergeCookies(res.headers.getSetCookie?.() as string[] | undefined);
 
         const isRedirect = res.status >= 300 && res.status < 400 && res.status !== 304;
         if (isRedirect && opts.redirect !== 'manual') {
           const location = res.headers.get('location');
-          if (!location || redirectCount === maxRedirects) {
+          if (!location || redirectCount === MAX_REDIRECTS) {
             const body = await res.text().catch(() => '');
             return { status: res.status, headers: res.headers, body, url: currentUrl };
           }
@@ -85,20 +175,15 @@ export class HttpClient {
     throw new Error(`Too many redirects for ${url}`);
   }
 
-  async get(url: string, opts?: { redirect?: 'follow' | 'manual'; headers?: Record<string, string> }): Promise<HttpResponse> {
-    return this.request('GET', url, {
-      headers: opts?.headers,
-      redirect: opts?.redirect,
-    });
+  async get(url: string, opts?: Omit<HttpRequestOptions, 'body' | 'contentType'>): Promise<HttpResponse> {
+    return this.request('GET', url, opts as HttpRequestOptions);
   }
 
-  async post(url: string, body: string | URLSearchParams, opts?: { contentType?: string; redirect?: 'follow' | 'manual'; headers?: Record<string, string> }): Promise<HttpResponse> {
+  async post(url: string, body: string | URLSearchParams, opts?: Omit<HttpRequestOptions, 'body'>): Promise<HttpResponse> {
     const bodyStr = typeof body === 'string' ? body : body.toString();
     return this.request('POST', url, {
+      ...opts,
       body: bodyStr,
-      contentType: opts?.contentType,
-      headers: opts?.headers,
-      redirect: opts?.redirect,
     });
   }
 
@@ -106,13 +191,15 @@ export class HttpClient {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60000);
     try {
-      const res = await fetch(url, {
+      const reqInit: RequestInit = {
+        ...this.fetchOptions(),
         headers: {
           ...this.defaultHeaders,
           'Cookie': this.cookieHeader(),
         },
         signal: controller.signal,
-      });
+      };
+      const res = await fetch(url, reqInit);
       const buf = Buffer.from(await res.arrayBuffer());
       return buf;
     } finally {
@@ -134,6 +221,14 @@ export class HttpClient {
 
   setCookie(name: string, value: string): void {
     this.cookies.set(name, value);
+  }
+
+  clearCookies(): void {
+    this.cookies.clear();
+  }
+
+  setProxy(proxyUrl: string): void {
+    this.initProxy(proxyUrl);
   }
 }
 

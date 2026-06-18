@@ -7,7 +7,7 @@ import { getUserRuc } from '@/lib/sri-api/user-resolver';
 export async function GET(req: Request) {
   try {
     const user = await verifyAuth(req);
-    const userRuc = await getUserRuc(user);
+    const userRuc = await getUserRuc(user, req);
 
     const { searchParams } = new URL(req.url);
     const fechaDesde = searchParams.get('fechaDesde') || undefined;

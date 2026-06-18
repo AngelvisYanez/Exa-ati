@@ -91,9 +91,11 @@ export const clearSession = () => {
 
 async function request(endpoint: string, options: RequestInit = {}) {
   const token = getAuthToken();
+  const selectedRuc = typeof window !== 'undefined' ? localStorage.getItem('sri_selected_ruc') : null;
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(selectedRuc ? { 'x-selected-ruc': selectedRuc } : {}),
     ...options.headers,
   };
 
@@ -168,6 +170,7 @@ export const sriClient = {
     limit?: number;
     page?: number;
     tipo?: string;
+    estado?: string;
     rucEmisor?: string;
     fechaDesde?: string;
     fechaHasta?: string;
@@ -176,6 +179,7 @@ export const sriClient = {
     if (params.limit) query.append('limit', params.limit.toString());
     if (params.page) query.append('page', params.page.toString());
     if (params.tipo) query.append('tipo', params.tipo);
+    if (params.estado) query.append('estado', params.estado);
     if (params.rucEmisor) query.append('rucEmisor', params.rucEmisor);
     if (params.fechaDesde) query.append('fechaDesde', params.fechaDesde);
     if (params.fechaHasta) query.append('fechaHasta', params.fechaHasta);
@@ -455,6 +459,41 @@ export const sriClient = {
   async testSriConnection() {
     return request('/sri/test-connection', {
       method: 'POST',
+    });
+  },
+
+  async getEmisores() {
+    return request('/sri/emisores');
+  },
+
+  async desvincularSri(ruc: string) {
+    return request('/sri/desvincular', {
+      method: 'POST',
+      body: JSON.stringify({ ruc }),
+    });
+  },
+
+  async getClientes() {
+    return request('/clientes');
+  },
+
+  async createCliente(data: { email: string; password?: string; nombre: string; ruc?: string; rol?: string }) {
+    return request('/clientes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateCliente(id: string, data: { email?: string; password?: string; nombre?: string; ruc?: string; activo?: boolean; rol?: string }) {
+    return request(`/clientes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteCliente(id: string) {
+    return request(`/clientes/${id}`, {
+      method: 'DELETE',
     });
   },
 

@@ -41,6 +41,7 @@ model Usuario {
   nombre       String?  @db.VarChar(255)
   rol          String   @default("USER") @db.VarChar(50)
   tenantId     String?  @map("tenant_id") @db.Uuid
+  ruc          String?  @db.VarChar(20)
   activo       Boolean  @default(true)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -186,8 +187,22 @@ model ScrapingJob {
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
   tenant Tenant? @relation(fields: [tenantId], references: [id])
+  logs    ScrapingJobLog[]
 
   @@map("scraping_jobs")
+}
+
+model ScrapingJobLog {
+  id        Int      @id @default(autoincrement())
+  jobId     Int      @map("job_id")
+  level     String   @default("info") @db.VarChar(20)
+  message   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  job ScrapingJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId], name: "idx_scraping_job_logs_job_id")
+  @@map("scraping_job_logs")
 }
 
 // ─────────────────────────────────────────────

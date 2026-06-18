@@ -8,11 +8,27 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSidebar } from "@/contexts/SidebarContext";
+import {
+  LayoutGrid,
+  FileText,
+  ScrollText,
+  MessageSquare,
+  ShieldCheck,
+  PlusCircle,
+  Send,
+  Receipt,
+  Bell,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  LogOut,
+} from "lucide-react";
 
 type NavItem = {
   href: string;
   label: string;
   icon: React.ReactNode;
+  roles?: string[];
 };
 
 type NavGroup = {
@@ -27,33 +43,18 @@ const navGroups: NavGroup[] = [
       {
         href: "/",
         label: "Dashboard",
-        icon: (
-          <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-            <rect x="3" y="3" width="7" height="7" rx="1.5" />
-            <rect x="14" y="3" width="7" height="7" rx="1.5" />
-            <rect x="3" y="14" width="7" height="7" rx="1.5" />
-            <rect x="14" y="14" width="7" height="7" rx="1.5" />
-          </svg>
-        ),
+        icon: <LayoutGrid className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
       {
         href: "/documentos",
         label: "Documentos",
-        icon: (
-          <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
-        ),
+        icon: <FileText className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
       {
         href: "/declaraciones",
         label: "Declaraciones",
-        icon: (
-          <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-            <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        ),
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <ScrollText className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
     ],
   },
@@ -63,20 +64,13 @@ const navGroups: NavGroup[] = [
       {
         href: "/chat",
         label: "Chat IA",
-        icon: (
-          <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-          </svg>
-        ),
+        icon: <MessageSquare className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
       {
         href: "/auditoria",
         label: "Auditoría IA",
-        icon: (
-          <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-            <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-          </svg>
-        ),
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <ShieldCheck className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
     ],
   },
@@ -84,24 +78,21 @@ const navGroups: NavGroup[] = [
     group: "ACCIÓN TRIBUTARIA",
     items: [
       {
+        href: "/emitir",
+        label: "Emitir",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <PlusCircle className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
         href: "/declaraciones/presentar",
         label: "Presentar al SRI",
-        icon: (
-          <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-            <path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-          </svg>
-        ),
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <Send className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
       {
         href: "/comprobantes",
         label: "Comprobantes",
-        icon: (
-          <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-            <path d="M7 21H4a2 2 0 01-2-2V5a2 2 0 012-2h3" />
-            <rect x="9" y="3" width="10" height="18" rx="1" />
-            <path d="M13 8h3M13 12h3M13 16h3" />
-          </svg>
-        ),
+        icon: <Receipt className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
     ],
   },
@@ -111,11 +102,7 @@ const navGroups: NavGroup[] = [
       {
         href: "/notificaciones",
         label: "Notificaciones",
-        icon: (
-          <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-            <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-          </svg>
-        ),
+        icon: <Bell className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
     ],
   },
@@ -125,12 +112,7 @@ const navGroups: NavGroup[] = [
       {
         href: "/configuracion",
         label: "Configuración",
-        icon: (
-          <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
-          </svg>
-        ),
+        icon: <Settings className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
     ],
   },
@@ -139,7 +121,7 @@ const navGroups: NavGroup[] = [
 export default function Sidebar() {
   const pathname = usePathname();
   const { resolvedTheme } = useTheme();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const { collapsed, setCollapsed, mobileOpen, setMobileOpen } = useSidebar();
   const [mounted, setMounted] = useState(false);
 
@@ -151,6 +133,14 @@ export default function Sidebar() {
     logout();
     toast.info("Sesión cerrada correctamente");
   };
+
+  const allowedNavGroups = navGroups.map((group) => {
+    const items = group.items.filter((item) => {
+      if (!item.roles) return true;
+      return user && item.roles.includes(user.rol);
+    });
+    return { ...group, items };
+  }).filter((group) => group.items.length > 0);
 
   const sidebarWidth = collapsed ? "w-14" : "w-60";
 
@@ -183,14 +173,16 @@ export default function Sidebar() {
             className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 w-5 h-7 bg-sidebar border border-sidebar-border rounded-r-md text-muted-foreground hover:text-sidebar-foreground items-center justify-center transition-colors cursor-pointer shadow-sm z-10"
             title={collapsed ? "Expandir menú" : "Colapsar menú"}
           >
-            <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-              <path d={collapsed ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"} />
-            </svg>
+            {collapsed ? (
+              <ChevronRight className="w-2.5 h-2.5" strokeWidth={2.5} />
+            ) : (
+              <ChevronLeft className="w-2.5 h-2.5" strokeWidth={2.5} />
+            )}
           </button>
         </div>
 
         <nav className="flex-1 py-2 flex flex-col overflow-y-auto overflow-x-hidden">
-          {navGroups.map((group, gi) => (
+          {allowedNavGroups.map((group, gi) => (
             <div key={gi} className="flex flex-col">
               {!collapsed && (
                 <span className="px-4 pt-4 pb-1 text-[9px] font-bold text-muted-foreground tracking-widest uppercase">
@@ -246,9 +238,7 @@ export default function Sidebar() {
             `}
             title="Cerrar sesión"
           >
-            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
-            </svg>
+            <LogOut className="w-4 h-4 shrink-0" strokeWidth={2} />
             {!collapsed && <span className="text-[12.5px] font-medium">Cerrar sesión</span>}
           </button>
         </div>

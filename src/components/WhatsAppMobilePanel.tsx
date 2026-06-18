@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { sriClient } from "@/lib/sriClient";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { toast } from "sonner";
+import { MessageSquare, Send } from "lucide-react";
 
 interface WaMessage {
   id: string;
@@ -425,7 +426,7 @@ export default function WhatsAppMobilePanel() {
                   </div>
                 ) : (
                   <div className="w-36 h-36 flex flex-col items-center justify-center text-slate-300 text-center text-xs px-3">
-                    <span className="text-2xl mb-1">💬</span>
+                    <MessageSquare className="w-6 h-6 text-slate-400 mb-1" />
                     QR de vinculación
                   </div>
                 )}
@@ -503,9 +504,7 @@ export default function WhatsAppMobilePanel() {
               onClick={() => handleWaSend(waInput)}
               className="w-9 h-9 rounded-full bg-[#25d366] text-white flex items-center justify-center cursor-pointer hover:bg-[#1ebd59] shrink-0"
             >
-              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-              </svg>
+              <Send className="w-3.5 h-3.5" strokeWidth={2.5} />
             </button>
           </div>
         </section>

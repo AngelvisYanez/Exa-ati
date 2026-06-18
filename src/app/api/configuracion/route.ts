@@ -6,42 +6,54 @@ import { getUserRuc } from '@/lib/sri-api/user-resolver';
 export async function GET(req: Request) {
   try {
     const user = await verifyAuth(req);
-    const userRuc = await getUserRuc(user);
+    let userRuc = null;
+    try {
+      userRuc = await getUserRuc(user, req);
+    } catch {}
 
-    const emisor = await db.queryOne<any>(
-      `SELECT ruc, razon_social, nombre_comercial, tipo_contribuyente, ambiente,
-              cert_valido_hasta, certificado_valido_hasta,
-              whatsapp_numero, whatsapp_estado, notif_documentos, notif_generacion
-       FROM emisores WHERE ruc = ? AND activo = true`,
-      [userRuc]
-    );
-
-    if (!emisor) {
-      return NextResponse.json({ message: 'Emisor no encontrado' }, { status: 404 });
+    let emisor = null;
+    if (userRuc) {
+      emisor = await db.queryOne<any>(
+        `SELECT ruc, razon_social, nombre_comercial, tipo_contribuyente, ambiente,
+                cert_valido_hasta, certificado_valido_hasta,
+                whatsapp_numero, whatsapp_estado, notif_documentos, notif_generacion
+         FROM emisores WHERE ruc = $1 AND activo = true`,
+        [userRuc]
+      );
     }
+
+    const emisores = user.tenantId
+      ? await db.queryAll<any>(
+          `SELECT ruc, razon_social, nombre_comercial, tipo_contribuyente, ambiente,
+                  cert_valido_hasta, certificado_valido_hasta,
+                  whatsapp_numero, whatsapp_estado, notif_documentos, notif_generacion
+           FROM emisores WHERE tenant_id = $1 AND activo = true`,
+          [user.tenantId]
+        )
+      : [];
 
     const lastSync = await db.queryOne<any>(
       `SELECT created_at FROM auditoria
-       WHERE tenant_id = ? AND accion = 'SINCRONIZAR_SRI'
+       WHERE tenant_id = $1 AND accion = 'SINCRONIZAR_SRI'
        ORDER BY created_at DESC LIMIT 1`,
       [requireTenantId(user)]
     );
 
-    const expiry = emisor.certificado_valido_hasta || emisor.cert_valido_hasta || null;
-    let certStatus = 'No registrada';
-    if (expiry) {
-      const days = Math.ceil(
-        (new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-      );
-      certStatus =
-        days < 0
-          ? `Expirada hace ${Math.abs(days)} días`
-          : `Válida hasta ${new Date(expiry).toLocaleDateString('es-EC')}`;
-    }
+    let perfil = null;
+    if (emisor) {
+      const expiry = emisor.certificado_valido_hasta || emisor.cert_valido_hasta || null;
+      let certStatus = 'No registrada';
+      if (expiry) {
+        const days = Math.ceil(
+          (new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+        );
+        certStatus =
+          days < 0
+            ? `Expirada hace ${Math.abs(days)} días`
+            : `Válida hasta ${new Date(expiry).toLocaleDateString('es-EC')}`;
+      }
 
-    return NextResponse.json({
-      success: true,
-      perfil: {
+      perfil = {
         ruc: emisor.ruc,
         razonSocial: emisor.razon_social,
         nombreComercial: emisor.nombre_comercial,
@@ -50,15 +62,28 @@ export async function GET(req: Request) {
         estadoSri: 'ACTIVO',
         ultimaSincronizacion: lastSync?.created_at || null,
         firmaDigital: certStatus,
-      },
+      };
+    }
+
+    return NextResponse.json({
+      success: true,
+      perfil,
+      emisores: emisores.map((e: any) => ({
+        ruc: e.ruc,
+        razonSocial: e.razon_social || `Contribuyente ${e.ruc}`,
+        nombreComercial: e.nombre_comercial,
+        tipoContribuyente: e.tipo_contribuyente,
+        ambiente: e.ambiente === '2' ? 'Producción' : 'Pruebas',
+        certificadoValidoHasta: e.certificado_valido_hasta || e.cert_valido_hasta || null,
+      })),
       notificaciones: {
-        whatsapp: !!emisor.notif_generacion,
+        whatsapp: emisor ? !!emisor.notif_generacion : false,
         email: true,
-        app: !!emisor.notif_documentos,
+        app: emisor ? !!emisor.notif_documentos : false,
       },
       whatsapp: {
-        numero: emisor.whatsapp_numero,
-        estado: emisor.whatsapp_estado || 'DESCONECTADO',
+        numero: emisor ? emisor.whatsapp_numero : null,
+        estado: emisor ? emisor.whatsapp_estado || 'DESCONECTADO' : 'DESCONECTADO',
       },
     });
   } catch (error: any) {
@@ -79,10 +104,10 @@ export async function PUT(req: Request) {
     if (body.notifDocumentos !== undefined || body.notifGeneracion !== undefined) {
       await db.query(
         `UPDATE emisores SET
-          notif_documentos = COALESCE(?, notif_documentos),
-          notif_generacion = COALESCE(?, notif_generacion),
+          notif_documentos = COALESCE($1, notif_documentos),
+          notif_generacion = COALESCE($2, notif_generacion),
           updated_at = NOW()
-         WHERE ruc = ? AND activo = true`,
+         WHERE ruc = $3 AND activo = true`,
         [
           body.notifDocumentos !== undefined ? Boolean(body.notifDocumentos) : null,
           body.notifGeneracion !== undefined ? Boolean(body.notifGeneracion) : null,

@@ -6,7 +6,7 @@ import { getUserRuc } from '@/lib/sri-api/user-resolver';
 export async function GET(req: Request) {
   try {
     const user = await verifyAuth(req);
-    const userRuc = await getUserRuc(user);
+    const userRuc = await getUserRuc(user, req);
 
     const emisor = await db.queryOne<any>(
       `SELECT id, ruc, razon_social, nombre_comercial, ambiente, tipo_contribuyente,

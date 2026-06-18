@@ -14,7 +14,7 @@ function parseDateRange(req: Request) {
 export async function GET(req: Request) {
   try {
     const user = await verifyAuth(req);
-    const userRuc = await getUserRuc(user);
+    const userRuc = await getUserRuc(user, req);
     const range = parseDateRange(req);
 
     const emisor = await db.queryOne<any>(
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
   try {
     const user = await verifyAuth(req);
     const body = await req.json().catch(() => ({}));
-    const userRuc = await getUserRuc(user);
+    const userRuc = await getUserRuc(user, req);
     const range = {
       fechaDesde: body.fechaDesde || undefined,
       fechaHasta: body.fechaHasta || undefined,

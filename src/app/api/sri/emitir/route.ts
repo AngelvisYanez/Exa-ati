@@ -12,6 +12,8 @@ const BUILDERS: Record<string, (data: any) => string> = {
   '01': xmlBuilder.buildFactura.bind(xmlBuilder),
   '03': xmlBuilder.buildLiquidacionCompra.bind(xmlBuilder),
   '04': xmlBuilder.buildNotaCredito.bind(xmlBuilder),
+  '05': xmlBuilder.buildNotaDebito.bind(xmlBuilder),
+  '06': xmlBuilder.buildGuiaRemision.bind(xmlBuilder),
   '07': xmlBuilder.buildRetencion.bind(xmlBuilder),
 };
 
@@ -55,6 +57,20 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!emisor.ambiente) {
+      return NextResponse.json(
+        { message: `El emisor ${emisorRuc} no tiene configurado el ambiente (1=Pruebas, 2=Producción)` },
+        { status: 400 }
+      );
+    }
+
+    if (!emisor.establecimiento || !emisor.puntoEmision) {
+      return NextResponse.json(
+        { message: `El emisor ${emisorRuc} no tiene configurados establecimiento y punto de emisión` },
+        { status: 400 }
+      );
+    }
+
     const builder = BUILDERS[tipo];
     if (!builder) {
       return NextResponse.json(
@@ -63,23 +79,23 @@ export async function POST(req: Request) {
       );
     }
 
-    const secuencial = String(datos.secuencial || '1');
-    const establecimiento = emisor.establecimiento?.padStart(3, '0') || '001';
-    const puntoEmision = emisor.puntoEmision?.padStart(3, '0') || '001';
+    const secuencial = String(datos.secuencial || '1').padStart(9, '0');
+    const establecimiento = emisor.establecimiento.padStart(3, '0');
+    const puntoEmision = emisor.puntoEmision.padStart(3, '0');
 
     const claveAcceso = claveAccesoService.generate({
       fechaEmision: new Date(datos.fechaEmision),
       tipoComprobante: tipo,
       ruc: emisor.ruc,
-      ambiente: emisor.ambiente || '1',
+      ambiente: emisor.ambiente,
       establecimiento,
       puntoEmision,
       secuencial,
     });
 
     const infoTributaria = {
-      ambiente: emisor.ambiente || '1',
-      tipoEmision: emisor.tipoEmision || '1',
+      ambiente: emisor.ambiente,
+      tipoEmision: emisor.tipo_emision || '1',
       razonSocial: emisor.razon_social,
       nombreComercial: emisor.nombre_comercial || undefined,
       ruc: emisor.ruc,
@@ -87,7 +103,7 @@ export async function POST(req: Request) {
       codDoc: tipo,
       estab: establecimiento,
       ptoEmi: puntoEmision,
-      secuencial: secuencial.padStart(9, '0'),
+      secuencial,
       dirMatriz: emisor.dir_matriz || '',
       agenteRetencion: emisor.agente_retencion || undefined,
       contribuyenteRimpe: emisor.contribuyente_rimpe || undefined,
@@ -111,8 +127,8 @@ export async function POST(req: Request) {
       clave_acceso: claveAcceso,
       tipo,
       serie: `${establecimiento}-${puntoEmision}`,
-      secuencial: secuencial.padStart(9, '0'),
-      ambiente: emisor.ambiente || '1',
+      secuencial,
+      ambiente: emisor.ambiente,
       fecha_emision: fechaEmision.toISOString().split('T')[0],
       estado: 'FIRMADO',
       estado_sri: 'FIRMADO',
@@ -144,11 +160,7 @@ export async function POST(req: Request) {
     );
 
     if (result.estado === 'AUTORIZADO' && result.xmlAutorizado) {
-      try {
-        xmlStorage.saveXml(emisor.ruc, claveAcceso, fechaEmision, 'autorizado', result.xmlAutorizado);
-      } catch {
-        // No crítico
-      }
+      xmlStorage.saveXml(emisor.ruc, claveAcceso, fechaEmision, 'autorizado', result.xmlAutorizado);
     }
 
     const errorClassified = classifySriError(result.mensajes, result.estado === 'EN_PROCESO' ? 'autorizacion' : 'recepcion');

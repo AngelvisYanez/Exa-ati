@@ -442,7 +442,9 @@ export default function Declaraciones() {
                         </span>
                       </div>
 
-                      <div className="text-[11px] font-bold text-brand-gray-400 mb-2.5 uppercase tracking-wider">Datos del Contribuyente</div>
+                      <div className="text-[11px] font-bold text-brand-gray-400 mb-2.5 uppercase tracking-wider">
+                        Datos de {emisorName || "Contribuyente"}
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3 text-left">
                         <div className="flex flex-col gap-1.5">
                           <label className="text-[10px] font-semibold text-brand-gray-600 uppercase tracking-wider">RUC</label>

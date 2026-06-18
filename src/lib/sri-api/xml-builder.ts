@@ -277,6 +277,60 @@ export const xmlBuilder = {
     return builder.buildObject(xmlObj);
   },
 
+  buildNotaDebito(notaDebito: any): string {
+    const infoND = notaDebito.infoNotaDebito || {};
+    const xmlObj: Record<string, any> = {
+      notaDebito: {
+        $: {
+          id: 'comprobante',
+          version: NOTA_DEBITO_VERSION,
+        },
+        infoTributaria: buildInfoTributaria(notaDebito.infoTributaria),
+        infoNotaDebito: {
+          fechaEmision: infoND.fechaEmision,
+          dirEstablecimiento: infoND.dirEstablecimiento || undefined,
+          tipoIdentificacionComprador: infoND.tipoIdentificacionComprador,
+          razonSocialComprador: infoND.razonSocialComprador,
+          identificacionComprador: infoND.identificacionComprador,
+          contribuyenteEspecial: infoND.contribuyenteEspecial || undefined,
+          obligadoContabilidad: infoND.obligadoContabilidad,
+          rise: infoND.rise || undefined,
+          codDocModificado: infoND.codDocModificado,
+          numDocModificado: infoND.numDocModificado,
+          fechaEmisionDocSustento: infoND.fechaEmisionDocSustento,
+          totalSinImpuestos: formatDecimal(infoND.totalSinImpuestos, 2),
+          valorTotal: formatDecimal(infoND.valorTotal, 2),
+        },
+        impuestos: {
+          impuesto: (infoND.impuestos || []).map((imp: any) => ({
+            codigo: imp.codigo,
+            codigoPorcentaje: imp.codigoPorcentaje,
+            baseImponible: formatDecimal(imp.baseImponible, 2),
+            tarifa: imp.tarifa !== undefined ? formatDecimal(imp.tarifa, 2) : undefined,
+            valor: formatDecimal(imp.valor, 2),
+          })),
+        },
+        motivos: {
+          motivo: (notaDebito.motivos || []).map((m: any) => ({
+            razon: m.razon,
+            valor: formatDecimal(m.valor, 2),
+          })),
+        },
+      },
+    };
+
+    if (notaDebito.infoAdicional && notaDebito.infoAdicional.length > 0) {
+      (xmlObj.notaDebito as any).infoAdicional = {
+        campoAdicional: notaDebito.infoAdicional.map((campo: any) => ({
+          $: { nombre: campo.nombre },
+          _: campo.valor,
+        })),
+      };
+    }
+
+    return builder.buildObject(xmlObj);
+  },
+
   buildRetencion(retencion: any): string {
     const docsMap = new Map<string, any>();
 
@@ -530,6 +584,7 @@ export const xmlBuilder = {
         },
         infoTributaria: buildInfoTributaria(guia.infoTributaria),
         infoGuiaRemision: {
+          fechaEmision: guia.infoGuiaRemision.fechaEmision,
           dirEstablecimiento: guia.infoGuiaRemision.dirEstablecimiento || undefined,
           dirPartida: guia.infoGuiaRemision.dirPartida,
           razonSocialTransportista: guia.infoGuiaRemision.razonSocialTransportista,

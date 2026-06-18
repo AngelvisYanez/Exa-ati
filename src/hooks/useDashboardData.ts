@@ -70,6 +70,7 @@ export function useDashboardData(dateRange: DateRange) {
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [rucEmisor, setRucEmisor] = useState("");
+  const [razonSocialEmisor, setRazonSocialEmisor] = useState("");
   const [certWarning, setCertWarning] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [enProcesoCount, setEnProcesoCount] = useState(0);
@@ -104,6 +105,7 @@ export function useDashboardData(dateRange: DateRange) {
 
         if (emisorRes?.success && emisorRes.emisor) {
           setRucEmisor(emisorRes.emisor.ruc);
+          setRazonSocialEmisor(emisorRes.emisor.razonSocial || "");
           if (emisorRes.emisor.certificadoExpiracion) {
             const expDate = new Date(emisorRes.emisor.certificadoExpiracion);
             const diffDays = Math.ceil((expDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -161,6 +163,7 @@ export function useDashboardData(dateRange: DateRange) {
     loading,
     isConnected,
     rucEmisor,
+    razonSocialEmisor,
     certWarning,
     docsInRange,
     taxSummary,

@@ -15,12 +15,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // Buscar el usuario por email o por el RUC de su emisor vinculado
+    // Buscar el usuario por email o por el RUC de su emisor vinculado o RUC registrado directamente
     const users = await db.queryAll<any>(
-      `SELECT u.id, u.email, u.password_hash, u.rol, u.tenant_id, u.activo
+      `SELECT u.id, u.email, u.password_hash, u.rol, u.tenant_id, u.activo, u.ruc
        FROM usuarios u
-       LEFT JOIN emisores e ON u.tenant_id = e.tenant_id AND e.activo = true
-       WHERE u.email = $1 OR e.ruc = $2
+       WHERE u.email = $1 OR u.ruc = $2 OR (u.rol = 'ADMIN' AND EXISTS (
+         SELECT 1 FROM emisores e 
+         WHERE e.tenant_id = u.tenant_id AND e.ruc = $2 AND e.activo = true
+       ))
        ORDER BY CASE WHEN u.email = $3 THEN 1 ELSE 0 END DESC, u.rol ASC`,
       [email, email, email]
     );
@@ -62,6 +64,7 @@ export async function POST(req: Request) {
       email: user.email,
       rol: user.rol,
       tenantId: user.tenant_id,
+      ruc: user.ruc,
       type: 'access',
     };
 
@@ -93,6 +96,7 @@ export async function POST(req: Request) {
         email: user.email,
         rol: user.rol,
         tenantId: user.tenant_id,
+        ruc: user.ruc,
       },
     });
 
