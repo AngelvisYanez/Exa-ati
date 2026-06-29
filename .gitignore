@@ -45,6 +45,17 @@ downloads/
 # runtime lock files
 sri-worker.lock
 
+# runtime directories (created by Docker/app)
+/logs
+browser_session/
+
+# debug screenshots
+screensht.png
+test-screenshot.png
+
+# scratch / dev scripts
+scripts/scratch/
+
 # test scripts (not part of src/)
 scripts/*.mjs
 scripts/insert-custom-job.mjs

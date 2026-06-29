@@ -25,8 +25,17 @@ function buildWelcome(razonSocial?: string): Message {
   };
 }
 
+interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
+  llmProvider: string | null;
+  updatedAt: number;
+}
+
 export default function ChatIA() {
-  const [messages, setMessages] = useState<Message[]>([buildWelcome()]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [inputText, setInputText] = useState("");
   const [typing, setTyping] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string | null>(null);
@@ -53,10 +62,15 @@ export default function ChatIA() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const activeConv = conversations.find((c) => c.id === activeConversationId);
+  const messages = activeConv ? activeConv.messages : [buildWelcome(emisorName || undefined)];
+
+  // Scroll to bottom when messages or typing state changes
   useEffect(() => {
     scrollToBottom();
   }, [messages, typing]);
 
+  // Load chat availability and user details
   useEffect(() => {
     if (!sriClient.isAuthenticated()) return;
     sriClient.getChatStatus().then((res) => {
@@ -67,7 +81,6 @@ export default function ChatIA() {
       if (res.success && res.emisor) {
         if (res.emisor.razonSocial) {
           setEmisorName(res.emisor.razonSocial);
-          setMessages([buildWelcome(res.emisor.razonSocial)]);
         }
         const name = res.emisor.razonSocial || res.emisor.ruc || "";
         const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -79,19 +92,163 @@ export default function ChatIA() {
     });
   }, []);
 
+  // Load conversations list from localStorage on mount/emisorName change
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("sri_chat_conversations");
+    let loadedConvs: Conversation[] = [];
+    if (stored) {
+      try {
+        loadedConvs = JSON.parse(stored);
+      } catch (e) {
+        console.error("Error parsing stored conversations:", e);
+      }
+    }
+    
+    const storedActiveId = localStorage.getItem("sri_chat_active_conv_id");
+    
+    if (loadedConvs.length === 0) {
+      const firstId = "conv_" + Date.now();
+      const firstConv: Conversation = {
+        id: firstId,
+        title: "Nueva conversación",
+        messages: [buildWelcome(emisorName || undefined)],
+        llmProvider: null,
+        updatedAt: Date.now()
+      };
+      loadedConvs = [firstConv];
+      localStorage.setItem("sri_chat_conversations", JSON.stringify(loadedConvs));
+      localStorage.setItem("sri_chat_active_conv_id", firstId);
+      setConversations(loadedConvs);
+      setActiveConversationId(firstId);
+    } else {
+      setConversations(loadedConvs);
+      if (storedActiveId && loadedConvs.some(c => c.id === storedActiveId)) {
+        setActiveConversationId(storedActiveId);
+        const act = loadedConvs.find(c => c.id === storedActiveId);
+        if (act?.llmProvider) setLlmProvider(act.llmProvider);
+      } else {
+        setActiveConversationId(loadedConvs[0].id);
+        localStorage.setItem("sri_chat_active_conv_id", loadedConvs[0].id);
+        if (loadedConvs[0].llmProvider) setLlmProvider(loadedConvs[0].llmProvider);
+      }
+    }
+  }, [emisorName]);
+
+  const updateActiveConvMessages = (newMessages: Message[]) => {
+    setConversations((prevConvs) => {
+      const updated = prevConvs.map((c) => {
+        if (c.id === activeConversationId) {
+          let title = c.title;
+          if (title === "Nueva conversación" || title === "Consulta tributaria") {
+            const firstUserMsg = newMessages.find((m) => m.sender === "user");
+            if (firstUserMsg && firstUserMsg.text) {
+              title = firstUserMsg.text.slice(0, 30) + (firstUserMsg.text.length > 30 ? "..." : "");
+            }
+          }
+          return {
+            ...c,
+            messages: newMessages,
+            title,
+            updatedAt: Date.now(),
+          };
+        }
+        return c;
+      });
+      localStorage.setItem("sri_chat_conversations", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const updateActiveConvProvider = (provider: string | null) => {
+    setLlmProvider(provider);
+    setConversations((prevConvs) => {
+      const updated = prevConvs.map((c) => {
+        if (c.id === activeConversationId) {
+          return { ...c, llmProvider: provider };
+        }
+        return c;
+      });
+      localStorage.setItem("sri_chat_conversations", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleNewConversation = () => {
+    const newId = "conv_" + Date.now();
+    const newConv: Conversation = {
+      id: newId,
+      title: "Nueva conversación",
+      messages: [buildWelcome(emisorName || undefined)],
+      llmProvider: null,
+      updatedAt: Date.now(),
+    };
+    const updated = [newConv, ...conversations];
+    setConversations(updated);
+    setActiveConversationId(newId);
+    localStorage.setItem("sri_chat_conversations", JSON.stringify(updated));
+    localStorage.setItem("sri_chat_active_conv_id", newId);
+    setLlmProvider(null);
+  };
+
+  const handleDeleteConversation = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = conversations.filter((c) => c.id !== id);
+
+    let nextActiveId = activeConversationId;
+    if (activeConversationId === id) {
+      if (updated.length > 0) {
+        nextActiveId = updated[0].id;
+      } else {
+        const newId = "conv_" + Date.now();
+        const newConv: Conversation = {
+          id: newId,
+          title: "Nueva conversación",
+          messages: [buildWelcome(emisorName || undefined)],
+          llmProvider: null,
+          updatedAt: Date.now(),
+        };
+        updated.push(newConv);
+        nextActiveId = newId;
+      }
+    }
+
+    setConversations(updated);
+    setActiveConversationId(nextActiveId);
+    localStorage.setItem("sri_chat_conversations", JSON.stringify(updated));
+    if (nextActiveId) {
+      localStorage.setItem("sri_chat_active_conv_id", nextActiveId);
+      const act = updated.find((c) => c.id === nextActiveId);
+      setLlmProvider(act?.llmProvider || null);
+    }
+  };
+
+  const handleSelectConversation = (id: string) => {
+    setActiveConversationId(id);
+    localStorage.setItem("sri_chat_active_conv_id", id);
+    const act = conversations.find((c) => c.id === id);
+    setLlmProvider(act?.llmProvider || null);
+  };
+
+  const handleClearActiveChat = () => {
+    updateActiveConvMessages([buildWelcome(emisorName || undefined)]);
+    updateActiveConvProvider(null);
+  };
+
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
 
     if (!sriClient.isAuthenticated()) {
-      setMessages((prev) => [
-        ...prev,
-        { sender: "user", text, time: nowTime() },
+      const updatedMsgs = [
+        ...messages,
+        { sender: "user" as const, text, time: nowTime() },
         {
-          sender: "ai",
+          sender: "ai" as const,
           text: "Inicia sesión con tu RUC para consultar datos reales de tu cuenta tributaria.",
           time: nowTime(),
         },
-      ]);
+      ];
+      updateActiveConvMessages(updatedMsgs);
       setInputText("");
       return;
     }
@@ -106,21 +263,24 @@ export default function ChatIA() {
       text,
       time: nowTime(),
     };
-    setMessages((prev) => [...prev, userMsg]);
+    const updatedWithUser = [...messages, userMsg];
+    updateActiveConvMessages(updatedWithUser);
     setInputText("");
     setTyping(true);
 
     try {
       const res = await sriClient.chat(text, history);
       setTyping(false);
-      if (res?.provider) setLlmProvider(res.provider);
+      if (res?.provider) {
+        updateActiveConvProvider(res.provider);
+      }
       if (res?.html || res?.text) {
         const aiReply: Message = {
           sender: "ai",
           time: res.time || nowTime(),
           html: res.html || res.text,
         };
-        setMessages((prev) => [...prev, aiReply]);
+        updateActiveConvMessages([...updatedWithUser, aiReply]);
       }
     } catch (err: any) {
       setTyping(false);
@@ -129,7 +289,7 @@ export default function ChatIA() {
         time: nowTime(),
         text: err.message || "Error de red al consultar el asistente.",
       };
-      setMessages((prev) => [...prev, errorReply]);
+      updateActiveConvMessages([...updatedWithUser, errorReply]);
     }
   };
 
@@ -150,13 +310,10 @@ export default function ChatIA() {
       {/* INNER CHAT LAYOUT WITH CHAT HISTORY SIDEBAR */}
       <div className="flex-1 flex overflow-hidden select-none bg-brand-gray-50">
         {/* Chat History Sidebar */}
-        <aside className="w-56 border-r border-brand-gray-200 bg-white hidden md:flex flex-col flex-shrink-0">
-          <div className="p-4 border-b border-brand-gray-100">
+        <aside className="w-64 border-r border-brand-gray-200 bg-white hidden md:flex flex-col flex-shrink-0">
+          <div className="p-4 border-b border-brand-gray-100 flex flex-col gap-2">
             <button
-              onClick={() => {
-                setMessages([buildWelcome(emisorName || undefined)]);
-                setLlmProvider(null);
-              }}
+              onClick={handleNewConversation}
               className="w-full flex items-center justify-center gap-1.5 border border-brand-gray-200 hover:border-brand-navy-light hover:text-brand-navy bg-white hover:bg-brand-gray-50 transition-colors py-2 rounded-lg text-xs font-semibold cursor-pointer"
             >
               <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
@@ -164,20 +321,51 @@ export default function ChatIA() {
               </svg>
               Nueva conversación
             </button>
+            <button
+              onClick={handleClearActiveChat}
+              className="w-full flex items-center justify-center gap-1.5 border border-amber-200 hover:border-amber-300 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 transition-colors py-2 rounded-lg text-xs font-semibold cursor-pointer"
+            >
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Limpiar chat actual
+            </button>
           </div>
 
           <nav className="p-3 flex-1 overflow-y-auto flex flex-col gap-1.5">
             <div className="text-[10px] font-bold text-brand-gray-400 uppercase tracking-widest px-2.5 mb-1.5">
-              Conversación actual
+              Tus conversaciones
             </div>
-            <div className="px-2.5 py-2 rounded-lg text-xs font-semibold text-brand-navy bg-[#F0F7FF] border border-[#C7DEFF] cursor-default truncate">
-              {messages.length > 1
-                ? (messages[messages.length - 1].text || "Consulta tributaria").slice(0, 40)
-                : "Nueva conversación"}
+            
+            <div className="flex flex-col gap-1">
+              {conversations.map((c) => {
+                const isActive = c.id === activeConversationId;
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => handleSelectConversation(c.id)}
+                    className={`group relative flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${
+                      isActive
+                        ? "text-brand-navy bg-[#F0F7FF] border-[#C7DEFF]"
+                        : "text-brand-gray-600 hover:text-brand-navy hover:bg-brand-gray-50 border-transparent"
+                    }`}
+                  >
+                    <span className="truncate pr-6 select-none" title={c.title}>
+                      {c.title}
+                    </span>
+                    <button
+                      onClick={(e) => handleDeleteConversation(c.id, e)}
+                      className="absolute right-2 opacity-0 group-hover:opacity-100 hover:text-destructive hover:scale-110 transition-all p-1 rounded-md cursor-pointer border-none bg-transparent"
+                      title="Eliminar conversación"
+                    >
+                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
-            <p className="px-2.5 text-[10px] text-brand-gray-400 leading-snug">
-              El historial de conversaciones anteriores se gestionará cuando esté disponible en la API.
-            </p>
           </nav>
         </aside>
 

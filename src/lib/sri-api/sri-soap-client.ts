@@ -1,4 +1,5 @@
 import * as soap from 'soap';
+import { Agent as HttpsAgent } from 'https';
 import { config } from './config';
 
 export interface SriMensaje {
@@ -93,7 +94,13 @@ async function createSoapClient(cacheKey: string, wsdlUrl: string, label: string
 
   try {
     const client = await withTimeout(
-      soap.createClientAsync(wsdlUrl),
+      soap.createClientAsync(wsdlUrl, {
+        wsdl_options: {
+          httpsAgent: new HttpsAgent({
+            rejectUnauthorized: false
+          })
+        }
+      } as any),
       WSDL_TIMEOUT_MS,
       `WSDL ${label}`
     );

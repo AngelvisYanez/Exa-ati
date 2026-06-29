@@ -4,6 +4,8 @@ const TOKEN_KEY = 'sri_access_token';
 const REFRESH_KEY = 'sri_refresh_token';
 const USER_KEY = 'sri_user';
 
+let refreshPromise: Promise<boolean> | null = null;
+
 export interface SessionUser {
   id: string;
   email: string;
@@ -106,10 +108,29 @@ async function request(endpoint: string, options: RequestInit = {}) {
     headers,
   });
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      clearSession();
+  if (response.status === 401 && typeof window !== 'undefined') {
+    const refreshed = await attemptTokenRefresh();
+    if (refreshed) {
+      const newToken = getAuthToken();
+      const newHeaders = {
+        ...headers,
+        Authorization: `Bearer ${newToken}`,
+      };
+      const retryResponse = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers: newHeaders,
+      });
+      if (retryResponse.ok) {
+        return retryResponse.json();
+      }
+      const retryErr = await retryResponse.json().catch(() => ({}));
+      throw new Error(retryErr.message || `API request failed: ${retryResponse.status}`);
     }
+    clearSession();
+    throw new Error('Sesión expirada');
+  }
+
+  if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
     const message = errData.message || `API request failed: ${response.status}`;
     if (
@@ -123,6 +144,41 @@ async function request(endpoint: string, options: RequestInit = {}) {
   }
 
   return response.json();
+}
+
+async function attemptTokenRefresh(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const refreshToken =
+        typeof window !== 'undefined' ? localStorage.getItem(REFRESH_KEY) : null;
+      if (!refreshToken) return false;
+
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!res.ok) return false;
+
+      const data = await res.json();
+      if (data.accessToken) {
+        localStorage.setItem(TOKEN_KEY, data.accessToken);
+        const maxAge = 60 * 60 * 24;
+        document.cookie = `${TOKEN_KEY}=${data.accessToken}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }
 
 export const sriClient = {

@@ -7,12 +7,13 @@ import Topbar from "@/components/Topbar";
 import WhatsAppMobilePanel from "@/components/WhatsAppMobilePanel";
 import IaConfigPanel from "@/components/IaConfigPanel";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import ProxyConfigPanel from "@/components/ProxyConfigPanel";
 import { sriClient, setAuthToken } from "@/lib/sriClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { User, Users, Bell, MessageSquare, Bot, Building2, Plus, Edit, Trash2, Smartphone, Mail } from "lucide-react";
+import { User, Users, Bell, MessageSquare, Bot, Building2, Plus, Edit, Trash2, Smartphone, Mail, Code } from "lucide-react";
 
-type ConfigTab = "general" | "clientes" | "notificaciones" | "integraciones" | "ia";
+type ConfigTab = "general" | "clientes" | "notificaciones" | "integraciones" | "ia" | "desarrollo";
 
 const tabs: { id: ConfigTab; label: string; icon: React.ReactNode; roles?: string[] }[] = [
   {
@@ -41,6 +42,12 @@ const tabs: { id: ConfigTab; label: string; icon: React.ReactNode; roles?: strin
     label: "Inteligencia IA",
     icon: <Bot className="w-4 h-4 shrink-0" />
   },
+  {
+    id: "desarrollo",
+    label: "Desarrollo",
+    roles: ["SUPERADMIN", "ADMIN"],
+    icon: <Code className="w-4 h-4 shrink-0" />
+  },
 ];
 
 function ConfiguracionContent() {
@@ -67,6 +74,14 @@ function ConfiguracionContent() {
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
   const [loginBanner, setLoginBanner] = useState<string | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
+
+  // Estados para subida de certificado
+  const [showCertUpload, setShowCertUpload] = useState(false);
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [certPassword, setCertPassword] = useState('');
+  const [certRuc, setCertRuc] = useState('');
+  const [uploadingCert, setUploadingCert] = useState(false);
+  const [certResult, setCertResult] = useState<any>(null);
 
   // Estados para Clientes
   const [clientes, setClientes] = useState<any[]>([]);
@@ -455,6 +470,90 @@ function ConfiguracionContent() {
                   </div>
                 </section>
 
+                {/* === FIRMA DIGITAL / CERTIFICADO .P12 === */}
+                <section className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
+                  <div className="px-5 py-4 border-b border-brand-gray-100">
+                    <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">Firma electrónica</h2>
+                    <p className="text-[11px] text-brand-gray-500 mt-0.5">Certificado digital .p12 para firmar comprobantes electrónicos.</p>
+                  </div>
+                  <div className="p-5">
+                    {certResult?.success ? (
+                      <div className="flex flex-col gap-3">
+                        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-3 text-xs font-semibold">
+                          Certificado válido · Expira: {new Date(certResult.data.validation.expiryDate).toLocaleDateString('es-EC')} ({certResult.data.validation.daysUntilExpiry} días)
+                        </div>
+                        <button onClick={() => { setShowCertUpload(false); setCertFile(null); setCertPassword(''); setCertResult(null); }}
+                          className="text-xs text-brand-navy font-semibold hover:underline self-start cursor-pointer">
+                          Subir otro certificado
+                        </button>
+                      </div>
+                    ) : perfil?.firmaDigital && !perfil.firmaDigital.includes('No registrada') ? (
+                      <div className="flex flex-col gap-3">
+                        <div className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-3 text-xs font-semibold text-brand-gray-700">
+                          {perfil.firmaDigital}
+                        </div>
+                        <button onClick={() => setShowCertUpload(true)}
+                          className="text-xs bg-brand-navy text-white font-bold px-4 py-2 rounded-lg hover:bg-brand-navy-light transition-colors self-start cursor-pointer">
+                          Reemplazar certificado
+                        </button>
+                      </div>
+                    ) : !showCertUpload ? (
+                      <button onClick={() => setShowCertUpload(true)}
+                        className="text-xs bg-brand-navy text-white font-bold px-4 py-2 rounded-lg hover:bg-brand-navy-light transition-colors cursor-pointer">
+                        Subir certificado .p12
+                      </button>
+                    ) : null}
+
+                    {showCertUpload && (
+                      <div className="flex flex-col gap-4 mt-3 p-4 bg-brand-gray-50 rounded-xl border border-brand-gray-200">
+                        <select value={certRuc || activeRuc || perfil?.ruc || ''} onChange={e => setCertRuc(e.target.value)}
+                          className="bg-white border border-brand-gray-200 rounded-lg p-2 text-xs text-brand-gray-800 focus:border-brand-navy outline-none cursor-pointer">
+                          <option value="" disabled>Seleccionar RUC...</option>
+                          {emisores.map(em => (
+                            <option key={em.ruc} value={em.ruc}>{em.ruc} — {em.razonSocial}</option>
+                          ))}
+                        </select>
+                        <input type="file" accept=".p12" onChange={e => setCertFile(e.target.files?.[0] || null)}
+                          className="text-xs text-brand-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-brand-navy file:text-white hover:file:bg-brand-navy-light cursor-pointer" />
+                        <input type="password" placeholder="Contraseña del certificado" value={certPassword}
+                          onChange={e => setCertPassword(e.target.value)}
+                          className="bg-white border border-brand-gray-200 rounded-lg p-2 text-xs text-brand-gray-800 focus:border-brand-navy outline-none" />
+                        <div className="flex gap-2">
+                          <button onClick={async () => {
+                            const rucFinal = certRuc || activeRuc || perfil?.ruc || '';
+                            if (!certFile || !certPassword) { toast.error('Selecciona un archivo .p12 y escribe la contraseña'); return; }
+                            if (!rucFinal) { toast.error('Selecciona el RUC al que vincular el certificado'); return; }
+                            setUploadingCert(true); setCertResult(null);
+                            try {
+                              const fd = new FormData();
+                              fd.append('cert', certFile);
+                              fd.append('password', certPassword);
+                              fd.append('ruc', rucFinal);
+                              const res = await sriClient.uploadCertificado(fd);
+                              setCertResult(res);
+                              if (res.success) { toast.success('Certificado validado y vinculado al RUC ' + rucFinal); setShowCertUpload(false); await loadConfig(); }
+                              else toast.error(res.message || 'Error al subir certificado');
+                            } catch (err: any) { toast.error(err.message || 'Error al subir certificado'); }
+                            finally { setUploadingCert(false); }
+                          }} disabled={uploadingCert}
+                            className="bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50 cursor-pointer">
+                            {uploadingCert ? 'Subiendo...' : 'Subir y validar'}
+                          </button>
+                          <button onClick={() => { setShowCertUpload(false); setCertFile(null); setCertPassword(''); setCertRuc(''); setCertResult(null); }}
+                            className="border border-brand-gray-200 text-brand-gray-600 text-xs font-bold px-4 py-2 rounded-lg hover:bg-white transition-colors cursor-pointer">
+                            Cancelar
+                          </button>
+                        </div>
+                        {certResult && !certResult.success && (
+                          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-xs font-semibold">
+                            {certResult.message || 'Error al procesar el certificado'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </section>
+
                 {user?.rol !== "USER" && (
                   <div className="flex gap-3 flex-wrap">
                     <button
@@ -790,6 +889,12 @@ function ConfiguracionContent() {
             {activeTab === "ia" && (
               <section className="bg-white border border-brand-gray-200 rounded-xl p-5">
                 <IaConfigPanel />
+              </section>
+            )}
+
+            {activeTab === "desarrollo" && (
+              <section className="bg-white border border-brand-gray-200 rounded-xl p-5">
+                <ProxyConfigPanel />
               </section>
             )}
           </>

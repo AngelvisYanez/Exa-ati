@@ -257,13 +257,20 @@ export class SriHttpScraper {
 
     const actionUrl = resolveUrl(authPage.url, loginForm.action);
     const formBody = new URLSearchParams(loginForm.fields);
-    // Keycloak usa "usuario" como campo visible; "username" es hidden
+    // Keycloak tiene "username" (hidden, usado por Keycloak) y "usuario" (visible, tema SRI)
+    // El navegador con JS copia usuario→username; el scraper HTTP debe setear ambos.
     if (formBody.has('usuario')) {
       formBody.set('usuario', ruc);
     }
+    if (formBody.has('username')) {
+      formBody.set('username', ruc);
+    }
     formBody.set('password', clave);
 
-    const captchaToken = '';
+    const captchaToken = await this.solveCaptcha('login_keycloak');
+    if (captchaToken) {
+      formBody.set('g-recaptcha-response', captchaToken);
+    }
     await log('Enviando credenciales a Keycloak...');
     const postLogin = await this.client.post(actionUrl, formBody, { redirect: 'manual' });
 
@@ -272,10 +279,18 @@ export class SriHttpScraper {
     }
 
     if (postLogin.status === 200) {
-      if (/login|credencial|error/i.test(postLogin.body)) {
+      if (/login|credencial|error|inválida|inactiva|bloqueado/i.test(postLogin.body)) {
         const $2 = cheerio.load(postLogin.body);
-        const errMsg = $2('.alert-error, .alert-danger, .kc-feedback-text, .error').text().trim();
-        await log(`Credenciales rechazadas: ${errMsg || 'revísalas'}`);
+        const errSelectors = '.alert-error, .alert-danger, .kc-feedback-text, .error, .message-error, .kc-feedback, .pf-c-alert__title, .kc-feedback-text';
+        let errMsg = '';
+        for (const sel of errSelectors.split(', ')) {
+          errMsg = $2(sel).text().trim();
+          if (errMsg) break;
+        }
+        if (!errMsg) {
+          errMsg = $2('body').text().match(/(?:Clave|Credencial|contraseña|usuario)[^.]*\.?/i)?.[0] || 'Credenciales invalidas';
+        }
+        await log(`Credenciales rechazadas: ${errMsg}`);
         return false;
       }
     }
@@ -336,9 +351,18 @@ export class SriHttpScraper {
   private async _ensureAuthenticated(): Promise<boolean> {
     if (this.authenticated && await this.ensureSession()) return true;
     if (this.ruc && this.clave) {
-      await this.log('Sesión expirada. Re-autenticando...');
+      await this.log('Sesion expirada. Re-autenticando...');
       this.authenticated = false;
-      return this.login(this.ruc, this.clave, this.progressLog);
+      for (let retry = 0; retry < 3; retry++) {
+        const ok = await this.login(this.ruc, this.clave, this.progressLog);
+        if (ok) return true;
+        if (retry < 2) {
+          const delay = Math.min(2000 * Math.pow(2, retry), 10000);
+          await this.log(`Re-autenticacion fallida, reintentando en ${delay}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+        }
+      }
+      return false;
     }
     return false;
   }
@@ -436,6 +460,9 @@ export class SriHttpScraper {
     }
 
     logDebug('Enviando POST búsqueda...');
+    logDebug('Esperando 2-4s antes de buscar (rate limiting)...');
+    await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
+
     const searchRes = await this.client.post(this.appFormAction, body, {
       headers: {
         'Faces-Request': 'partial/ajax',

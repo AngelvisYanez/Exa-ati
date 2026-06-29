@@ -9,31 +9,40 @@ import fs from 'fs';
 import path from 'path';
 
 async function readStoredXml(comprobanteId: string): Promise<string | null> {
-  const xmlPaths = await db.queryOne<any>(
-    `SELECT xml_autorizado_path, xml_firmado_path, ruta_archivo, tipo
+  const rows = await db.queryAll<any>(
+    `SELECT xml_autorizado_path, ruta_archivo, tipo
      FROM comprobante_xmls
      WHERE comprobante_id = ?`,
     [comprobanteId]
   );
 
-  if (!xmlPaths) return null;
+  if (!rows || rows.length === 0) return null;
 
-  if (xmlPaths.xml_autorizado_path) {
-    return xmlStorage.readXml(xmlPaths.xml_autorizado_path);
-  }
-  if (xmlPaths.xml_firmado_path) {
-    return xmlStorage.readXml(xmlPaths.xml_firmado_path);
-  }
-  if (xmlPaths.ruta_archivo) {
-    return xmlStorage.readXml(xmlPaths.ruta_archivo);
+  // 1. Intentar buscar el XML de tipo 'autorizado' en la columna 'ruta_archivo'
+  const autorizado = rows.find(r => r.tipo === 'autorizado' && r.ruta_archivo);
+  if (autorizado) {
+    const content = xmlStorage.readXml(autorizado.ruta_archivo);
+    if (content) return content;
   }
 
-  const rows = await db.queryAll<any>(
-    `SELECT ruta_archivo FROM comprobante_xmls WHERE comprobante_id = ? AND ruta_archivo IS NOT NULL`,
-    [comprobanteId]
-  );
-  for (const row of rows) {
-    const content = xmlStorage.readXml(row.ruta_archivo);
+  // 2. Intentar buscar en la columna legacy 'xml_autorizado_path'
+  const legacyAutorizado = rows.find(r => r.xml_autorizado_path);
+  if (legacyAutorizado) {
+    const content = xmlStorage.readXml(legacyAutorizado.xml_autorizado_path);
+    if (content) return content;
+  }
+
+  // 3. Intentar buscar el XML de tipo 'firmado' en la columna 'ruta_archivo'
+  const firmado = rows.find(r => r.tipo === 'firmado' && r.ruta_archivo);
+  if (firmado) {
+    const content = xmlStorage.readXml(firmado.ruta_archivo);
+    if (content) return content;
+  }
+
+  // 4. Intentar buscar cualquier registro con ruta_archivo válida
+  const cualquiera = rows.find(r => r.ruta_archivo);
+  if (cualquiera) {
+    const content = xmlStorage.readXml(cualquiera.ruta_archivo);
     if (content) return content;
   }
 

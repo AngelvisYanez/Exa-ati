@@ -162,6 +162,33 @@ const statements = [
     CONSTRAINT "scraping_jobs_pkey" PRIMARY KEY ("id")
   )`,
 
+  `CREATE TABLE IF NOT EXISTS "proxy_pool" (
+    "id" SERIAL NOT NULL,
+    "proxy_host" VARCHAR(255) NOT NULL,
+    "proxy_port" INTEGER NOT NULL,
+    "proxy_user" VARCHAR(255),
+    "proxy_pass" VARCHAR(255),
+    "pais" VARCHAR(10) NOT NULL DEFAULT 'EC',
+    "activo" BOOLEAN NOT NULL DEFAULT true,
+    "en_uso" BOOLEAN NOT NULL DEFAULT false,
+    "asignado_a" VARCHAR(100),
+    "ultimo_uso" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "proxy_pool_pkey" PRIMARY KEY ("id")
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS "idx_proxy_pool_activo" ON "proxy_pool"("activo", "en_uso")`,
+  `CREATE INDEX IF NOT EXISTS "idx_proxy_pool_asignado" ON "proxy_pool"("asignado_a")`,
+
+  `ALTER TABLE "scraping_jobs" ADD COLUMN IF NOT EXISTS "proxy_id" INTEGER`,
+
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scraping_jobs_proxy_id_fkey') THEN
+      ALTER TABLE "scraping_jobs" ADD CONSTRAINT "scraping_jobs_proxy_id_fkey" FOREIGN KEY ("proxy_id") REFERENCES "proxy_pool"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+
   `CREATE TABLE IF NOT EXISTS "scraping_job_logs" (
     "id" SERIAL NOT NULL,
     "job_id" INTEGER NOT NULL,

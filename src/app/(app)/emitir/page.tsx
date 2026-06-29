@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Topbar from "@/components/Topbar";
 import { sriClient } from "@/lib/sriClient";
 import { toast } from "sonner";
@@ -126,6 +126,10 @@ export default function EmitirPage() {
   const [selectedTipo, setSelectedTipo] = useState<any>(null);
   const [emitiendo, setEmitiendo] = useState(false);
   const [resultado, setResultado] = useState<any>(null);
+
+  // Emisores vinculados
+  const [emisores, setEmisores] = useState<any[]>([]);
+  const [loadingEmisores, setLoadingEmisores] = useState(true);
 
   // Common fields
   const [ambiente, setAmbiente] = useState('2');
@@ -330,6 +334,18 @@ export default function EmitirPage() {
     }
   }
 
+  useEffect(() => {
+    if (!hasSriLinked) return;
+    sriClient.getEmisores().then((res: any) => {
+      const list = res.emisores || [];
+      setEmisores(list);
+      if (list.length === 1) {
+        setEmisorRuc(list[0].ruc);
+        setAmbiente(list[0].ambiente || '2');
+      }
+    }).catch(() => {}).finally(() => setLoadingEmisores(false));
+  }, [hasSriLinked]);
+
   const handleEmitir = async () => {
     setEmitiendo(true);
     setResultado(null);
@@ -359,7 +375,24 @@ export default function EmitirPage() {
 
           {/* === COMMON SECTION === */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="flex flex-col gap-1.5"><Label>RUC Emisor *</Label><Input value={emisorRuc} onChange={e => setEmisorRuc(e.target.value)} placeholder="1234567890001" /></div>
+            <div className="flex flex-col gap-1.5"><Label>RUC Emisor *</Label>
+              {loadingEmisores ? (
+                <Input value="Cargando..." disabled className="text-slate-400" />
+              ) : (
+                <select value={emisorRuc} onChange={e => {
+                  const sel = emisores.find(em => em.ruc === e.target.value);
+                  setEmisorRuc(e.target.value);
+                  if (sel?.ambiente) setAmbiente(sel.ambiente);
+                }} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm">
+                  <option value="">Seleccionar RUC...</option>
+                  {emisores.map(em => (
+                    <option key={em.ruc} value={em.ruc}>
+                      {em.ruc} — {em.razonSocial}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
             <div className="flex flex-col gap-1.5"><Label>Fecha Emisión *</Label><Input type="date" value={fechaEmision} onChange={e => setFechaEmision(e.target.value)} /></div>
             <div className="flex flex-col gap-1.5"><Label>Secuencial (opcional)</Label><Input value={secuencial} onChange={e => setSecuencial(e.target.value)} placeholder="Auto si vacío" /></div>
             <div className="flex flex-col gap-1.5"><Label>Moneda</Label><Input value="USD" disabled className="text-slate-400" /></div>

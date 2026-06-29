@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, use, useEffect, useState, ReactNode } from 'react'
 
 type Theme = 'dark' | 'light' | 'system'
 
@@ -26,52 +26,47 @@ export function ThemeProvider({
   storageKey = 'vite-ui-theme',
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    // Try localStorage first, fall back to sessionStorage, then default
+  const [theme, setThemeState] = useState<Theme>(() => {
     try {
       return (localStorage.getItem(storageKey) as Theme) ||
              (sessionStorage.getItem(storageKey) as Theme) ||
              defaultTheme
     } catch (e) {
-      // Storage unavailable (incognito/privacy mode) - use default
       return defaultTheme
     }
   })
 
-  useEffect(() => {
+  const applyTheme = (newTheme: Theme) => {
+    if (typeof window === 'undefined') return
     const root = window.document.documentElement
-
     root.classList.remove('light', 'dark')
-
-    if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
-        .matches
-        ? 'dark'
-        : 'light'
-
+    if (newTheme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
       root.classList.add(systemTheme)
       return
     }
+    root.classList.add(newTheme)
+  }
 
-    root.classList.add(theme)
-  }, [theme])
+  // Initial application
+  useEffect(() => {
+    applyTheme(theme)
+  }, [])
 
   const value = {
     theme,
-    setTheme: (theme: Theme) => {
-      // Try to persist to localStorage, fall back to sessionStorage
+    setTheme: (newTheme: Theme) => {
       try {
-        localStorage.setItem(storageKey, theme)
+        localStorage.setItem(storageKey, newTheme)
       } catch (e) {
-        // localStorage unavailable (incognito) - use sessionStorage
         try {
-          sessionStorage.setItem(storageKey, theme)
+          sessionStorage.setItem(storageKey, newTheme)
         } catch (err) {
-          // Both unavailable - just update state without persistence
           console.warn('Storage unavailable, theme preference will not persist')
         }
       }
-      setTheme(theme)
+      setThemeState(newTheme)
+      applyTheme(newTheme)
     },
   }
 
@@ -83,7 +78,7 @@ export function ThemeProvider({
 }
 
 export const useTheme = () => {
-  const context = useContext(ThemeProviderContext)
+  const context = use(ThemeProviderContext)
 
   if (context === undefined)
     throw new Error('useTheme must be used within a ThemeProvider')

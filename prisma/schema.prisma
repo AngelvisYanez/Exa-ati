@@ -183,13 +183,34 @@ model ScrapingJob {
   status           String    @default("PENDING") @db.VarChar(50)
   progressMessage  String?   @map("progress_message") @db.Text
   options          String?   @map("options") @db.Text
+  proxyId          Int?      @map("proxy_id")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
   tenant Tenant? @relation(fields: [tenantId], references: [id])
+  proxy  ProxyPool? @relation(fields: [proxyId], references: [id])
   logs    ScrapingJobLog[]
 
   @@map("scraping_jobs")
+}
+
+model ProxyPool {
+  id        Int       @id @default(autoincrement())
+  proxyHost String    @map("proxy_host") @db.VarChar(255)
+  proxyPort Int       @map("proxy_port")
+  proxyUser String?   @map("proxy_user") @db.VarChar(255)
+  proxyPass String?   @map("proxy_pass") @db.VarChar(255)
+  pais      String    @default("EC") @db.VarChar(10)
+  activo    Boolean   @default(true)
+  enUso     Boolean   @default(false) @map("en_uso")
+  asignadoA String?   @map("asignado_a") @db.VarChar(100)
+  ultimoUso DateTime? @map("ultimo_uso")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  scrapingJobs ScrapingJob[]
+
+  @@map("proxy_pool")
 }
 
 model ScrapingJobLog {

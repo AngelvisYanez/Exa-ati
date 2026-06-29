@@ -117,6 +117,60 @@ export async function PATCH(req: Request) {
   }
 }
 
+export async function DELETE(req: Request) {
+  try {
+    const user = await verifyAuth(req);
+    const tenantId = user.tenantId;
+    if (!tenantId) {
+      return NextResponse.json({ message: 'Usuario sin tenant asignado' }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { jobId, deleteAll } = body;
+
+    if (deleteAll) {
+      // Delete all logs for this tenant's jobs, then all jobs
+      await db.query(
+        `DELETE FROM scraping_job_logs WHERE job_id IN (SELECT id FROM scraping_jobs WHERE tenant_id = $1)`,
+        [tenantId]
+      );
+      await db.query(
+        `DELETE FROM scraping_jobs WHERE tenant_id = $1`,
+        [tenantId]
+      );
+      return NextResponse.json({ success: true, message: 'Historial eliminado completamente' });
+    }
+
+    if (!jobId) {
+      return NextResponse.json({ error: 'Falta jobId' }, { status: 400 });
+    }
+
+    const job = await db.queryOne(
+      "SELECT id, tenant_id FROM scraping_jobs WHERE id = $1",
+      [jobId]
+    );
+    if (!job) {
+      return NextResponse.json({ error: 'Trabajo no encontrado' }, { status: 404 });
+    }
+    if (job.tenant_id !== tenantId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
+    // Delete logs first, then the job
+    await db.query('DELETE FROM scraping_job_logs WHERE job_id = $1', [jobId]);
+    await db.query('DELETE FROM scraping_jobs WHERE id = $1', [jobId]);
+
+    return NextResponse.json({ success: true, message: 'Trabajo eliminado' });
+  } catch (error: any) {
+    console.error('Error al eliminar trabajo:', error);
+    const isAuthError = error.message?.includes('No autorizado');
+    return NextResponse.json(
+      { error: isAuthError ? error.message : 'Error interno del servidor' },
+      { status: isAuthError ? 401 : 500 }
+    );
+  }
+}
+
 export async function GET(req: Request) {
   try {
     const user = await verifyAuth(req);

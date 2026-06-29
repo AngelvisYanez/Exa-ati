@@ -19,15 +19,36 @@ export interface HttpRequestOptions {
 }
 
 const MAX_REDIRECTS = 15;
-const DEFAULT_TIMEOUT = 60_000;
-const DEFAULT_RETRIES = 2;
-const DEFAULT_RETRY_DELAY = 2_000;
+const DEFAULT_TIMEOUT = 90_000;
+const DEFAULT_RETRIES = 3;
+const DEFAULT_RETRY_DELAY = 3_000;
+
+function isTlsError(err: any): boolean {
+  const msg = err?.message || '';
+  return (
+    msg.includes('ECONNRESET') ||
+    msg.includes('ETIMEDOUT') ||
+    msg.includes('ECONNREFUSED') ||
+    msg.includes('CERT_') ||
+    msg.includes('SSL') ||
+    msg.includes('TLS') ||
+    msg.includes('socket hang up') ||
+    msg.includes('network error') ||
+    msg.includes('fetch failed') ||
+    msg.includes('ERR_CONNECTION') ||
+    msg.includes('ERR_TIMED_OUT') ||
+    msg.includes('aborted') ||
+    msg.includes('Client network socket')
+  );
+}
 
 export class HttpClient {
   private cookies = new Map<string, string>();
   private defaultHeaders: Record<string, string>;
+  private proxyUrl?: string;
   private proxyAgent?: any;
   private cookieJarPath?: string;
+  private directFallback = false;
 
   constructor(opts?: {
     headers?: Record<string, string>;
@@ -35,12 +56,22 @@ export class HttpClient {
     cookieJarPath?: string;
   }) {
     this.defaultHeaders = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149.0.0.0 Safari/537.36',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'es-EC,es;q=0.9,en;q=0.8',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-User': '?1',
+      'Upgrade-Insecure-Requests': '1',
+      'Sec-Ch-Ua': '"Google Chrome";v="149", "Chromium";v="149", "Not=A?Brand";v="24"',
+      'Sec-Ch-Ua-Mobile': '?0',
+      'Sec-Ch-Ua-Platform': '"Windows"',
       ...opts?.headers,
     };
     this.cookieJarPath = opts?.cookieJarPath;
+    this.proxyUrl = opts?.proxyUrl;
 
     if (opts?.proxyUrl) {
       this.initProxy(opts.proxyUrl);
@@ -50,15 +81,19 @@ export class HttpClient {
   private initProxy(proxyUrl: string): void {
     try {
       const { HttpsProxyAgent } = require('https-proxy-agent');
-      this.proxyAgent = new HttpsProxyAgent(proxyUrl);
+      this.proxyAgent = new HttpsProxyAgent(proxyUrl, {
+        rejectUnauthorized: false,
+        timeout: 30000,
+      });
     } catch {
       console.warn('[HttpClient] https-proxy-agent no disponible, omitiendo proxy');
+      this.proxyUrl = undefined;
     }
   }
 
   private fetchOptions(): RequestInit {
     const opts: RequestInit = {};
-    if (this.proxyAgent) {
+    if (this.proxyAgent && !this.directFallback) {
       (opts as any).agent = this.proxyAgent;
     }
     return opts;
@@ -121,6 +156,19 @@ export class HttpClient {
         return await this._requestOnce(method, url, opts);
       } catch (err: any) {
         lastError = err;
+
+        if (this.proxyUrl && isTlsError(err) && !this.directFallback) {
+          console.warn(`[HttpClient] Proxy error, fallback a conexión directa: ${err.message?.substring(0, 80)}`);
+          this.directFallback = true;
+          try {
+            return await this._requestOnce(method, url, opts);
+          } catch (directErr: any) {
+            console.warn(`[HttpClient] Fallback directo también falló: ${directErr.message?.substring(0, 80)}`);
+            this.directFallback = false;
+            lastError = directErr;
+          }
+        }
+
         if (attempt < retries) {
           const delay = retryDelay * Math.pow(2, attempt);
           await new Promise(r => setTimeout(r, delay));
@@ -134,7 +182,7 @@ export class HttpClient {
   private async _requestOnce(
     method: string, url: string, opts: HttpRequestOptions = {}
   ): Promise<HttpResponse> {
-    let currentUrl = url;
+    let currentUrl = url.startsWith('http://') ? url.replace('http://', 'https://') : url;
     for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);

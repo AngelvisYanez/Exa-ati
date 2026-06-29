@@ -40,6 +40,28 @@ export async function POST(req: Request) {
       );
     }
 
+    const missingCols = [
+      'establecimiento VARCHAR(3) DEFAULT \'001\'',
+      'punto_emision VARCHAR(3) DEFAULT \'001\'',
+      'dir_matriz VARCHAR(500)',
+      'tipo_emision VARCHAR(2) DEFAULT \'1\'',
+      'agente_retencion VARCHAR(2)',
+      'contribuyente_rimpe VARCHAR(2)',
+      'obligado_contabilidad VARCHAR(2)',
+      'certificado_p12 BYTEA',
+      'password_certificado TEXT',
+      'certificado_password_encrypted TEXT',
+      'certificado_password VARCHAR(500)',
+      'certificado_nombre VARCHAR(500)',
+      'certificado_valido_hasta TIMESTAMP',
+      'cert_valido_hasta TIMESTAMP',
+      'notif_documentos BOOLEAN DEFAULT TRUE',
+      'notif_generacion BOOLEAN DEFAULT TRUE',
+    ];
+    for (const col of missingCols) {
+      await db.query(`ALTER TABLE emisores ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
+    }
+
     const emisor = await db.queryOne<any>(
       `SELECT id, ruc, razon_social, nombre_comercial, ambiente, tipo_emision,
               establecimiento, punto_emision, dir_matriz,
@@ -66,7 +88,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!emisor.establecimiento || !emisor.puntoEmision) {
+    if (!emisor.establecimiento || !emisor.punto_emision) {
       return NextResponse.json(
         { message: `El emisor ${emisorRuc} no tiene configurados establecimiento y punto de emisión` },
         { status: 400 }
@@ -83,7 +105,7 @@ export async function POST(req: Request) {
 
     const secuencial = String(datos.secuencial || '1').padStart(9, '0');
     const establecimiento = emisor.establecimiento.padStart(3, '0');
-    const puntoEmision = emisor.puntoEmision.padStart(3, '0');
+    const puntoEmision = emisor.punto_emision.padStart(3, '0');
 
     const claveAcceso = claveAccesoService.generate({
       fechaEmision: new Date(datos.fechaEmision),
@@ -111,10 +133,17 @@ export async function POST(req: Request) {
       contribuyenteRimpe: emisor.contribuyente_rimpe || undefined,
     };
 
-    const dataComprobante = {
-      infoTributaria,
-      ...datos,
+    const wrapInfo: Record<string, string> = {
+      '01': 'infoFactura',
+      '03': 'infoLiquidacionCompra',
+      '04': 'infoNotaCredito',
+      '05': 'infoNotaDebito',
+      '06': 'infoGuiaRemision',
     };
+    const infoKey = wrapInfo[tipo];
+    const dataComprobante = infoKey
+      ? { infoTributaria, [infoKey]: datos, detalles: datos.detalles, destinatarios: datos.destinatarios }
+      : { infoTributaria, ...datos };
 
     const xmlSinFirma = builder(dataComprobante);
 

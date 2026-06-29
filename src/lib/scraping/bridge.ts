@@ -15,6 +15,9 @@ export interface ScrapingJobOptions {
   parallel_days?: number;
   soap_sync_limit?: number;
   http_retry_count?: number;
+  use_proxy?: boolean;
+  proxy_url?: string;
+  proxy_id?: number;
 }
 
 let cachedBrowser: Browser | null = null;

@@ -31,11 +31,18 @@ export async function POST(req: Request) {
     }
 
     const emisor = await db.queryOne<any>(
-      `SELECT id, ruc, razon_social, nombre_comercial, direccion_matriz, obligado_contabilidad,
+      `SELECT id, ruc, razon_social, nombre_comercial, dir_matriz AS direccion_matriz, obligado_contabilidad,
               ambiente, establecimiento, punto_emision, tenant_id, certificado_p12, password_certificado
        FROM emisores WHERE ruc = ? AND activo = true`,
       [ruc]
-    );
+    ).catch(async () => {
+      return await db.queryOne<any>(
+        `SELECT id, ruc, razon_social, nombre_comercial, direccion_matriz, obligado_contabilidad,
+                ambiente, establecimiento, punto_emision, tenant_id, certificado_p12, password_certificado
+         FROM emisores WHERE ruc = ? AND activo = true`,
+        [ruc]
+      );
+    });
 
     if (!emisor) {
       return NextResponse.json({ message: `Emisor con RUC ${ruc} no encontrado o inactivo` }, { status: 404 });

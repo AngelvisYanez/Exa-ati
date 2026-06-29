@@ -1,0 +1,56 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: exa-ati-app
+    ports:
+      - "3001:3001"
+    volumes:
+      - downloads_data:/app/downloads
+      - browser_session_data:/app/browser_session
+      - logs_data:/app/logs
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - HEADLESS=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Para usar base de datos local, descomenta el bloque db:
+  # 1. Instala PostgreSQL: DATABASE_URL=postgresql://postgres:postgres@db:5432/exa_ati
+  # 2. Cambia DATABASE_URL en .env o pasa las variables por environment
+  #
+  # db:
+  #   image: postgres:16-alpine
+  #   container_name: exa-ati-db
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
+  #     POSTGRES_DB: exa_ati
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: unless-stopped
+
+volumes:
+  downloads_data:
+    name: exa-ati-downloads
+  browser_session_data:
+    name: exa-ati-browser-session
+  logs_data:
+    name: exa-ati-logs
+  # postgres_data:
+  #   name: exa-ati-postgres

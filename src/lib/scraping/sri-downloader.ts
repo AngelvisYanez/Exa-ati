@@ -7,6 +7,7 @@ import {
   extractSecuencial, extractFechaEmision, mapSriTypeCode, classifyExpense,
   cleanEmisorRazonSocial, extractDocumentosRelacionados, extractIva,
   parseLocalIsoDate, getDaysInRange, waitForDownload, updateComprobanteFromXml, realisticClick, clickButtonByText,
+  robustClick, captureDiagnosticInfo, verifySelectValue,
 } from './sri-utils';
 
 export async function downloadReceivedComprobantes(
@@ -60,8 +61,8 @@ export async function downloadReceivedComprobantes(
 
   const downloadsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sri-downloads-'));
   const tempPath = path.join(downloadsDir, 'temp');
-  const xmlPath = path.join(downloadsDir, 'XML');
-  const pdfPath = path.join(downloadsDir, 'RIDE');
+  const xmlPath = path.join(process.cwd(), 'downloads', 'XML');
+  const pdfPath = path.join(process.cwd(), 'downloads', 'RIDE');
   fs.mkdirSync(tempPath, { recursive: true });
   fs.mkdirSync(xmlPath, { recursive: true });
   fs.mkdirSync(pdfPath, { recursive: true });
@@ -104,14 +105,29 @@ export async function downloadReceivedComprobantes(
       }
 
       await page.waitForSelector('select[id*="ano"]', { timeout: 30000 });
-      
+
       await page.select('select[id*="ano"]', String(year));
       await new Promise(r => setTimeout(r, 1500));
+      if (!(await verifySelectValue(page, 'select[id*="ano"]', String(year)))) {
+        console.log('[Worker] Re-intentando select de año...');
+        await page.select('select[id*="ano"]', String(year));
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
       await page.select('select[id*="mes"]', String(month));
       await new Promise(r => setTimeout(r, 1500));
+      if (!(await verifySelectValue(page, 'select[id*="mes"]', String(month)))) {
+        await page.select('select[id*="mes"]', String(month));
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
       await page.select('select[id*="dia"]', String(day));
       await new Promise(r => setTimeout(r, 1000));
-      
+      if (!(await verifySelectValue(page, 'select[id*="dia"]', String(day)))) {
+        await page.select('select[id*="dia"]', String(day));
+        await new Promise(r => setTimeout(r, 1000));
+      }
+
       await page.select('select[id*="cmbTipoComprobante"]', String(typeCode));
       await new Promise(r => setTimeout(r, 1000));
       
@@ -151,17 +167,11 @@ export async function downloadReceivedComprobantes(
           await solveRecaptchaAntiCaptcha(page, 'consulta_cel_recibidos');
         }
 
-        let searchBtn;
-        try {
-          searchBtn = await page.$('button[id*="btnConsultar"], button[id*="btnBuscar"], button[id*="Consultar"], button[id*="Buscar"]');
-        } catch {
-          console.log('[Worker Debug] Frame detached en searchBtn, saltando reintento...');
+        const clicked = await robustClick(page, 'Consultar');
+        if (!clicked) {
+          console.log('[Worker Debug] No se pudo hacer clic en Consultar, capturando diagnostico...');
+          await captureDiagnosticInfo(page, `no-consultar-${year}${month}${day}-${attempt}`, './downloads/debug');
           continue;
-        }
-        if (searchBtn) {
-          await realisticClick(page, 'button[id*="btnConsultar"], button[id*="btnBuscar"], button[id*="Consultar"], button[id*="Buscar"]');
-        } else {
-          await clickButtonByText(page, 'Consultar');
         }
         await new Promise(r => setTimeout(r, 3000));
 
@@ -233,13 +243,9 @@ export async function downloadReceivedComprobantes(
           });
         } catch (waitErr) {
           console.log('[Worker Debug] Timeout esperando respuesta de la consulta.');
+          await captureDiagnosticInfo(page, `timeout-${year}${month}${day}-${attempt}`, './downloads/debug');
           const bodyPreview = await page.evaluate(() => document.body?.innerText?.substring(0, 500)).catch(() => 'N/A');
           console.log(`[Worker Debug] Diagnóstico - body text (primeros 500 chars):\n${bodyPreview}`);
-          try {
-            const dbgPath = path.resolve(`./downloads/debug-${year}${month}${day}-${attempt}.png`);
-            await page.screenshot({ path: dbgPath });
-            console.log(`[Worker Debug] Screenshot guardado en: ${dbgPath}`);
-          } catch {}
           // Si ya resolvimos el CAPTCHA y el timeout igual se disparó,
           // probablemente no hay resultados para esta fecha. No seguir reintentando.
           if (captchaWasHandled) {
@@ -555,7 +561,7 @@ export async function downloadReceivedComprobantes(
             const updateQuery = `
               UPDATE comprobantes SET
                 emisor_razon_social = COALESCE($1, emisor_razon_social),
-                importe_total = COALESCE(NULLIF($2, 0), importe_total),
+                importe_total = COALESCE(NULLIF($2::numeric, 0::numeric), importe_total),
                 tenant_id = COALESCE(tenant_id, $3),
                 fecha_emision = COALESCE(fecha_emision, $4),
                 categoria = CASE WHEN categoria IS NULL OR categoria = 'Otros' THEN $5 ELSE categoria END,

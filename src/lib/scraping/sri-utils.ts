@@ -402,7 +402,7 @@ export async function updateComprobanteFromXml(
         emisor_ruc = COALESCE($5, emisor_ruc),
         subtotal_sin_impuesto = $6,
         total_iva = $7,
-        importe_total = COALESCE(CASE WHEN $8 = 0 THEN NULL ELSE $9 END, importe_total),
+        importe_total = COALESCE(CASE WHEN $8::numeric = 0::numeric THEN NULL ELSE $9::numeric END, importe_total),
         fecha_autorizacion = $10,
         numero_autorizacion = COALESCE($11, numero_autorizacion),
         receptor_email = COALESCE($12, receptor_email),
@@ -412,8 +412,10 @@ export async function updateComprobanteFromXml(
         estado = 'AUTORIZADO',
         fecha_emision = COALESCE(fecha_emision, $16),
         categoria = CASE WHEN categoria IS NULL OR categoria = 'Otros' THEN $17 ELSE categoria END,
+        serie = COALESCE(serie, $18),
+        secuencial = COALESCE(secuencial, $19),
         updated_at = NOW()
-      WHERE clave_acceso = $18
+      WHERE clave_acceso = $20
     `;
     await db.query(updateQuery, [
       xmlTypeCode,
@@ -433,6 +435,8 @@ export async function updateComprobanteFromXml(
       emisorId || null,
       fechaEmisionFormatted,
       classifyExpense(emisorRazonSocial),
+      extractSerie(claveAcceso),
+      extractSecuencial(claveAcceso),
       claveAcceso,
     ]);
   } catch (e: any) {
@@ -440,7 +444,7 @@ export async function updateComprobanteFromXml(
   }
 }
 
-export async function clickButtonByText(page: any, text: string): Promise<void> {
+export async function clickButtonByText(page: any, text: string): Promise<boolean> {
   const el = await page.evaluateHandle((searchText: string) => {
     const buttons = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], a.btn, span[role="button"]'));
     const found = buttons.find(el => {
@@ -452,39 +456,148 @@ export async function clickButtonByText(page: any, text: string): Promise<void> 
 
   if (!el || el.asElement() === null) {
     console.warn(`[clickButtonByText] Button with text "${text}" not found`);
-    return;
+    return false;
   }
 
-  const box = await el.asElement()!.boundingBox();
-  if (!box) {
-    console.warn(`[clickButtonByText] Button "${text}" has no bounding box`);
-    return;
+  const handle = el.asElement()!;
+  try {
+    await handle.evaluate((b: any) => b.click());
+    return true;
+  } catch {
+    const box = await handle.boundingBox();
+    if (!box) {
+      console.warn(`[clickButtonByText] Button "${text}" has no bounding box`);
+      return false;
+    }
+    const x = box.x + box.width / 2 + (Math.random() - 0.5) * 8;
+    const y = box.y + box.height / 2 + (Math.random() - 0.5) * 8;
+    await page.mouse.move(x, y, { steps: 3 + Math.floor(Math.random() * 5) });
+    await new Promise(r => setTimeout(r, 30 + Math.random() * 80));
+    await page.mouse.click(x, y);
+    return true;
   }
-
-  const x = box.x + box.width / 2 + (Math.random() - 0.5) * 8;
-  const y = box.y + box.height / 2 + (Math.random() - 0.5) * 8;
-
-  await page.mouse.move(x, y, { steps: 3 + Math.floor(Math.random() * 5) });
-  await new Promise(r => setTimeout(r, 30 + Math.random() * 80));
-  await page.mouse.click(x, y);
 }
 
-export async function realisticClick(page: any, selector: string): Promise<void> {
+export async function realisticClick(page: any, selector: string): Promise<boolean> {
   const el = await page.$(selector);
   if (!el) {
     console.warn(`[realisticClick] Selector not found: ${selector}`);
-    return;
+    return false;
   }
   const box = await el.boundingBox();
   if (!box) {
     console.warn(`[realisticClick] Element has no bounding box: ${selector}`);
-    return;
+    return false;
   }
 
-  const x = box.x + box.width / 2 + (Math.random() - 0.5) * 8;
-  const y = box.y + box.height / 2 + (Math.random() - 0.5) * 8;
+  try {
+    await el.evaluate((b: any) => b.click());
+    return true;
+  } catch {
+    const x = box.x + box.width / 2 + (Math.random() - 0.5) * 8;
+    const y = box.y + box.height / 2 + (Math.random() - 0.5) * 8;
+    await page.mouse.move(x, y, { steps: 3 + Math.floor(Math.random() * 5) });
+    await new Promise(r => setTimeout(r, 30 + Math.random() * 80));
+    await page.mouse.click(x, y);
+    return true;
+  }
+}
 
-  await page.mouse.move(x, y, { steps: 3 + Math.floor(Math.random() * 5) });
-  await new Promise(r => setTimeout(r, 30 + Math.random() * 80));
-  await page.mouse.click(x, y);
+export async function robustClick(page: any, buttonText: string): Promise<boolean> {
+  const textLower = buttonText.toLowerCase();
+
+  if (await realisticClick(page, `input[type="submit"][value*="${buttonText}"], input[type="button"][value*="${buttonText}"]`)) return true;
+  if (await realisticClick(page, `button[id*="btnConsultar"], button[id*="btnBuscar"], button[id*="Consultar"], button[id*="Buscar"]`)) return true;
+  if (await realisticClick(page, `input[type="submit"][id*="btnConsultar"], input[type="submit"][id*="btnBuscar"], input[type="submit"][id*="Consultar"]`)) return true;
+  if (await realisticClick(page, `a[id*="btnConsultar"], a[id*="btnBuscar"], a[id*="Consultar"], a[id*="Buscar"]`)) return true;
+  if (await clickButtonByText(page, buttonText)) return true;
+
+  const primeSuccess = await page.evaluate((text: string) => {
+    const allButtons = document.querySelectorAll('button, input[type="submit"], input[type="button"], a');
+    for (const btn of allButtons) {
+      const t = (btn as HTMLElement).textContent?.trim().toLowerCase() || (btn as HTMLInputElement).value?.toLowerCase();
+      if (t?.includes(text)) {
+        (btn as HTMLElement).click();
+        return true;
+      }
+    }
+
+    const primeFaces = (window as any).PrimeFaces;
+    if (primeFaces?.ab) {
+      const possibleSources = ['frmPrincipal:btnBuscar', 'frmPrincipal:btnConsultar', 'frmPrincipal:Consultar'];
+      for (const src of possibleSources) {
+        try {
+          primeFaces.ab({ source: src });
+          return true;
+        } catch {}
+      }
+    }
+
+    const form = document.getElementById('frmPrincipal') as HTMLFormElement;
+    if (form) {
+      form.submit();
+      return true;
+    }
+    return false;
+  }, textLower);
+
+  return primeSuccess;
+}
+
+export async function captureDiagnosticInfo(page: any, label: string, diagDir?: string): Promise<string | null> {
+  try {
+    const dir = diagDir || './downloads/debug';
+    const fs = require('fs');
+    const path = require('path');
+    fs.mkdirSync(dir, { recursive: true });
+    const timestamp = Date.now();
+    const screenshotPath = path.join(dir, `${label}-${timestamp}.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+    console.log(`[Diagnostic] Screenshot saved: ${screenshotPath}`);
+
+    const htmlPath = path.join(dir, `${label}-${timestamp}.html`);
+    const html = await page.evaluate(() => {
+      const form = document.getElementById('frmPrincipal');
+      return form ? form.outerHTML : document.body?.innerHTML?.substring(0, 10000) || 'No content';
+    }).catch(() => 'Error capturing HTML');
+    fs.writeFileSync(htmlPath, html);
+    console.log(`[Diagnostic] HTML dump saved: ${htmlPath}`);
+
+    const statePath = path.join(dir, `${label}-${timestamp}.json`);
+    const state = await page.evaluate(() => ({
+      url: window.location.href,
+      title: document.title,
+      selectCount: document.querySelectorAll('select').length,
+      buttonCount: document.querySelectorAll('button, input[type="submit"], input[type="button"]').length,
+      formCount: document.querySelectorAll('form').length,
+      bodyPreview: document.body?.innerText?.substring(0, 1000) || '',
+    })).catch(() => ({}));
+    fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+
+    return screenshotPath;
+  } catch (err: any) {
+    console.error(`[Diagnostic] Error capturing info for "${label}":`, err.message);
+    return null;
+  }
+}
+
+export async function verifySelectValue(page: any, selector: string, expectedValue: string): Promise<boolean> {
+  try {
+    const actual = await page.evaluate((sel: string) => {
+      const el = document.querySelector(sel) as HTMLSelectElement;
+      return el ? el.value : null;
+    }, selector);
+    if (actual === expectedValue) return true;
+    console.warn(`[verifySelectValue] Select "${selector}" has value "${actual}", expected "${expectedValue}". Re-setting...`);
+    await page.select(selector, expectedValue);
+    await new Promise(r => setTimeout(r, 500));
+    const retry = await page.evaluate((sel: string) => {
+      const el = document.querySelector(sel) as HTMLSelectElement;
+      return el ? el.value : null;
+    }, selector);
+    return retry === expectedValue;
+  } catch (err: any) {
+    console.error(`[verifySelectValue] Error: ${err.message}`);
+    return false;
+  }
 }

@@ -1,0 +1,66 @@
+# Dependencias y construcciones
+node_modules
+.next
+out
+dist
+build
+.next_build
+
+# Datos dinámicos y temporales (se montan como volúmenes)
+downloads
+browser_session
+logs
+
+# Archivos de log
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Configuraciones locales y de entorno
+.env
+.env*.local
+.env.local
+.env.development
+
+# Git
+.git
+.gitignore
+.github
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*
+
+# Documentación
+*.md
+docs
+
+# Tests
+tests
+coverage
+__tests__
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+
+# Scripts de desarrollo
+scripts/*.mjs
+scripts/scratch
+
+# Capturas de test / debug
+sri-dom-dump.html
+sri-recibidos-dump.html
+scratch_utf8.txt
+scratch.txt

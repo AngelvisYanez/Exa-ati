@@ -42,16 +42,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ claveAc
     }
 
     const xmlRecord = await db.queryOne<any>(
-      `SELECT xml_firmado_path FROM comprobante_xmls WHERE comprobante_id = ?`,
+      `SELECT ruta_archivo FROM comprobante_xmls WHERE comprobante_id = ? AND tipo = 'firmado'`,
       [comp.id]
     );
-    if (!xmlRecord?.xml_firmado_path) {
+    if (!xmlRecord?.ruta_archivo) {
       return NextResponse.json({ message: 'No hay XML firmado almacenado para reenvío' }, { status: 404 });
     }
 
     const { readFileSync } = await import('fs');
     const { join } = await import('path');
-    const xmlFirmado = readFileSync(join(xmlRecord.xml_firmado_path), 'utf-8');
+    const xmlFirmado = readFileSync(join(xmlRecord.ruta_archivo), 'utf-8');
 
     const result = await sriSoapClient.enviarYAutorizar(xmlFirmado, claveAcceso);
 

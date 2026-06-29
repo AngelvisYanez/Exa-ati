@@ -26,7 +26,8 @@ import {
   History,
   Settings,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Trash2
 } from 'lucide-react';
 
 interface MassDownloadModalProps {
@@ -52,7 +53,7 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
   const [isDevMode, setIsDevMode] = useState(false);
 
   const [devOptions, setDevOptions] = useState({
-    connection_mode: 'http' as 'cdp' | 'new_browser' | 'headless_separate' | 'http',
+    connection_mode: 'http' as 'cdp' | 'new_browser' | 'headless_separate' | 'playwright' | 'http' | 'cloudflare',
     captcha_strategy: 'auto' as 'auto' | 'anticaptcha' | 'buster' | 'manual',
     debug_screenshots: false,
     verbose_logging: false,
@@ -61,6 +62,10 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
     parallel_days: 1,
     soap_sync_limit: 30,
     http_retry_count: 3,
+    use_proxy: true,
+    cf_token: '',
+    cf_account_id: '',
+    cf_worker_url: 'https://scrapper-cloudflare.angelvisyanez7.workers.dev',
   });
 
   useEffect(() => {
@@ -71,6 +76,9 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
   }, []);
 
   const isHttpMode = devOptions.connection_mode === 'http';
+  const isPlaywrightMode = devOptions.connection_mode === 'playwright';
+  const isPuppeteerMode = devOptions.connection_mode === 'cdp' || devOptions.connection_mode === 'new_browser' || devOptions.connection_mode === 'headless_separate';
+  const isCloudflareMode = devOptions.connection_mode === 'cloudflare';
   
   const [formData, setFormData] = useState({
     ruc: '',
@@ -176,6 +184,57 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
     }
   };
 
+  const deleteJob = async (jobId: string) => {
+    if (!confirm('¿Eliminar esta tarea del historial?')) return;
+    try {
+      const token = localStorage.getItem('sri_access_token');
+      const res = await fetch('/api/sri/scraping', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ jobId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || 'Tarea eliminada');
+        if (selectedJob?.id === jobId) { setSelectedJob(null); setLogs([]); }
+        fetchJobs(true);
+      } else {
+        toast.error(data.error || 'Error al eliminar');
+      }
+    } catch {
+      toast.error('Error de red al eliminar la tarea');
+    }
+  };
+
+  const deleteAllJobs = async () => {
+    if (!confirm('¿Eliminar todo el historial de tareas? Esta acción no se puede deshacer.')) return;
+    try {
+      const token = localStorage.getItem('sri_access_token');
+      const res = await fetch('/api/sri/scraping', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ deleteAll: true }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || 'Historial eliminado');
+        setSelectedJob(null);
+        setLogs([]);
+        fetchJobs(true);
+      } else {
+        toast.error(data.error || 'Error al eliminar historial');
+      }
+    } catch {
+      toast.error('Error de red al eliminar el historial');
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -190,7 +249,21 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
     setLoading(true);
     try {
       const token = localStorage.getItem('sri_access_token');
-      const payload = isDevMode ? { ...formData, options: devOptions } : formData;
+      const payload: Record<string, unknown> = { ...formData };
+      if (isDevMode) {
+        payload.options = devOptions;
+      }
+
+      // Always include options for cloudflare mode (even in production)
+      if (devOptions.connection_mode === 'cloudflare') {
+        payload.options = {
+          connection_mode: 'cloudflare',
+          cf_account_id: devOptions.cf_account_id,
+          cf_token: devOptions.cf_token,
+          cf_worker_url: devOptions.cf_worker_url,
+        };
+      }
+
       const response = await fetch('/api/sri/scraping', {
         method: 'POST',
         headers: {
@@ -305,23 +378,36 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
                 </div>
 
                 {/* ─── Selector rápido de scraper ─── */}
-                <div className="grid grid-cols-2 gap-2">
-                  {(['http', 'cdp'] as const).map((mode) => (
+                <div className="grid grid-cols-4 gap-2">
+                  {(['http', 'cdp', 'playwright', 'cloudflare'] as const).map((mode) => (
                     <button
                       key={mode}
                       type="button"
-                      onClick={() => isDevMode && setDevOptions(prev => ({ ...prev, connection_mode: mode }))}
+                      onClick={() => (isDevMode || mode === 'http' || mode === 'cloudflare') && setDevOptions(prev => ({ ...prev, connection_mode: mode }))}
                       className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all cursor-pointer ${
                         devOptions.connection_mode === mode
                           ? 'border-brand-navy bg-brand-navy/5 shadow-xs'
                           : 'border-border bg-card hover:border-muted-foreground/30'
-                      } ${!isDevMode && devOptions.connection_mode !== mode ? 'opacity-60' : ''}`}
-                      title={!isDevMode && mode === 'http' ? 'HTTP es el único modo disponible en producción' : undefined}
+                      } ${!isDevMode && mode !== 'http' && mode !== 'cloudflare' ? 'opacity-60' : ''}`}
+                      title={
+                        !isDevMode && mode !== 'http' && mode !== 'cloudflare' ? 'Solo HTTP y Cloudflare en producción' :
+                        mode === 'cloudflare' ? 'Cloudflare Browser Run — scraping remoto serverless' :
+                        mode === 'playwright' ? 'Playwright — scraper robusto con auto-wait' : undefined
+                      }
                     >
                       <div className={`p-1.5 rounded-lg ${devOptions.connection_mode === mode ? 'bg-brand-navy text-white' : 'bg-muted text-muted-foreground'}`}>
                         {mode === 'http' ? (
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                        ) : mode === 'cloudflare' ? (
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M11.32 2.617a.68.68 0 01.633-.424h6.16a.68.68 0 01.633.424l2.567 6.667a.68.68 0 01-.633.936h-2.843l2.627 6.81a.68.68 0 01-.633.936H8.47a.68.68 0 01-.633-.424L5.34 10.676a.68.68 0 01.633-.936l8.403.001-2.446-6.124h-.607z"/>
+                          </svg>
+                        ) : mode === 'playwright' ? (
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         ) : (
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -330,20 +416,39 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
                         )}
                       </div>
                       <span className={`text-[11px] font-semibold leading-tight text-center ${devOptions.connection_mode === mode ? 'text-brand-navy' : 'text-muted-foreground'}`}>
-                        {mode === 'http' ? 'HTTP directo' : 'Puppeteer + Chrome'}
+                        {mode === 'http' ? 'HTTP directo' : mode === 'cloudflare' ? 'Cloudflare' : mode === 'playwright' ? 'Playwright' : 'Puppeteer'}
                       </span>
                       <span className={`text-[9px] leading-tight text-center ${devOptions.connection_mode === mode ? 'text-brand-navy/70' : 'text-muted-foreground/60'}`}>
-                        {mode === 'http' ? 'Sin navegador' : 'Con navegador real'}
+                        {mode === 'http' ? 'Sin navegador' : mode === 'cloudflare' ? 'Serverless remoto' : mode === 'playwright' ? 'Navegador nuevo' : 'Chrome real'}
                       </span>
                       {devOptions.connection_mode === mode && (
                         <div className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-brand-navy rounded-full" />
                       )}
-                      {!isDevMode && mode === 'http' && (
+                      {mode === 'http' && (
                         <span className="text-[8px] font-medium text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full mt-0.5">recomendado</span>
+                      )}
+                      {mode === 'cloudflare' && (
+                        <span className="text-[8px] font-medium text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded-full mt-0.5">beta</span>
                       )}
                     </button>
                   ))}
                 </div>
+
+                {/* ─── Proxy toggle ─── */}
+                {!isCloudflareMode && (
+                  <label className="flex items-center gap-2 py-1.5 px-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={devOptions.use_proxy}
+                      onChange={() => setDevOptions(prev => ({ ...prev, use_proxy: !prev.use_proxy }))}
+                      className="accent-brand-navy"
+                    />
+                    <span className="text-xs text-foreground">
+                      Usar proxy{' '}
+                      <span className="text-muted-foreground">— asigna proxy del pool si está disponible</span>
+                    </span>
+                  </label>
+                )}
 
                 {/* ─── Opciones específicas por scraper ─── */}
                 <div className="border border-dashed border-amber-300 rounded-lg overflow-hidden">
@@ -423,15 +528,14 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
                             </div>
                           </div>
 
-                          <span className="block border-t border-amber-200" />
                         </>
                       )}
 
-                      {/* Browser-specific options */}
-                      {!isHttpMode && (
+                      {/* Browser-specific options (Puppeteer) */}
+                      {isPuppeteerMode && (
                         <>
                           <div className="space-y-1">
-                            <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Modo de conexión</Label>
+                            <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Modo de conexión Puppeteer</Label>
                             {(['cdp', 'new_browser', 'headless_separate'] as const).map((mode) => (
                               <label key={mode} className="flex items-center gap-2 py-0.5 cursor-pointer">
                                 <input
@@ -448,6 +552,104 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
                                 </span>
                               </label>
                             ))}
+                          </div>
+
+                          <span className="block border-t border-amber-200" />
+                        </>
+                      )}
+
+                      {/* Playwright-specific options */}
+                      {isPlaywrightMode && (
+                        <>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Playwright</Label>
+                            <div className="text-[11px] text-amber-900 space-y-1 py-0.5">
+                              <p>Usa Chromium vía Playwright con auto-wait nativo, 3 estrategias de click, y diagnóstico automático.</p>
+                              <p className="text-amber-700/70">No requiere configuración adicional — inicia automáticamente.</p>
+                            </div>
+                          </div>
+
+                          <span className="block border-t border-amber-200" />
+                        </>
+                      )}
+
+                      {/* Cloudflare-specific options */}
+                      {isCloudflareMode && (
+                        <>
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Cloudflare Browser Run</Label>
+                            <p className="text-[11px] text-amber-900">Usa Puppeteer vía Cloudflare Browser Run — scraping remoto sin infraestructura local.</p>
+                            <div className="space-y-1">
+                              <Label htmlFor="cf_account_id" className="text-[10px] font-medium text-amber-800">Account ID</Label>
+                              <input
+                                id="cf_account_id"
+                                type="text"
+                                placeholder="a9033da9529c1df08cf8073f256dac69"
+                                value={devOptions.cf_account_id}
+                                onChange={(e) => setDevOptions(prev => ({ ...prev, cf_account_id: e.target.value }))}
+                                className="w-full h-8 px-2.5 rounded-lg border border-input bg-background text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="cf_token" className="text-[10px] font-medium text-amber-800">API Token</Label>
+                              <input
+                                id="cf_token"
+                                type="password"
+                                placeholder="cfat_..."
+                                value={devOptions.cf_token}
+                                onChange={(e) => setDevOptions(prev => ({ ...prev, cf_token: e.target.value }))}
+                                className="w-full h-8 px-2.5 rounded-lg border border-input bg-background text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="cf_worker_url" className="text-[10px] font-medium text-amber-800">Worker URL</Label>
+                              <input
+                                id="cf_worker_url"
+                                type="text"
+                                value={devOptions.cf_worker_url}
+                                onChange={(e) => setDevOptions(prev => ({ ...prev, cf_worker_url: e.target.value }))}
+                                className="w-full h-8 px-2.5 rounded-lg border border-input bg-background text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              />
+                            </div>
+                          </div>
+
+                          <span className="block border-t border-amber-200" />
+                        </>
+                      )}
+
+                      {/* Cloudflare-specific options */}
+                      {isCloudflareMode && (
+                        <>
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Cloudflare Browser Run</Label>
+
+                            <div className="space-y-1">
+                              <Label htmlFor="cf_token" className="text-[11px] text-amber-900">API Token</Label>
+                              <input
+                                id="cf_token"
+                                type="password"
+                                placeholder="cfat_..."
+                                value={devOptions.cf_token}
+                                onChange={(e) => setDevOptions(prev => ({ ...prev, cf_token: e.target.value }))}
+                                className="w-full h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label htmlFor="cf_account_id" className="text-[11px] text-amber-900">Account ID</Label>
+                              <input
+                                id="cf_account_id"
+                                type="text"
+                                placeholder="a9033da9529c1df08cf8073f256dac69"
+                                value={devOptions.cf_account_id}
+                                onChange={(e) => setDevOptions(prev => ({ ...prev, cf_account_id: e.target.value }))}
+                                className="w-full h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                              />
+                            </div>
+
+                            <div className="text-[10px] text-amber-700/80 bg-amber-100/50 p-2 rounded-md mt-1">
+                              Worker URL: <code className="text-[9px] font-mono">{devOptions.cf_worker_url}</code>
+                            </div>
                           </div>
 
                           <span className="block border-t border-amber-200" />
@@ -524,31 +726,31 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
                         ))}
                       </div>
 
-                      <span className="block border-t border-amber-200 my-1" />
-
-                      {/* Restart Chrome */}
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            const res = await fetch('/api/system/restart-chrome', { method: 'POST' });
-                            const data = await res.json();
-                            if (data.success) {
-                              toast.success(data.message);
-                            } else {
-                              toast.error(data.error || 'Error al reiniciar Chrome');
+                      {/* Restart Chrome (solo Puppeteer CDP) */}
+                      {isPuppeteerMode && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch('/api/system/restart-chrome', { method: 'POST' });
+                              const data = await res.json();
+                              if (data.success) {
+                                toast.success(data.message);
+                              } else {
+                                toast.error(data.error || 'Error al reiniciar Chrome');
+                              }
+                            } catch {
+                              toast.error('Error de red al intentar reiniciar Chrome');
                             }
-                          } catch {
-                            toast.error('Error de red al intentar reiniciar Chrome');
-                          }
-                        }}
-                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-md transition-colors cursor-pointer"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Reiniciar Chrome con debug port (usa tu sesión SRI activa)
-                      </button>
+                          }}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-md transition-colors cursor-pointer"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Reiniciar Chrome con debug port (usa tu sesión SRI activa)
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -572,10 +774,17 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
                   <History className="w-4 h-4 text-brand-navy" />
                   Historial de Tareas
                 </h3>
-                <Button variant="outline" size="sm" onClick={() => fetchJobs(true)} disabled={isRefreshing} className="gap-1.5 h-8 text-xs cursor-pointer">
-                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-brand-navy' : ''}`} />
-                  <span className="hidden sm:inline">Actualizar</span>
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  {jobs.length > 0 && (
+                    <Button variant="ghost" size="sm" onClick={deleteAllJobs} className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer" title="Eliminar todo el historial">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={() => fetchJobs(true)} disabled={isRefreshing} className="gap-1.5 h-8 text-xs cursor-pointer">
+                    <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-brand-navy' : ''}`} />
+                    <span className="hidden sm:inline">Actualizar</span>
+                  </Button>
+                </div>
               </div>
 
               <div className="flex-1 relative">
@@ -639,11 +848,16 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
                                 {new Date(job.created_at).toLocaleDateString()}
                               </td>
                               <td className="px-3 py-2.5 text-center">
-                                {(status === 'PENDING' || status === 'PROCESSING') && (
-                                  <Button variant="ghost" size="sm" onClick={() => cancelJob(job.id)} className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer" title="Cancelar">
-                                    <Ban className="h-3.5 w-3.5" />
+                                <div className="flex items-center justify-center gap-0.5">
+                                  {(status === 'PENDING' || status === 'PROCESSING') && (
+                                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); cancelJob(job.id); }} className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer" title="Cancelar">
+                                      <Ban className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); deleteJob(job.id); }} className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer" title="Eliminar del historial">
+                                    <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
-                                )}
+                                </div>
                               </td>
                             </tr>
                           );

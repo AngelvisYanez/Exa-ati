@@ -23,18 +23,22 @@ function requireEnv(name: string): string {
 }
 
 export const config = {
-  nodeEnv: process.env.NODE_ENV || 'development',
+  get nodeEnv(): string { return process.env.NODE_ENV || 'development'; },
   jwt: {
-    secret: requireEnv('JWT_SECRET'),
-    expiration: process.env.JWT_EXPIRATION || '24h',
+    get secret(): string { return requireEnv('JWT_SECRET'); },
+    get expiration(): string { return process.env.JWT_EXPIRATION || '24h'; },
   },
-  encryptionKey: requireEnv('ENCRYPTION_KEY'),
-  encryptionSalt: requireEnv('ENCRYPTION_SALT'),
+  get encryptionKey(): string { return requireEnv('ENCRYPTION_KEY'); },
+  get encryptionSalt(): string { return requireEnv('ENCRYPTION_SALT'); },
   sri: {
-    environment: process.env.SRI_ENVIRONMENT || 'development',
+    get environment(): string { return process.env.SRI_ENVIRONMENT || 'development'; },
     wsdl: {
-      reception: process.env.SRI_RECEPTION_WSDL || 'https://celcer.sri.gob.ec/comprobantes-electronicos-ws/RecepcionComprobantesOffline?wsdl',
-      authorization: process.env.SRI_AUTHORIZATION_WSDL || 'https://celcer.sri.gob.ec/comprobantes-electronicos-ws/AutorizacionComprobantesOffline?wsdl',
+      get reception(): string {
+        return process.env.SRI_RECEPTION_WSDL || 'https://celcer.sri.gob.ec/comprobantes-electronicos-ws/RecepcionComprobantesOffline?wsdl';
+      },
+      get authorization(): string {
+        return process.env.SRI_AUTHORIZATION_WSDL || 'https://celcer.sri.gob.ec/comprobantes-electronicos-ws/AutorizacionComprobantesOffline?wsdl';
+      },
     }
   },
   directories: {

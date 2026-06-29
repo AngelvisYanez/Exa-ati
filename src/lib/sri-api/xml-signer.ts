@@ -2,7 +2,7 @@ import * as forge from 'node-forge';
 import { Crypto } from '@peculiar/webcrypto';
 import * as xadesjs from 'xadesjs';
 import * as xmlCore from 'xml-core';
-import { DOMParser, XMLSerializer } from 'xmldom';
+import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import { existsSync, readFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { db } from './db';

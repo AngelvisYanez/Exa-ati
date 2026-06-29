@@ -28,12 +28,20 @@ export async function GET(
 
     // Obtener datos del comprobante
     const detail = await db.queryOne<any>(
-      `SELECT c.*, e.ruc AS emisor_ruc, e.razon_social AS emisor_razon_social, e.nombre_comercial AS emisor_nombre_comercial, e.direccion_matriz AS emisor_matriz
+      `SELECT c.*, e.ruc AS emisor_ruc, e.razon_social AS emisor_razon_social, e.nombre_comercial AS emisor_nombre_comercial, e.dir_matriz AS emisor_matriz
        FROM comprobantes c
        LEFT JOIN emisores e ON c.emisor_id = e.id
        WHERE c.clave_acceso = ?`,
       [claveAcceso]
-    );
+    ).catch(async () => {
+      return await db.queryOne<any>(
+        `SELECT c.*, e.ruc AS emisor_ruc, e.razon_social AS emisor_razon_social, e.nombre_comercial AS emisor_nombre_comercial, e.direccion_matriz AS emisor_matriz
+         FROM comprobantes c
+         LEFT JOIN emisores e ON c.emisor_id = e.id
+         WHERE c.clave_acceso = ?`,
+        [claveAcceso]
+      );
+    });
 
     if (!detail) {
       return NextResponse.json({ message: 'Comprobante no encontrado' }, { status: 404 });
