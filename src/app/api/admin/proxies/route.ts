@@ -11,6 +11,7 @@ import {
   releaseAllProxies,
 } from '@/lib/scraping/proxy-assigner';
 import { discoverProxies } from '@/lib/scraping/proxy-discoverer';
+import { testearProxy, testearTodosLosProxies } from '@/lib/scraping/proxy-assigner';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,6 +78,26 @@ export async function POST(req: Request) {
     if (action === 'releaseAll') {
       await releaseAllProxies();
       return NextResponse.json({ success: true });
+    }
+
+    if (action === 'test') {
+      const { proxy_id } = body;
+      if (!proxy_id) {
+        return NextResponse.json({ success: false, error: 'proxy_id requerido' }, { status: 400 });
+      }
+      const result = await testearProxy(proxy_id);
+      return NextResponse.json({ success: true, result });
+    }
+
+    if (action === 'testAll') {
+      const results = await testearTodosLosProxies();
+      const alive = results.filter(r => r.alive).length;
+      const dead = results.filter(r => !r.alive).length;
+      return NextResponse.json({
+        success: true,
+        results,
+        stats: { total: results.length, alive, dead },
+      });
     }
 
     if (action === 'discover') {

@@ -98,7 +98,20 @@ export class SriPlaywrightScraper {
         extraHTTPHeaders: { 'Accept-Language': 'es-EC,es;q=0.9' },
       };
 
-      // Proxy desactivado para Playwright
+      if (this.proxyUrl) {
+        try {
+          const purl = new URL(this.proxyUrl);
+          contextOptions.proxy = {
+            server: `${purl.protocol}//${purl.hostname}:${purl.port}`,
+            username: purl.username || undefined,
+            password: purl.password || undefined,
+          };
+          const logMsg = `Proxy activado para Playwright: ${purl.hostname}:${purl.port}`;
+          console.log(`[PW] ${logMsg}`);
+        } catch (e: any) {
+          console.log(`[PW] Error parsing proxy URL "${this.proxyUrl}": ${e.message}`);
+        }
+      }
 
       const userDataDir = path.resolve('./browser_session/sri_user_profile');
       fs.mkdirSync(userDataDir, { recursive: true });

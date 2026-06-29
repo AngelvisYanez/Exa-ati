@@ -69,6 +69,18 @@ function extractIpPortPairs(html: string): { host: string; port: number }[] {
   return proxies;
 }
 
+export async function testProxyConnection(
+  host: string,
+  port: number,
+): Promise<{ alive: boolean; latency: number } | null> {
+  const target = { host: 'srienlinea.sri.gob.ec', port: 443 };
+  for (let attempt = 0; attempt < TEST_RETRIES; attempt++) {
+    const result = await _testConnect(host, port, target.host, target.port);
+    if (result) return result;
+  }
+  return null;
+}
+
 async function testProxy(
   host: string,
   port: number,

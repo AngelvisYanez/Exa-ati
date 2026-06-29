@@ -162,6 +162,38 @@ export async function toggleProxy(proxyId: number, activo: boolean): Promise<voi
   );
 }
 
+export interface ProxyTestResult {
+  proxyId: number;
+  alive: boolean;
+  latency: number | null;
+  error?: string;
+}
+
+export async function testearProxy(proxyId: number): Promise<ProxyTestResult> {
+  const { testProxyConnection } = await import('./proxy-discoverer');
+  const proxies = await listAllProxies();
+  const proxy = proxies.find((p: any) => p.id === proxyId);
+  if (!proxy) return { proxyId, alive: false, latency: null, error: 'Proxy no encontrado' };
+
+  try {
+    const result = await testProxyConnection(proxy.proxy_host, proxy.proxy_port);
+    if (result) {
+      return { proxyId, alive: true, latency: result.latency };
+    }
+    return { proxyId, alive: false, latency: null, error: 'No respondió' };
+  } catch (err: any) {
+    return { proxyId, alive: false, latency: null, error: err.message };
+  }
+}
+
+export async function testearTodosLosProxies(): Promise<ProxyTestResult[]> {
+  const proxies = await listAllProxies();
+  const results = await Promise.all(
+    proxies.map((p: any) => testearProxy(p.id))
+  );
+  return results;
+}
+
 export async function assignProxyToJob(
   jobId: number,
   tenantId?: string | null,
@@ -172,4 +204,34 @@ export async function assignProxyToJob(
   }
   const proxyUrl = formatProxyUrl(proxy);
   return { proxy, proxyUrl };
+}
+
+export async function assignAliveProxy(
+  jobId: number,
+  maxAttempts: number = 5,
+): Promise<{ proxy: ProxyRecord | null; proxyUrl: string | null }> {
+  const { testProxyConnection } = await import('./proxy-discoverer');
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const proxy = await claimProxy(jobId);
+    if (!proxy) return { proxy: null, proxyUrl: null };
+
+    try {
+      const result = await testProxyConnection(proxy.proxy_host, proxy.proxy_port);
+      if (result) {
+        const proxyUrl = formatProxyUrl(proxy);
+        return { proxy, proxyUrl };
+      }
+    } catch {}
+
+    await toggleProxy(proxy.id, false);
+    await releaseProxy(jobId);
+  }
+
+  return { proxy: null, proxyUrl: null };
+}
+
+export async function markProxyDead(proxyId: number): Promise<void> {
+  await toggleProxy(proxyId, false);
+  await releaseProxyById(proxyId);
 }

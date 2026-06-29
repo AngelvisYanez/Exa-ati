@@ -9,7 +9,7 @@ import { downloadReceivedComprobantes } from '@/lib/scraping/sri-downloader';
 import { runHttpScraping } from '@/lib/scraping/http-scraper';
 import { SriPlaywrightScraper } from '@/lib/scraping/sri-playwright-scraper';
 import { sincronizarConSri } from '@/lib/sri-api/sync-service';
-import { assignProxyToJob, releaseProxy, formatProxyUrl } from '@/lib/scraping/proxy-assigner';
+import { assignAliveProxy, assignProxyToJob, releaseProxy, formatProxyUrl, markProxyDead } from '@/lib/scraping/proxy-assigner';
 import { xmlStorage } from '@/lib/sri-api/xml-storage';
 
 // Vercel Pro allows up to 300 seconds for background tasks.
@@ -96,13 +96,18 @@ export async function POST(req: Request) {
         // ─── Asignar proxy (solo para modos que lo usan) ─────────────────────
         const needsProxy = connectionMode !== 'cloudflare' && jobOpts.use_proxy !== false;
         if (needsProxy && (attempt === 0 || isTimeoutError(lastError))) {
+          if (isTimeoutError(lastError) && assignedProxyId) {
+            await markProxyDead(assignedProxyId);
+            assignedProxyId = null;
+            assignedProxyUrl = null;
+          }
           try {
-            const { proxy, proxyUrl } = await assignProxyToJob(jobId, job.tenant_id);
+            const { proxy, proxyUrl } = await assignAliveProxy(jobId);
             if (proxy && proxyUrl) {
               assignedProxyUrl = proxyUrl;
               assignedProxyId = proxy.id;
               await db.query('UPDATE scraping_jobs SET proxy_id = $1 WHERE id = $2', [proxy.id, jobId]);
-              await updateProgress(jobId, `Proxy asignado: ${proxy.proxy_host}:${proxy.proxy_port}`);
+              await updateProgress(jobId, `Proxy asignado: ${proxy.proxy_host}:${proxy.proxy_port} (vivo)`);
             } else {
               await updateProgress(jobId, 'Sin proxy disponible, usando IP directa');
             }
@@ -276,7 +281,9 @@ export async function POST(req: Request) {
           scrapingSuccess = true;
         } else if (connectionMode === 'playwright') {
           await updateProgress(jobId, 'Usando Playwright (navegador robusto)...');
-          scraper = new SriPlaywrightScraper({});
+          scraper = new SriPlaywrightScraper({
+            proxyUrl: assignedProxyUrl || undefined,
+          });
           await scraper.init();
           const loggedIn = await scraper.login(job.ruc, job.clave_sri, async (msg: string) => {
             await updateProgress(jobId!, msg);
