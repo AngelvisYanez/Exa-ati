@@ -1,56 +1,131 @@
 services:
+  # ─── PostgreSQL 16 ─────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: exa-ati-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: exa_ati
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d exa_ati"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - exa-ati-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─── Aplicación Next.js + Playwright ─────────────────────────
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: exa-ati-app
-    ports:
-      - "3001:3001"
+    user: "1001:1001"
+    expose:
+      - "3001"
     volumes:
       - downloads_data:/app/downloads
       - browser_session_data:/app/browser_session
       - logs_data:/app/logs
-    env_file:
-      - .env
     environment:
-      - NODE_ENV=production
-      - HEADLESS=true
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      NODE_ENV: production
+      HEADLESS: "true"
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/exa_ati
+      NEXT_PUBLIC_APP_URL: http://localhost:3001
+      JWT_SECRET: ${JWT_SECRET:-sri-jwt-secret-key-32bytes-long-now}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-24h}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-12345678901234567890123456789012}
+      ENCRYPTION_SALT: ${ENCRYPTION_SALT:-sri-salt-1234}
+      SRI_AMBIENTE: ${SRI_AMBIENTE:-1}
+      SRI_WSDL_TIMEOUT_MS: ${SRI_WSDL_TIMEOUT_MS:-25000}
+      SRI_SOAP_TIMEOUT_MS: ${SRI_SOAP_TIMEOUT_MS:-45000}
+      SRI_SOAP_MAX_RETRIES: ${SRI_SOAP_MAX_RETRIES:-3}
+      SRI_AUTH_DELAY_MS: ${SRI_AUTH_DELAY_MS:-2000}
+      SRI_POLLING_MAX_HOURS: ${SRI_POLLING_MAX_HOURS:-24}
+      SRI_POLLING_BATCH_LIMIT: ${SRI_POLLING_BATCH_LIMIT:-50}
+      CRON_SECRET: ${CRON_SECRET:-cambiar-por-un-secreto-seguro}
+      XMLS_DIR: /app/downloads/xmls
+      CERTS_DIR: /app/downloads/certs
+      PDFS_DIR: /app/downloads/pdfs
+      TEMPLATES_DIR: /app/downloads/templates
+      ANTICAPTCHA_KEY: ${ANTICAPTCHA_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      NEXT_TELEMETRY_DISABLED: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+    networks:
+      - exa-ati-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # Para usar base de datos local, descomenta el bloque db:
-  # 1. Instala PostgreSQL: DATABASE_URL=postgresql://postgres:postgres@db:5432/exa_ati
-  # 2. Cambia DATABASE_URL en .env o pasa las variables por environment
-  #
-  # db:
-  #   image: postgres:16-alpine
-  #   container_name: exa-ati-db
-  #   ports:
-  #     - "5432:5432"
-  #   environment:
-  #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: postgres
-  #     POSTGRES_DB: exa_ati
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   restart: unless-stopped
+  # ─── Nginx (proxy reverso) ────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: exa-ati-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot_data:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    depends_on:
+      - app
+    restart: always
+    networks:
+      - exa-ati-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─── Certbot (SSL automático) ────────────────────────────────
+  certbot:
+    image: certbot/certbot
+    container_name: exa-ati-certbot
+    volumes:
+      - certbot_data:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    entrypoint: >
+      sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
+    profiles:
+      - production
+    networks:
+      - exa-ati-net
 
 volumes:
+  postgres_data:
+    name: exa-ati-postgres
   downloads_data:
     name: exa-ati-downloads
   browser_session_data:
     name: exa-ati-browser-session
   logs_data:
     name: exa-ati-logs
-  # postgres_data:
-  #   name: exa-ati-postgres
+  certbot_data:
+    name: exa-ati-certbot
+  certbot_www:
+    name: exa-ati-certbot-www
+
+networks:
+  exa-ati-net:
+    driver: bridge
+    name: exa-ati-network

@@ -13,20 +13,27 @@ datasource db {
 // TENANTS (empresas/organizaciones)
 // ─────────────────────────────────────────────
 model Tenant {
-  id        String   @id @default(uuid()) @db.Uuid
-  nombre    String   @db.VarChar(255)
-  ruc       String?  @db.VarChar(20)
-  activo    Boolean  @default(true)
-  lastSyncAt             DateTime? @map("last_sync_at")
-  lastSyncResult         String?   @map("last_sync_result") @db.Text
-  createdAt              DateTime  @default(now()) @map("created_at")
-  updatedAt              DateTime  @updatedAt @map("updated_at")
+  id             String    @id @default(uuid()) @db.Uuid
+  nombre         String    @db.VarChar(255)
+  ruc            String?   @db.VarChar(20)
+  activo         Boolean   @default(true)
+  lastSyncAt     DateTime? @map("last_sync_at")
+  lastSyncResult String?   @map("last_sync_result") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  usuarios        Usuario[]
-  emisores        Emisor[]
-  comprobantes    Comprobante[]
-  tenantSettings  TenantSettings?
-  scrapingJobs    ScrapingJob[]
+  usuarios           Usuario[]
+  emisores           Emisor[]
+  comprobantes       Comprobante[]
+  tenantSettings     TenantSettings?
+  scrapingJobs       ScrapingJob[]
+  planCuentas        PlanCuenta[]
+  impuestos          Impuesto[]
+  posicionesFiscales PosicionFiscal[]
+  contactos          Contacto[]
+  transportistas     Transportista[]
+  reportesFiscales   ReporteFiscal[]
+  productos          Producto[]
 
   @@map("tenants")
 }
@@ -55,32 +62,32 @@ model Usuario {
 // EMISORES (contribuyentes del SRI)
 // ─────────────────────────────────────────────
 model Emisor {
-  id                          String   @id @default(uuid()) @db.Uuid
-  tenantId                    String   @map("tenant_id") @db.Uuid
-  ruc                         String   @db.VarChar(20)
-  razonSocial                 String?  @map("razon_social") @db.VarChar(500)
-  nombreComercial             String?  @map("nombre_comercial") @db.VarChar(500)
-  ambiente                    String   @default("1") @db.VarChar(2)
-  tipoEmision                 String   @default("1") @map("tipo_emision") @db.VarChar(2)
-  establecimiento             String?  @default("001") @db.VarChar(3)
-  puntoEmision                String?  @map("punto_emision") @default("001") @db.VarChar(3)
-  dirMatriz                   String?  @map("dir_matriz") @db.VarChar(500)
-  direccionMatriz             String?  @map("direccion_matriz") @db.VarChar(500)
-  obligadoContabilidad        String?  @map("obligado_contabilidad") @db.VarChar(2)
-  agenteRetencion             String?  @map("agente_retencion") @db.VarChar(2)
-  contribuyenteRimpe          String?  @map("contribuyente_rimpe") @db.VarChar(2)
-  tipoContribuyente           String?  @map("tipo_contribuyente") @db.VarChar(50)
-  whatsappNumero              String?  @map("whatsapp_numero") @db.VarChar(20)
-  certificadoP12              Bytes?   @map("certificado_p12")
-  certificadoPassword         String?  @map("certificado_password") @db.VarChar(500)
-  passwordCertificado         String?  @map("password_certificado") @db.Text
-  certificadoPasswordEncrypted String? @map("certificado_password_encrypted") @db.Text
-  certificadoNombre           String?  @map("certificado_nombre") @db.VarChar(500)
-  certificadoValidoHasta      DateTime? @map("certificado_valido_hasta")
-  claveSriEncrypted           String?  @map("clave_sri_encrypted") @db.Text
-  activo                      Boolean  @default(true)
-  createdAt                   DateTime @default(now()) @map("created_at")
-  updatedAt                   DateTime @updatedAt @map("updated_at")
+  id                           String    @id @default(uuid()) @db.Uuid
+  tenantId                     String    @map("tenant_id") @db.Uuid
+  ruc                          String    @db.VarChar(20)
+  razonSocial                  String?   @map("razon_social") @db.VarChar(500)
+  nombreComercial              String?   @map("nombre_comercial") @db.VarChar(500)
+  ambiente                     String    @default("1") @db.VarChar(2)
+  tipoEmision                  String    @default("1") @map("tipo_emision") @db.VarChar(2)
+  establecimiento              String?   @default("001") @db.VarChar(3)
+  puntoEmision                 String?   @default("001") @map("punto_emision") @db.VarChar(3)
+  dirMatriz                    String?   @map("dir_matriz") @db.VarChar(500)
+  direccionMatriz              String?   @map("direccion_matriz") @db.VarChar(500)
+  obligadoContabilidad         String?   @map("obligado_contabilidad") @db.VarChar(2)
+  agenteRetencion              String?   @map("agente_retencion") @db.VarChar(2)
+  contribuyenteRimpe           String?   @map("contribuyente_rimpe") @db.VarChar(2)
+  tipoContribuyente            String?   @map("tipo_contribuyente") @db.VarChar(50)
+  whatsappNumero               String?   @map("whatsapp_numero") @db.VarChar(20)
+  certificadoP12               Bytes?    @map("certificado_p12")
+  certificadoPassword          String?   @map("certificado_password") @db.VarChar(500)
+  passwordCertificado          String?   @map("password_certificado") @db.Text
+  certificadoPasswordEncrypted String?   @map("certificado_password_encrypted") @db.Text
+  certificadoNombre            String?   @map("certificado_nombre") @db.VarChar(500)
+  certificadoValidoHasta       DateTime? @map("certificado_valido_hasta")
+  claveSriEncrypted            String?   @map("clave_sri_encrypted") @db.Text
+  activo                       Boolean   @default(true)
+  createdAt                    DateTime  @default(now()) @map("created_at")
+  updatedAt                    DateTime  @updatedAt @map("updated_at")
 
   tenant       Tenant        @relation(fields: [tenantId], references: [id])
   comprobantes Comprobante[]
@@ -125,8 +132,8 @@ model Comprobante {
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
-  tenant Tenant?  @relation(fields: [tenantId], references: [id])
-  emisor Emisor?  @relation(fields: [emisorId], references: [id])
+  tenant Tenant?          @relation(fields: [tenantId], references: [id])
+  emisor Emisor?          @relation(fields: [emisorId], references: [id])
   xmls   ComprobanteXml[]
 
   @@index([fechaEmision])
@@ -137,12 +144,12 @@ model Comprobante {
 // COMPROBANTE_XMLS
 // ─────────────────────────────────────────────
 model ComprobanteXml {
-  id             Int    @id @default(autoincrement())
-  comprobanteId  String @map("comprobante_id") @db.Uuid
-  tipo           String @default("autorizado") @db.VarChar(20)
-  rutaArchivo    String? @map("ruta_archivo") @db.Text
-  xmlAutorizadoPath String? @map("xml_autorizado_path") @db.Text
-  createdAt      DateTime @default(now()) @map("created_at")
+  id                Int      @id @default(autoincrement())
+  comprobanteId     String   @map("comprobante_id") @db.Uuid
+  tipo              String   @default("autorizado") @db.VarChar(20)
+  rutaArchivo       String?  @map("ruta_archivo") @db.Text
+  xmlAutorizadoPath String?  @map("xml_autorizado_path") @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
 
   comprobante Comprobante @relation(fields: [comprobanteId], references: [id])
 
@@ -154,13 +161,13 @@ model ComprobanteXml {
 // SECUENCIALES (auto-incremento por emisor + tipo)
 // ─────────────────────────────────────────────
 model Secuencial {
-  id              Int       @id @default(autoincrement())
-  emisorId        String    @map("emisor_id") @db.Uuid
-  tipoComprobante String    @map("tipo_comprobante") @db.VarChar(5)
-  serie           String    @db.VarChar(10)
+  id               Int      @id @default(autoincrement())
+  emisorId         String   @map("emisor_id") @db.Uuid
+  tipoComprobante  String   @map("tipo_comprobante") @db.VarChar(5)
+  serie            String   @db.VarChar(10)
   ultimoSecuencial Int      @default(0) @map("ultimo_secuencial")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@unique([emisorId, tipoComprobante, serie])
   @@map("secuenciales")
@@ -170,26 +177,26 @@ model Secuencial {
 // SCRAPING_JOBS
 // ─────────────────────────────────────────────
 model ScrapingJob {
-  id               Int       @id @default(autoincrement())
-  tenantId         String?   @map("tenant_id") @db.Uuid
-  ruc              String    @db.VarChar(20)
-  claveSri         String    @map("clave_sri") @db.VarChar(255)
-  fechaDesde       DateTime? @map("fecha_desde") @db.Date
-  fechaHasta       DateTime? @map("fecha_hasta") @db.Date
-  mes              Int?
-  anio             Int?
-  tipoComprobante  String    @default("todos") @map("tipo_comprobante") @db.VarChar(50)
-  actionType       String    @default("DOWNLOAD_RECEIVED") @map("action_type") @db.VarChar(50)
-  status           String    @default("PENDING") @db.VarChar(50)
-  progressMessage  String?   @map("progress_message") @db.Text
-  options          String?   @map("options") @db.Text
-  proxyId          Int?      @map("proxy_id")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  id              Int       @id @default(autoincrement())
+  tenantId        String?   @map("tenant_id") @db.Uuid
+  ruc             String    @db.VarChar(20)
+  claveSri        String    @map("clave_sri") @db.VarChar(255)
+  fechaDesde      DateTime? @map("fecha_desde") @db.Date
+  fechaHasta      DateTime? @map("fecha_hasta") @db.Date
+  mes             Int?
+  anio            Int?
+  tipoComprobante String    @default("todos") @map("tipo_comprobante") @db.VarChar(50)
+  actionType      String    @default("DOWNLOAD_RECEIVED") @map("action_type") @db.VarChar(50)
+  status          String    @default("PENDING") @db.VarChar(50)
+  progressMessage String?   @map("progress_message") @db.Text
+  options         String?   @map("options") @db.Text
+  proxyId         Int?      @map("proxy_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  tenant Tenant? @relation(fields: [tenantId], references: [id])
-  proxy  ProxyPool? @relation(fields: [proxyId], references: [id])
-  logs    ScrapingJobLog[]
+  tenant Tenant?          @relation(fields: [tenantId], references: [id])
+  proxy  ProxyPool?       @relation(fields: [proxyId], references: [id])
+  logs   ScrapingJobLog[]
 
   @@map("scraping_jobs")
 }
@@ -230,17 +237,253 @@ model ScrapingJobLog {
 // TENANT_SETTINGS
 // ─────────────────────────────────────────────
 model TenantSettings {
-  id                     Int       @id @default(autoincrement())
-  tenantId               String    @unique @map("tenant_id") @db.Uuid
-  llmProvider            String    @default("gemini") @map("llm_provider") @db.VarChar(50)
-  llmModel               String?   @map("llm_model") @db.VarChar(100)
-  geminiApiKeyEncrypted  String?   @map("gemini_api_key_encrypted") @db.Text
-  claudeApiKeyEncrypted  String?   @map("claude_api_key_encrypted") @db.Text
-  llmConfiguredAt        DateTime? @map("llm_configured_at")
-  createdAt              DateTime  @default(now()) @map("created_at")
-  updatedAt              DateTime  @updatedAt @map("updated_at")
+  id                    Int       @id @default(autoincrement())
+  tenantId              String    @unique @map("tenant_id") @db.Uuid
+  llmProvider           String    @default("gemini") @map("llm_provider") @db.VarChar(50)
+  llmModel              String?   @map("llm_model") @db.VarChar(100)
+  geminiApiKeyEncrypted String?   @map("gemini_api_key_encrypted") @db.Text
+  claudeApiKeyEncrypted String?   @map("claude_api_key_encrypted") @db.Text
+  llmConfiguredAt       DateTime? @map("llm_configured_at")
+
+  // Ecuadorian localization settings
+  regime                    String?  @default("REGIMEN_GENERAL") @map("regime") @db.VarChar(50)
+  specialTaxpayerNumber     String?  @map("special_taxpayer_number") @db.VarChar(50)
+  forcedAccounting          Boolean? @default(true) @map("forced_accounting")
+  withholdAgentNumber       String?  @map("withhold_agent_number") @db.VarChar(50)
+  defaultGoodsWithhold      String?  @map("default_goods_withhold") @db.VarChar(10)
+  defaultServicesWithhold   String?  @map("default_services_withhold") @db.VarChar(10)
+  defaultCreditCardWithhold String?  @map("default_credit_card_withhold") @db.VarChar(10)
+  salesTaxBaseAccount       String?  @map("sales_tax_base_account") @db.VarChar(20)
+  purchaseTaxBaseAccount    String?  @map("purchase_tax_base_account") @db.VarChar(20)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@map("tenant_settings")
+}
+
+// ─────────────────────────────────────────────
+// PLAN DE CUENTAS ECUATORIANO (Superintendencia de Compañías)
+// ─────────────────────────────────────────────
+model PlanCuenta {
+  id                Int      @id @default(autoincrement())
+  tenantId          String   @map("tenant_id") @db.Uuid
+  codigo            String   @db.VarChar(20)
+  nombre            String   @db.VarChar(255)
+  nivel             Int      @default(1)
+  tipo              String   @db.VarChar(10) // ACTIVO, PASIVO, PATRIMONIO, INGRESOS, GASTOS
+  esAuxiliar        Boolean  @default(false) @map("es_auxiliar")
+  permiteMovimiento Boolean  @default(true) @map("permite_movimiento")
+  cuentaPadreId     Int?     @map("cuenta_padre_id")
+  activo            Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  cuentaPadre PlanCuenta?  @relation("CuentaJerarquia", fields: [cuentaPadreId], references: [id])
+  subcuentas  PlanCuenta[] @relation("CuentaJerarquia")
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, tipo])
+  @@map("plan_cuentas")
+}
+
+// ─────────────────────────────────────────────
+// IMPUESTOS ECUATORIANOS (IVA, ICE, IRBPNR, Retenciones)
+// ─────────────────────────────────────────────
+model Impuesto {
+  id                  Int      @id @default(autoincrement())
+  tenantId            String   @map("tenant_id") @db.Uuid
+  codigo              String   @db.VarChar(10) // 2 = IVA, 3 = ICE, 5 = IRBPNR, 6 = RENTA, 7 = IVA ret
+  codigoPorcentaje    String   @map("codigo_porcentaje") @db.VarChar(10) // 0,2,3,4,6,7,8,9,10
+  nombre              String   @db.VarChar(255)
+  porcentaje          Decimal  @db.Decimal(5, 2)
+  tarifa              Decimal  @db.Decimal(5, 2)
+  tipoImpuesto        String   @map("tipo_impuesto") @db.VarChar(50) // IVA, ICE, IRBPNR, RENTA, IVA_RET
+  codigoAts           String?  @map("codigo_ats") @db.VarChar(10)
+  codigoFormulario103 String?  @map("codigo_formulario_103") @db.VarChar(10)
+  codigoFormulario104 String?  @map("codigo_formulario_104") @db.VarChar(10)
+  activo              Boolean  @default(true)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  tenant               Tenant                @relation(fields: [tenantId], references: [id])
+  posicionFiscalLineas PosicionFiscalLinea[]
+
+  @@unique([tenantId, codigo, codigoPorcentaje])
+  @@map("impuestos")
+}
+
+// ─────────────────────────────────────────────
+// TIPOS DE DOCUMENTO SRI (Catálogo)
+// ─────────────────────────────────────────────
+model TipoDocumentoSri {
+  id          Int      @id @default(autoincrement())
+  codigo      String   @unique @db.VarChar(5) // 01, 02, 03, 04, 05, 06, 07
+  nombre      String   @db.VarChar(255)
+  descripcion String?  @db.Text
+  version     String?  @db.VarChar(10)
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("tipos_documento_sri")
+}
+
+// ─────────────────────────────────────────────
+// TIPOS DE SUSTENTO TRIBUTARIO (Catálogo SRI)
+// ─────────────────────────────────────────────
+model TipoSustentoTributario {
+  id          Int      @id @default(autoincrement())
+  codigo      String   @unique @db.VarChar(5)
+  nombre      String   @db.VarChar(255)
+  descripcion String?  @db.Text
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("tipos_sustento_tributario")
+}
+
+// ─────────────────────────────────────────────
+// POSICIONES FISCALES (mapeo automático impuestos)
+// ─────────────────────────────────────────────
+model PosicionFiscal {
+  id                Int      @id @default(autoincrement())
+  tenantId          String   @map("tenant_id") @db.Uuid
+  nombre            String   @db.VarChar(255)
+  tipoContribuyente String?  @map("tipo_contribuyente") @db.VarChar(50) // RIMPE, ESPECIAL, NORMAL, etc.
+  activo            Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant                @relation(fields: [tenantId], references: [id])
+  lineas PosicionFiscalLinea[]
+
+  @@map("posiciones_fiscales")
+}
+
+model PosicionFiscalLinea {
+  id               Int      @id @default(autoincrement())
+  posicionFiscalId Int      @map("posicion_fiscal_id")
+  impuestoId       Int      @map("impuesto_id")
+  tipoOperacion    String   @db.VarChar(20) // COMPRA, VENTA
+  aplicaRetencion  Boolean  @default(false) @map("aplica_retencion")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  posicionFiscal PosicionFiscal @relation(fields: [posicionFiscalId], references: [id])
+  impuesto       Impuesto       @relation(fields: [impuestoId], references: [id])
+
+  @@map("posiciones_fiscales_lineas")
+}
+
+// ─────────────────────────────────────────────
+// CONTACTOS (Clientes/Proveedores con datos SRI)
+// ─────────────────────────────────────────────
+model Contacto {
+  id                   String   @id @default(uuid()) @db.Uuid
+  tenantId             String   @map("tenant_id") @db.Uuid
+  tipoIdentificacion   String   @map("tipo_identificacion") @db.VarChar(5) // 04=RUC, 05=Cedula, 06=Pasaporte, 07=ConsFinal, 08=IdentExt
+  identificacion       String   @db.VarChar(20)
+  razonSocial          String   @map("razon_social") @db.VarChar(500)
+  nombreComercial      String?  @map("nombre_comercial") @db.VarChar(500)
+  email                String?  @db.VarChar(255)
+  telefono             String?  @db.VarChar(50)
+  direccion            String?  @db.Text
+  tipoContribuyenteSri String?  @map("tipo_contribuyente_sri") @db.VarChar(50)
+  obligadoContabilidad String?  @map("obligado_contabilidad") @db.VarChar(2)
+  agenteRetencion      Boolean? @default(false) @map("agente_retencion")
+  esCliente            Boolean  @default(true) @map("es_cliente")
+  esProveedor          Boolean  @default(false) @map("es_proveedor")
+  activo               Boolean  @default(true)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, tipoIdentificacion, identificacion])
+  @@index([tenantId, razonSocial])
+  @@map("contactos")
+}
+
+// ─────────────────────────────────────────────
+// PRODUCTOS (Inventario)
+// ─────────────────────────────────────────────
+model Producto {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  codigo         String   @db.VarChar(50)
+  nombre         String   @db.VarChar(500)
+  descripcion    String?  @db.Text
+  precioUnitario Decimal  @map("precio_unitario") @db.Decimal(10, 2)
+  ivaPorcentaje  Int      @default(15) @map("iva_porcentaje")
+  stock          Decimal  @default(0) @db.Decimal(10, 2)
+  activo         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, activo])
+  @@map("productos")
+}
+
+// ─────────────────────────────────────────────
+// TRANSPORTISTAS (para Guías de Remisión)
+// ─────────────────────────────────────────────
+model Transportista {
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  ruc                String   @db.VarChar(20)
+  razonSocial        String   @map("razon_social") @db.VarChar(500)
+  tipoIdentificacion String   @default("04") @map("tipo_identificacion") @db.VarChar(5)
+  placa              String   @db.VarChar(20)
+  direccion          String?  @db.Text
+  telefono           String?  @db.VarChar(50)
+  email              String?  @db.VarChar(255)
+  activo             Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, ruc, placa])
+  @@map("transportistas")
+}
+
+// ─────────────────────────────────────────────
+// REPORTES FISCALES (103 y 104 + ATS)
+// ─────────────────────────────────────────────
+model ReporteFiscal {
+  id                Int       @id @default(autoincrement())
+  tenantId          String    @map("tenant_id") @db.Uuid
+  tipo              String    @db.VarChar(10) // 103, 104, ATS
+  periodo           Int       @map("periodo") // YYYYMM
+  estado            String    @default("BORRADOR") @db.VarChar(20) // BORRADOR, GENERADO, PRESENTADO
+  xmlGenerado       String?   @map("xml_generado") @db.Text
+  data              Json?
+  fechaGeneracion   DateTime? @map("fecha_generacion")
+  fechaPresentacion DateTime? @map("fecha_presentacion")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, tipo, periodo])
+  @@map("reportes_fiscales")
+}
+
+// ─────────────────────────────────────────────
+// MOTIVOS DE TRASLADO (para Guías de Remisión - catálogo SRI)
+// ─────────────────────────────────────────────
+model MotivoTraslado {
+  id          Int      @id @default(autoincrement())
+  codigo      String   @unique @db.VarChar(10)
+  nombre      String   @db.VarChar(255)
+  descripcion String?  @db.Text
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("motivos_traslado")
 }

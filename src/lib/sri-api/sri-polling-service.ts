@@ -10,6 +10,7 @@ export interface PendingAutorizacion {
   estado: string;
   createdAt: Date;
   updatedAt: Date;
+  [key: string]: any;
 }
 
 export interface PollingResult {

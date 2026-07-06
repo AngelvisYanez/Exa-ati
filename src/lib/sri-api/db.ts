@@ -20,7 +20,7 @@ async function getPrismaDb() {
 
 // ─── Cliente MySQL (desarrollo) ───────────────────────────────────────────────
 import mysql, { Pool, PoolConnection, ResultSetHeader } from 'mysql2/promise';
-import type { QueryResultRow } from '@neondatabase/serverless';
+type QueryResultRow = any;
 import { randomUUID } from 'crypto';
 
 let pool: Pool | null = null;

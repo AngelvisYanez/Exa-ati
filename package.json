@@ -12,7 +12,11 @@
     "smoke": "node scripts/smoke-test.mjs",
     "setup": "node scripts/setup-admin.mjs",
     "worker:sri": "node -r ts-node/register scripts/worker/index.ts",
+    "seed": "tsx prisma/seed.ts",
     "doctor": "npx react-doctor@latest"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@antiadmin/anticaptchaofficial": "^1.0.55",
@@ -21,6 +25,7 @@
     "@neondatabase/serverless": "^1.1.0",
     "@peculiar/webcrypto": "^1.7.1",
     "@prisma/adapter-neon": "^7.8.0",
+    "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@scrapeless-ai/sdk": "^1.11.0",
     "@sparticuz/chromium": "^149.0.0",
@@ -40,6 +45,7 @@
     "next": "16.2.9",
     "next-themes": "^0.4.6",
     "node-forge": "^1.3.3",
+    "nodemailer": "^9.0.3",
     "nuqs": "^2.8.9",
     "pdf-lib": "^1.17.1",
     "pg": "^8.17.1",
@@ -70,6 +76,7 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20",
     "@types/node-forge": "^1.3.11",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.11.10",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^19",

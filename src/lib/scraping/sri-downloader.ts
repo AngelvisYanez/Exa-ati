@@ -54,7 +54,21 @@ export async function downloadReceivedComprobantes(
   await page.waitForSelector('select[id*="ano"], select[name*="ano"], input[value="ruc"]', { timeout: 120000 });
   await new Promise(r => setTimeout(r, 3000));
 
-  const daysToCheck = getDaysInRange(startD, endD);
+  const isWholeMonth = 
+    startD.getDate() === 1 && 
+    endD.getDate() === new Date(startD.getFullYear(), startD.getMonth() + 1, 0).getDate() &&
+    startD.getMonth() === endD.getMonth() &&
+    startD.getFullYear() === endD.getFullYear();
+
+  let searchPeriods: { year: number; month: number; day: number }[] = [];
+
+  if (isWholeMonth) {
+    searchPeriods = [{ year: startD.getFullYear(), month: startD.getMonth() + 1, day: 0 }];
+  } else {
+    const daysToCheck = getDaysInRange(startD, endD);
+    searchPeriods = daysToCheck.map(d => ({ year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() }));
+  }
+
   let xmlsDescargados = 0;
   let pdfsDescargados = 0;
   const typeCodes = docTypeSelect === 'todos' ? ['1', '2', '3', '4', '6'] : [docTypeSelect];
@@ -76,12 +90,14 @@ export async function downloadReceivedComprobantes(
 
   const ANTICAPTCHA_KEY = process.env.ANTICAPTCHA_KEY || '';
 
-  for (const dateObj of daysToCheck) {
-    const year = dateObj.getFullYear();
-    const month = dateObj.getMonth() + 1;
-    const day = dateObj.getDate();
+  for (const period of searchPeriods) {
+    const year = period.year;
+    const month = period.month;
+    const day = period.day;
     
-    const formattedDateStr = `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
+    const formattedDateStr = day === 0
+      ? `el mes completo (${month.toString().padStart(2, '0')}/${year})`
+      : `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
 
     for (const typeCode of typeCodes) {
       const typeLabels: { [key: string]: string } = {
@@ -93,7 +109,7 @@ export async function downloadReceivedComprobantes(
       };
       const currentLabel = typeLabels[typeCode] || typeCode;
       
-      await updateProgress(job.id, `Buscando ${currentLabel} para el día ${formattedDateStr}...`);
+      await updateProgress(job.id, `Buscando ${currentLabel} para ${day === 0 ? '' : 'el día '}${formattedDateStr}...`);
 
       const isSelectsVisible = await page.$('select[id*="ano"], select[name*="ano"]');
       if (!isSelectsVisible) {

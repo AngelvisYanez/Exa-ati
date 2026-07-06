@@ -43,7 +43,7 @@ function normalizeCountry(input: string): { code: string; name: string } {
   return COUNTRY_MAP.ec;
 }
 
-function buildSources(code: string, name: string): string[] {
+export function buildSources(code: string, name: string): string[] {
   return [
     `https://onlinecybertools.com/proxies/country/${name}`,
     `https://www.proxynova.com/proxy-server-list/country-${code}/`,
@@ -51,7 +51,7 @@ function buildSources(code: string, name: string): string[] {
   ];
 }
 
-function extractIpPortPairs(html: string): { host: string; port: number }[] {
+export function extractIpPortPairs(html: string): { host: string; port: number }[] {
   const ipRegex = /(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})/g;
   const seen = new Set<string>();
   const proxies: { host: string; port: number }[] = [];

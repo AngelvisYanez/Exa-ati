@@ -11,6 +11,7 @@ export interface ProxyRecord {
   en_uso: number | boolean;
   asignado_a: string | null;
   ultimo_uso: string | null;
+  [key: string]: any;
 }
 
 const usesPrisma = Boolean(process.env.DATABASE_URL);

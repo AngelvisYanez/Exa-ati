@@ -5,6 +5,8 @@ import os from 'os';
 // @ts-expect-error - no types available for anticaptchaofficial
 import ac from '@antiadmin/anticaptchaofficial';
 import { updateComprobanteFromXml, extractRuc, cleanEmisorRazonSocial, parseSriFloat, extractSerie, extractSecuencial } from './sri-utils';
+import { db } from '../sri-api/db';
+import { xmlStorage } from '../sri-api/xml-storage';
 
 const SRI_BASE = 'https://srienlinea.sri.gob.ec';
 const RECAPTCHA_SITE_KEY = '6LdukTQsAAAAAIcciM4GZq4ibeyplUhmWvlScuQE';
@@ -366,14 +368,37 @@ export class SriPlaywrightScraper {
 
     const counters: ScrapeCounters = { found: 0, xmls: 0, pdfs: 0, xmls_exist: 0, pdfs_exist: 0 };
 
-    for (const dateObj = new Date(startD); dateObj <= endD; dateObj.setDate(dateObj.getDate() + 1)) {
-      const year = dateObj.getFullYear();
-      const month = dateObj.getMonth() + 1;
-      const day = dateObj.getDate();
+    const isWholeMonth = 
+      startD.getDate() === 1 && 
+      endD.getDate() === new Date(startD.getFullYear(), startD.getMonth() + 1, 0).getDate() &&
+      startD.getMonth() === endD.getMonth() &&
+      startD.getFullYear() === endD.getFullYear();
+
+    let searchPeriods: { year: number; month: number; day: number }[] = [];
+
+    if (isWholeMonth) {
+      searchPeriods = [{ year: startD.getFullYear(), month: startD.getMonth() + 1, day: 0 }];
+    } else {
+      for (const dateObj = new Date(startD); dateObj <= endD; dateObj.setDate(dateObj.getDate() + 1)) {
+        searchPeriods.push({
+          year: dateObj.getFullYear(),
+          month: dateObj.getMonth() + 1,
+          day: dateObj.getDate(),
+        });
+      }
+    }
+
+    for (const period of searchPeriods) {
+      const year = period.year;
+      const month = period.month;
+      const day = period.day;
 
       for (const typeCode of typeCodes) {
         const typeLabel = this._typeLabel(typeCode);
-        await log(`Buscando ${typeLabel} para ${day.toString().padStart(2,'0')}/${month.toString().padStart(2,'0')}/${year}...`);
+        const periodStr = day === 0 
+          ? `mes completo de ${this._monthName(month)} ${year}`
+          : `${day.toString().padStart(2,'0')}/${month.toString().padStart(2,'0')}/${year}`;
+        await log(`Buscando ${typeLabel} para ${periodStr}...`);
 
         const ok = await this._searchAndDownload(year, month, day, typeCode, xmlDir, pdfDir, counters, log);
         if (!ok) {
@@ -396,7 +421,9 @@ export class SriPlaywrightScraper {
     log: (msg: string) => Promise<void>,
   ): Promise<boolean> {
     const page = this.page!;
-    const dateStr = `${day.toString().padStart(2,'0')}/${month.toString().padStart(2,'0')}/${year}`;
+    const dateStr = day === 0
+      ? `Mes completo (${month.toString().padStart(2,'0')}/${year})`
+      : `${day.toString().padStart(2,'0')}/${month.toString().padStart(2,'0')}/${year}`;
 
     try {
       const navOk = await this.navigateToComprobantes(log);
@@ -721,9 +748,8 @@ export class SriPlaywrightScraper {
     page: Page, xmlDir: string, pdfDir: string, counters: ScrapeCounters,
     log: (msg: string) => Promise<void>,
   ): Promise<void> {
-    const { db } = require('@/lib/sri-api/db');
     const colIdx = await this._detectColumnHeaders(page);
-    const tipoMap: Record<string, string> = { 'FACTURA': '01', 'LIQUIDACIÓN': '03', 'LIQUIDACION': '03', 'NOTA DE CRÉDITO': '04', 'NOTA DE CREDITO': '04', 'NOTA DE DÉBITO': '05', 'NOTA DE DEBITO': '05', 'COMPROBANTE DE RETENCIÓN': '06', 'COMPROBANTE DE RETENCION': '06' };
+    const tipoMap: Record<string, string> = { 'FACTURA': '01', 'LIQUIDACIÓN': '03', 'LIQUIDACION': '03', 'NOTA DE CRÉDITO': '04', 'NOTA DE CREDITO': '04', 'NOTA DE DÉBITO': '05', 'NOTA DE DEBITO': '05', 'COMPROBANTE DE RETENCIÓN': '07', 'COMPROBANTE DE RETENCION': '07' };
 
     let hasNextPage = true;
     let pageNum = 1;
@@ -827,7 +853,6 @@ export class SriPlaywrightScraper {
               'SELECT id, fecha_emision FROM comprobantes WHERE clave_acceso = $1', [claveAcceso],
             );
             if (compRecord) {
-              const { xmlStorage } = require('@/lib/sri-api/xml-storage');
               const xmlContent = fs.readFileSync(xmlPath, 'utf-8');
               let fechaEmisionDate: Date;
               if (compRecord.fecha_emision instanceof Date) {
@@ -1013,6 +1038,12 @@ export class SriPlaywrightScraper {
           r => {
             const ct = (r.headers()['content-type'] || '').toLowerCase();
             const cd = (r.headers()['content-disposition'] || '').toLowerCase();
+            const req = r.request();
+            const isAjax = (req.headers()['faces-request'] || '').includes('partial/ajax') || 
+                           (req.headers()['x-requested-with'] || '').includes('XMLHttpRequest');
+            
+            if (isAjax) return false; // Ignore JSF partial updates/AJAX
+            
             return (
               ct.includes('xml') || ct.includes('octet-stream') || ct.includes('force-download') ||
               cd.includes('attachment') || ct.includes('application/pdf')
@@ -1024,11 +1055,19 @@ export class SriPlaywrightScraper {
 
         await clickFn();
 
-        const result = await Promise.race([
-          downloadP.then(dl => ({ type: 'download' as const, data: dl })),
-          responseP.then(r => ({ type: 'response' as const, data: r })),
-          newPageP.then(p => ({ type: 'page' as const, data: p })),
-        ]);
+        const p1 = downloadP.then(dl => ({ type: 'download' as const, data: dl }));
+        const p2 = responseP.then(r => ({ type: 'response' as const, data: r }));
+        const p3 = newPageP.then(p => ({ type: 'page' as const, data: p }));
+
+        const result = await Promise.race([p1, p2, p3]);
+
+        // Evitar unhandled promise rejections
+        p1.catch(() => {});
+        p2.catch(() => {});
+        p3.catch(() => {});
+        downloadP.catch(() => {});
+        responseP.catch(() => {});
+        newPageP.catch(() => {});
 
         if (result.type === 'download') {
           await result.data.saveAs(targetPath);
@@ -1038,11 +1077,16 @@ export class SriPlaywrightScraper {
         }
 
         if (result.type === 'response') {
-          const buffer = await result.data.body();
-          fs.writeFileSync(targetPath, buffer);
-          if (isXml) counters.xmls++; else counters.pdfs++;
-          await log(`${label} descargado: ${claveAcceso}`);
-          return true;
+          const status = result.data.status();
+          if (status >= 200 && status < 300) {
+            const buffer = await result.data.body();
+            fs.writeFileSync(targetPath, buffer);
+            if (isXml) counters.xmls++; else counters.pdfs++;
+            await log(`${label} descargado: ${claveAcceso}`);
+            return true;
+          } else {
+            await log(`Error descargando ${label} ${claveAcceso}: HTTP Status ${status}`);
+          }
         }
 
         if (result.type === 'page') {
@@ -1103,7 +1147,19 @@ export class SriPlaywrightScraper {
         if (link) (link as HTMLElement).click();
       }, { c: relCol, idx: rowIndex });
 
-      await page.waitForTimeout(3000);
+      // Esperar a que el modal esté cargado y contenga la clave del documento relacionado
+      let hasKey = false;
+      for (let i = 0; i < 15; i++) {
+        await page.waitForTimeout(500);
+        hasKey = await page.evaluate(() => {
+          const modal = document.querySelector(
+            '.rf-pp-cnt, .ui-dialog-content, [role="dialog"], div[id*="popup"]:not([style*="none"]), div[id*="dlg"]:not([style*="none"])'
+          );
+          if (!modal) return false;
+          return /\d{49}/.test((modal as HTMLElement).innerText);
+        });
+        if (hasKey) break;
+      }
 
       const modalVisible = await page.evaluate(() => {
         const modal = document.querySelector(
@@ -1356,6 +1412,11 @@ export class SriPlaywrightScraper {
   private _typeLabel(code: string): string {
     const labels: Record<string, string> = { '1': 'Factura', '2': 'Liquidacion', '3': 'NC', '4': 'ND', '6': 'Retencion' };
     return labels[code] || code;
+  }
+
+  private _monthName(month: number): string {
+    const names = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    return names[month - 1] || String(month);
   }
 
   private async _selectAndVerify(

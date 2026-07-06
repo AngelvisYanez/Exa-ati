@@ -1,38 +1,24 @@
-/**
- * db-prisma.ts — Adaptador Neon PostgreSQL para producción
- *
- * Usa @neondatabase/serverless Pool directamente (más fiable que Prisma adapter en Next.js).
- * Expone la misma interfaz que db.ts: query, queryOne, queryAll, insert, update, transaction.
- */
-import { Pool, neonConfig, QueryResultRow } from '@neondatabase/serverless';
+import { Pool } from 'pg';
+type QueryResultRow = any;
 import { randomUUID } from 'crypto';
-import ws from 'ws';
 
-// En Node.js (Next.js API routes), WebSocket no es global — hay que inyectarlo
-if (typeof globalThis.WebSocket === 'undefined') {
-  neonConfig.webSocketConstructor = ws;
-}
-
-// ─── Pool singleton ──────────────────────────────────────────────────────────
 declare global {
-  // eslint-disable-next-line no-var
-  var __neonPool: Pool | undefined;
+  var __pgPool: Pool | undefined;
 }
 
 function getPool(): Pool {
-  if (!global.__neonPool) {
+  if (!global.__pgPool) {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
       throw new Error(
-        '[DB:Neon] DATABASE_URL no está definido. Verifica tu .env o variables de entorno en Vercel.'
+        '[DB:Postgres] DATABASE_URL no está definido.'
       );
     }
-    global.__neonPool = new Pool({ connectionString });
+    global.__pgPool = new Pool({ connectionString });
   }
-  return global.__neonPool;
+  return global.__pgPool;
 }
 
-// ─── Interfaz compatible con db.ts ───────────────────────────────────────────
 export const dbPrisma = {
   async query<T extends QueryResultRow = any>(
     text: string,
@@ -47,11 +33,11 @@ export const dbPrisma = {
       reindexedText = reindexedText.replace(/\?/g, () => `$${paramIndex++}`);
     }
 
-    const result = await getPool().query<T>(reindexedText, params || []);
+    const result = await getPool().query<any>(reindexedText, params || []);
     const duration = Date.now() - start;
 
     if (process.env.NODE_ENV === 'development' || duration > 800) {
-      console.log(`[DB:Neon] ${operation} → ${duration}ms`);
+      console.log(`[DB:Postgres] ${operation} → ${duration}ms`);
     }
 
     return { rows: result.rows, rowCount: result.rowCount ?? result.rows.length };
@@ -103,7 +89,6 @@ export const dbPrisma = {
       throw new Error(`No data provided for insert into table "${table}"`);
     }
 
-    // UUID tables get auto-generated IDs if not provided
     const isUuidTable = ['usuarios', 'tenants', 'emisores', 'comprobantes', 'tenant_settings'].includes(table);
     if (isUuidTable && !data.id) {
       data.id = randomUUID();
@@ -116,7 +101,7 @@ export const dbPrisma = {
     const returningClause = returning === '*' ? '*' : returning;
 
     const queryStr = `INSERT INTO "${table}" (${columns}) VALUES (${placeholders}) RETURNING ${returningClause}`;
-    const result = await getPool().query<T>(queryStr, values);
+    const result = await getPool().query<any>(queryStr, values);
     return result.rows[0] || null;
   },
 
@@ -136,13 +121,12 @@ export const dbPrisma = {
     const values = Object.values(data);
     const setClause = keys.map((key, i) => `"${key}" = $${i + 1}`).join(', ');
 
-    // Re-index $N or ? params in where clause relative to SET params
     let paramIndex = values.length + 1;
     const reindexedWhere = where.replace(/\?|\$\d+/g, () => `$${paramIndex++}`);
 
     const returningClause = returning === '*' ? '*' : returning;
     const queryStr = `UPDATE "${table}" SET ${setClause} WHERE ${reindexedWhere} RETURNING ${returningClause}`;
-    const result = await getPool().query<T>(queryStr, [...values, ...whereParams]);
+    const result = await getPool().query<any>(queryStr, [...values, ...whereParams]);
 
     if (options?.strict && result.rows.length === 0) {
       throw new Error(`Record to update in "${table}" was not found.`);

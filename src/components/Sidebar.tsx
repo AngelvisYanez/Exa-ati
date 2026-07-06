@@ -20,6 +20,17 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  BookOpen,
+  Building2,
+  Truck,
+  ShoppingCart,
+  Calculator,
+  ListOrdered,
+  Store,
+  Package,
+  BarChart3,
+  FileSpreadsheet,
+  FolderTree,
 } from "lucide-react";
 
 type NavItem = {
@@ -49,10 +60,112 @@ const navGroups: NavGroup[] = [
         icon: <FileText className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
       {
+        href: "/comprobantes",
+        label: "Comprobantes",
+        icon: <Receipt className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+    ],
+  },
+  {
+    group: "EMISIÓN",
+    items: [
+      {
+        href: "/emitir",
+        label: "Emitir",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <PlusCircle className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/pos",
+        label: "Punto de Venta",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <ShoppingCart className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/ecommerce",
+        label: "eCommerce",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <Store className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/inventario",
+        label: "Inventario",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <Package className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/guias-remision",
+        label: "Guías de Remisión",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <Truck className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+    ],
+  },
+  {
+    group: "CONTABILIDAD",
+    items: [
+      {
+        href: "/contabilidad",
+        label: "Dashboard",
+        icon: <Calculator className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/contabilidad/plan-cuentas",
+        label: "Plan de Cuentas",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <BookOpen className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/contabilidad/impuestos",
+        label: "Impuestos",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <ListOrdered className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/contabilidad/posiciones-fiscales",
+        label: "Posiciones Fiscales",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <FolderTree className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/contactos",
+        label: "Contactos",
+        icon: <Building2 className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/transportistas",
+        label: "Transportistas",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <Truck className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+    ],
+  },
+  {
+    group: "DECLARACIONES",
+    items: [
+      {
         href: "/declaraciones",
-        label: "Declaraciones",
+        label: "Dashboard",
         roles: ["SUPERADMIN", "ADMIN"],
         icon: <ScrollText className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/declaraciones/reportes",
+        label: "Formularios 103/104",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <BarChart3 className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/declaraciones/ats",
+        label: "ATS",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <FileSpreadsheet className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/declaraciones/presentar",
+        label: "Presentar al SRI",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <Send className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
     ],
   },
@@ -69,28 +182,6 @@ const navGroups: NavGroup[] = [
         label: "Auditoría IA",
         roles: ["SUPERADMIN", "ADMIN"],
         icon: <ShieldCheck className="w-[17px] h-[17px]" strokeWidth={1.8} />,
-      },
-    ],
-  },
-  {
-    group: "ACCIÓN TRIBUTARIA",
-    items: [
-      {
-        href: "/emitir",
-        label: "Emitir",
-        roles: ["SUPERADMIN", "ADMIN"],
-        icon: <PlusCircle className="w-[17px] h-[17px]" strokeWidth={1.8} />,
-      },
-      {
-        href: "/declaraciones/presentar",
-        label: "Presentar al SRI",
-        roles: ["SUPERADMIN", "ADMIN"],
-        icon: <Send className="w-[17px] h-[17px]" strokeWidth={1.8} />,
-      },
-      {
-        href: "/comprobantes",
-        label: "Comprobantes",
-        icon: <Receipt className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
     ],
   },
@@ -141,7 +232,7 @@ export default function Sidebar() {
       <aside
         className={`
           ${sidebarWidth} bg-sidebar border-r border-sidebar-border
-          min-h-screen flex flex-col fixed top-0 left-0 z-50
+          h-screen flex flex-col fixed top-0 left-0 z-50
           transition-all duration-200 ease-in-out select-none
           md:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         `}

@@ -1,16 +1,13 @@
 import { defineConfig } from 'prisma/config';
-import { config } from 'dotenv';
 
-config({ path: '.env' });
-
-const migrationUrl =
-  process.env.DATABASE_URL ??
-  process.env.DIRECT_DATABASE_URL ??
-  '';
+const url = process.env.DATABASE_URL;
 
 export default defineConfig({
   schema: './prisma/schema.prisma',
   datasource: {
-    url: migrationUrl,
+    url: url || 'postgresql://postgres:postgres@db:5432/exa_ati',
+  },
+  migrations: {
+    seed: 'tsx prisma/seed.ts',
   },
 });

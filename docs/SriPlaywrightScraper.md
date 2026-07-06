@@ -64,33 +64,22 @@ xmlStorage.saveXml() guarda el XML permanentemente en ./downloads/xmls/{ruc}/{a�
 comprobante_xmls actualizado con la ruta del XML
 ```
 
-## Problemas conocidos
-- XML del SRI no dispara `download` event de Playwright (usa PrimeFaces AJAX) → corregido con `_downloadWithCapture` (response + newPage fallback), **por probar**
-- RIDE funciona con `waitForEvent('download')`
-- Documentos relacionados: modal se abre, descargas **por probar**
-
-## Próximos pasos
-1. Probar scraper completo: login → búsqueda → extraer tabla → descargar XML/RIDE → guardar en xmlStorage → comprobantes visibles en UI
-2. Si XML sigue sin descargar: interceptar con `page.route('**/*')` antes del click
-3. Confirmar que sync muestra los documentos después del scrape
-
-## Problema conocido (reportado por log, 18 Jun 2026)
-- RIDE descargó bien (vía `waitForEvent('download')`)
-- XML **no se descargó** — `waitForEvent('download')` timeout 2 veces (~44s)
-- Modal de relacionados se abrió pero no descargó documentos (se completó en 2s)
-- **XMLs: 0, PDFs: 1** al finalizar
+## Problemas resueltos (3 Jul 2026)
+1. **Falsos positivos de XML**: Se corrigió el filtro de `waitForResponse` en `_downloadWithCapture` para ignorar respuestas AJAX parciales de JSF (`faces-request: partial/ajax` y `X-Requested-With: XMLHttpRequest`). Anteriormente, al retornar `text/xml`, estas peticiones resolvían `responseP` prematuramente y guardaban respuestas inválidas como XMLs de comprobantes.
+2. **Promesas colgadas y Unhandled Rejections**: Se añadieron manejadores `.catch(() => {})` a las promesas pasadas a `Promise.race` dentro de `_downloadWithCapture`. Esto evita que las promesas que no ganaron la carrera causen excepciones no controladas al expirar tras 25s.
+3. **Validación de descargas fallidas**: Se implementó una verificación de código de estado HTTP (2xx) antes de guardar el buffer del archivo en descargas directas.
+4. **Modal de relacionados**: Se añadió un bucle de espera activa (hasta 7.5s) que aguarda a que la clave de acceso de 49 dígitos esté presente en el texto del modal antes de proceder a la descarga, evitando registrar valores nulos o la clave del padre.
+5. **Limpieza de imports**: Se eliminaron los `require()` dinámicos en los métodos de base de datos y xml-storage, cambiándolos por imports ES estáticos en la parte superior.
 
 ## Estado actual del scraper
 - Login: funcional
 - Búsqueda + CAPTCHA: funcional (table retornó en 3s en 2do intento)
 - **Descarga RIDE**: funcional con `waitForEvent('download')`
-- **Descarga XML**: ROTA (no dispara download event) — corregido con `_downloadWithCapture` (response + newPage fallback), **por probar**
-- **Documentos relacionados**: handler presente, modal se abre, descargas **por probar**
+- **Descarga XML**: funcional con fallback mejorado `_downloadWithCapture` (filtra AJAX)
+- **Documentos relacionados**: funcional con polling para evitar clave nula y descarga por capture
 - Paginación: sin cambios
 
 ## Próximos pasos
-1. Probar con HEADLESS=false después de los fixes de `_downloadWithCapture`
-2. Si XML sigue sin descargar: revisar el `waitForResponse` filter (el content-type real)
-3. Si response tampoco funciona: interceptar con `page.route('**/*.pdf,**/*.xml,*.do*')` antes del click
-4. Confirmar descarga de documentos relacionados desde el modal
+1. Probar el flujo completo desde la interfaz de usuario en modo de desarrollo (`npm run dev`) con `connection_mode: 'playwright'` en las opciones del job.
+2. Monitorear los logs en `auditoria` y `scraping_job_logs` para verificar la descarga exitosa tanto del XML primario como de los relacionados.
 <!-- END:session-sri-scraper -->

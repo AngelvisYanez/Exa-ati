@@ -88,6 +88,25 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
     tipo_comprobante: '1',
   });
 
+  const [dateMode, setDateMode] = useState<'range' | 'month'>('range');
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+
+  useEffect(() => {
+    if (dateMode === 'month') {
+      const yearStr = String(selectedYear);
+      const monthStr = String(selectedMonth).padStart(2, '0');
+      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+      const lastDayStr = String(lastDay).padStart(2, '0');
+      
+      setFormData(prev => ({
+        ...prev,
+        fecha_desde: `${yearStr}-${monthStr}-01`,
+        fecha_hasta: `${yearStr}-${monthStr}-${lastDayStr}`
+      }));
+    }
+  }, [dateMode, selectedMonth, selectedYear]);
+
   const [jobs, setJobs] = useState<any[]>([]);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [logs, setLogs] = useState<{ id: number; level: string; message: string; created_at: string }[]>([]);
@@ -360,22 +379,95 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="fecha_desde_modal" className="text-xs font-medium text-muted-foreground">Desde</Label>
-                    <div className="relative">
-                      <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                      <Input id="fecha_desde_modal" name="fecha_desde" type="date" value={formData.fecha_desde} onChange={handleChange} className="pl-8 h-9 text-xs" required />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="fecha_hasta_modal" className="text-xs font-medium text-muted-foreground">Hasta</Label>
-                    <div className="relative">
-                      <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                      <Input id="fecha_hasta_modal" name="fecha_hasta" type="date" value={formData.fecha_hasta} onChange={handleChange} min={formData.fecha_desde} className="pl-8 h-9 text-xs" required />
-                    </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">Período de consulta</Label>
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => setDateMode('range')}
+                      className={`py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                        dateMode === 'range' 
+                          ? 'bg-background text-foreground shadow-xs font-semibold' 
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Rango de fechas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDateMode('month')}
+                      className={`py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                        dateMode === 'month' 
+                          ? 'bg-background text-foreground shadow-xs font-semibold' 
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Mes completo (Todos)
+                    </button>
                   </div>
                 </div>
+
+                {dateMode === 'month' ? (
+                  <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
+                    <div className="space-y-1">
+                      <Label htmlFor="mes_select" className="text-xs font-medium text-muted-foreground">Mes (Todos)</Label>
+                      <select
+                        id="mes_select"
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                        className="w-full h-9 px-3 rounded-lg border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <option value="1">Enero</option>
+                        <option value="2">Febrero</option>
+                        <option value="3">Marzo</option>
+                        <option value="4">Abril</option>
+                        <option value="5">Mayo</option>
+                        <option value="6">Junio</option>
+                        <option value="7">Julio</option>
+                        <option value="8">Agosto</option>
+                        <option value="9">Septiembre</option>
+                        <option value="10">Octubre</option>
+                        <option value="11">Noviembre</option>
+                        <option value="12">Diciembre</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="anio_select" className="text-xs font-medium text-muted-foreground">Año</Label>
+                      <select
+                        id="anio_select"
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(Number(e.target.value))}
+                        className="w-full h-9 px-3 rounded-lg border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {Array.from({ length: 5 }, (_, i) => {
+                          const year = new Date().getFullYear() - i;
+                          return (
+                            <option key={year} value={year}>
+                              {year}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
+                    <div className="space-y-1">
+                      <Label htmlFor="fecha_desde_modal" className="text-xs font-medium text-muted-foreground">Desde</Label>
+                      <div className="relative">
+                        <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                        <Input id="fecha_desde_modal" name="fecha_desde" type="date" value={formData.fecha_desde} onChange={handleChange} className="pl-8 h-9 text-xs" required />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="fecha_hasta_modal" className="text-xs font-medium text-muted-foreground">Hasta</Label>
+                      <div className="relative">
+                        <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                        <Input id="fecha_hasta_modal" name="fecha_hasta" type="date" value={formData.fecha_hasta} onChange={handleChange} min={formData.fecha_desde} className="pl-8 h-9 text-xs" required />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* ─── Selector rápido de scraper ─── */}
                 <div className="grid grid-cols-4 gap-2">
