@@ -487,3 +487,20 @@ model MotivoTraslado {
 
   @@map("motivos_traslado")
 }
+
+// ─────────────────────────────────────────────
+// AUDITORIA (Registro de eventos)
+// ─────────────────────────────────────────────
+model Auditoria {
+  id           Int      @id @default(autoincrement())
+  usuarioEmail String?  @map("usuario_email") @db.VarChar(255)
+  tenantId     String?  @map("tenant_id") @db.Uuid
+  accion       String   @db.VarChar(50)
+  recurso      String?  @db.VarChar(50)
+  descripcion  String?  @db.Text
+  datosNuevos  String?  @map("datos_nuevos") @db.Text
+  exitoso      Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("auditoria")
+}
