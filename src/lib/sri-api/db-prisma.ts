@@ -1,25 +1,79 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
+import { Pool, neonConfig, type PoolClient } from '@neondatabase/serverless';
 import ws from 'ws';
 type QueryResultRow = any;
 import { randomUUID } from 'crypto';
 
 neonConfig.webSocketConstructor = ws;
 
+// Reconoce errores de conexión caída de Neon para reintentar recreando el pool
+const CONNECTION_DROPPED = /Connection terminated unexpectedly|Connection terminated|server closed the connection|terminated/i;
+
 declare global {
   var __pgPool: Pool | undefined;
 }
 
+// El driver serverless por WebSocket no necesita channel_binding (es para pgbouncer
+// por TCP) y suele provocar "Connection terminated unexpectedly". Lo removemos.
+function cleanConnectionString(connectionString: string): string {
+  return connectionString
+    .replace(/[?&]channel_binding=require/gi, '')
+    .replace(/[?&]channel_binding=\w+/gi, '')
+    .replace(/[?&]sslmode=require/gi, '')
+    .replace(/[?&]ssl=true/gi, '')
+    .replace(/([?&])+$/g, '')
+    .replace(/\?$/, '');
+}
+
+function buildPool(): Pool {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('[DB:Postgres] DATABASE_URL no está definido.');
+  }
+
+  const pool = new Pool({
+    connectionString: cleanConnectionString(connectionString),
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 15000,
+    keepAlive: true,
+    allowExitOnIdle: false,
+  });
+
+  // Evita que errores en conexiones idle crashen el proceso y los registra.
+  pool.on('error', (err: Error) => {
+    console.error('[DB:Neon] pool error:', err.message);
+  });
+
+  return pool;
+}
+
 function getPool(): Pool {
   if (!global.__pgPool) {
-    const connectionString = process.env.DATABASE_URL;
-    if (!connectionString) {
-      throw new Error(
-        '[DB:Postgres] DATABASE_URL no está definido.'
-      );
-    }
-    global.__pgPool = new Pool({ connectionString });
+    global.__pgPool = buildPool();
   }
   return global.__pgPool;
+}
+
+// Ejecuta una operación sobre el pool y, si la conexión fue terminada por Neon,
+// recrea el pool y reintenta una vez antes de fallar.
+async function withPool<T>(fn: (pool: Pool) => Promise<T>): Promise<T> {
+  let pool = getPool();
+  try {
+    return await fn(pool);
+  } catch (err: any) {
+    if (CONNECTION_DROPPED.test(err?.message || '')) {
+      console.warn('[DB:Neon] conexión terminada, recreando pool y reintentando...');
+      const old = global.__pgPool;
+      global.__pgPool = buildPool();
+      pool = global.__pgPool;
+      try {
+        return await fn(pool);
+      } finally {
+        old?.end().catch(() => {});
+      }
+    }
+    throw err;
+  }
 }
 
 export const dbPrisma = {
@@ -36,7 +90,7 @@ export const dbPrisma = {
       reindexedText = reindexedText.replace(/\?/g, () => `$${paramIndex++}`);
     }
 
-    const result = await getPool().query<any>(reindexedText, params || []);
+    const result = await withPool((p) => p.query<any>(reindexedText, params || []));
     const duration = Date.now() - start;
 
     if (process.env.NODE_ENV === 'development' || duration > 800) {
@@ -62,14 +116,14 @@ export const dbPrisma = {
     return result.rows;
   },
 
-  async getClient() {
-    return getPool().connect();
+  async getClient(): Promise<PoolClient> {
+    return withPool((p) => p.connect());
   },
 
   async transaction<T>(
     callback: (client: any) => Promise<T>
   ): Promise<T> {
-    const client = await getPool().connect();
+    const client = await withPool((p) => p.connect());
     try {
       await client.query('BEGIN');
       const result = await callback(client);
@@ -111,7 +165,7 @@ export const dbPrisma = {
     const returningClause = returning === '*' ? '*' : returning;
 
     const queryStr = `INSERT INTO "${table}" (${columns}) VALUES (${placeholders}) RETURNING ${returningClause}`;
-    const result = await getPool().query<any>(queryStr, values);
+    const result = await withPool((p) => p.query<any>(queryStr, values));
     return result.rows[0] || null;
   },
 
@@ -136,7 +190,7 @@ export const dbPrisma = {
 
     const returningClause = returning === '*' ? '*' : returning;
     const queryStr = `UPDATE "${table}" SET ${setClause} WHERE ${reindexedWhere} RETURNING ${returningClause}`;
-    const result = await getPool().query<any>(queryStr, [...values, ...whereParams]);
+    const result = await withPool((p) => p.query<any>(queryStr, [...values, ...whereParams]));
 
     if (options?.strict && result.rows.length === 0) {
       throw new Error(`Record to update in "${table}" was not found.`);
