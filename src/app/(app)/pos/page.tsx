@@ -159,7 +159,7 @@ export default function PosPage() {
       <>
         <title>POS - EXA ATI</title>
         <Topbar title="Punto de Venta" />
-        <main className="p-6 max-w-3xl mx-auto text-center text-slate-500">
+        <main className="p-6 w-full text-center text-slate-500">
           Vincula tu RUC del SRI en Configuración para usar el POS.
         </main>
       </>
@@ -170,9 +170,9 @@ export default function PosPage() {
     <>
       <title>POS - EXA ATI</title>
       <Topbar title="Punto de Venta (POS)" />
-      <main className="p-4 max-w-7xl mx-auto flex flex-col gap-4">
+      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
         {resultado ? (
-          <Card className="p-6 max-w-lg mx-auto text-center">
+          <Card className="p-6 max-w-lg text-center">
             <div className="flex flex-col items-center gap-3">
               <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
                 <CheckCircle className="w-8 h-8 text-emerald-600" />

@@ -264,13 +264,13 @@ export async function POST(req: Request) {
         // Insertar comprobante
         await db.query(
           `INSERT INTO comprobantes (
-            emisor_id, tipo, serie, secuencial, ambiente, tipo_emision,
+            id, emisor_id, tipo, serie, secuencial, ambiente, tipo_emision,
             clave_acceso, fecha_emision, estado, estado_sri, fecha_autorizacion, numero_autorizacion,
             total_sin_impuesto, subtotal_sin_impuesto, total_iva, total_descuento, importe_total, propina, moneda,
             receptor_tipo_id, receptor_identificacion, receptor_razon_social,
             receptor_email, emisor_ruc, emisor_razon_social,
             categoria, documentos_relacionados, tenant_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             localEmisorId,
             tipo,

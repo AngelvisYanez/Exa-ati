@@ -9,7 +9,7 @@ export async function GET(req: Request) {
 
     const emisores = await db.queryAll<any>(
       `SELECT id, ruc, razon_social, nombre_comercial, ambiente, tipo_contribuyente,
-              cert_valido_hasta, certificado_valido_hasta 
+              certificado_valido_hasta, clave_sri_encrypted
        FROM emisores WHERE tenant_id = $1 AND activo = true ORDER BY razon_social ASC`,
       [tenantId]
     );
@@ -23,7 +23,8 @@ export async function GET(req: Request) {
         nombreComercial: e.nombre_comercial,
         tipoContribuyente: e.tipo_contribuyente,
         ambiente: e.ambiente,
-        certificadoExpiracion: e.certificado_valido_hasta || e.cert_valido_hasta || null,
+        certificadoExpiracion: e.certificado_valido_hasta || null,
+        tieneCredenciales: Boolean(e.clave_sri_encrypted),
       }))
     });
   } catch (error: any) {

@@ -127,7 +127,7 @@ export default function EditarCuentaPage() {
     <>
       <title>Editar Cuenta - OFSERCONT IA</title>
       <Topbar title="Editar Cuenta" backLink={{ href: "/contabilidad/plan-cuentas", label: "Plan de Cuentas" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full max-w-2xl mx-auto">
+      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Editar Cuenta Contable</h1>
 
         <Card className="p-5 border-brand-gray-200">

@@ -10,7 +10,7 @@ export async function GET(req: Request) {
 
     const emisor = await db.queryOne<any>(
       `SELECT id, ruc, razon_social, nombre_comercial, ambiente, tipo_contribuyente,
-              cert_valido_hasta, certificado_valido_hasta 
+              cert_valido_hasta, certificado_valido_hasta, clave_sri_encrypted
        FROM emisores WHERE ruc = ? AND activo = true`,
       [userRuc]
     );
@@ -22,8 +22,8 @@ export async function GET(req: Request) {
       );
     }
 
-    // Usar la columna correcta que tenga la fecha de expiración
     const expiryDate = emisor.certificado_valido_hasta || emisor.cert_valido_hasta || null;
+    const tieneCredenciales = Boolean(emisor.clave_sri_encrypted);
 
     return NextResponse.json({
       success: true,
@@ -34,7 +34,8 @@ export async function GET(req: Request) {
         nombreComercial: emisor.nombre_comercial,
         tipoContribuyente: emisor.tipo_contribuyente || null,
         ambiente: emisor.ambiente,
-        certificadoExpiracion: expiryDate
+        certificadoExpiracion: expiryDate,
+        tieneCredenciales,
       }
     });
   } catch (error: any) {

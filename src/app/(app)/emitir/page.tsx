@@ -359,8 +359,8 @@ export default function EmitirPage() {
     finally { setEmitiendo(false); }
   };
 
-  if (!hasSriLinked) return (<><title>Emitir - OFSERCONT IA</title><Topbar title="Emitir Comprobantes" /><main className="p-6 max-w-3xl mx-auto text-center text-slate-500">Vincula tu RUC del SRI en Configuración para emitir comprobantes.</main></>);
-  if (!selectedTipo) return (<><title>Emitir - OFSERCONT IA</title><Topbar title="Emitir Comprobantes Electrónicos" /><main className="p-6 max-w-5xl mx-auto flex flex-col gap-6"><p className="text-sm text-slate-500">Selecciona el tipo de comprobante a emitir:</p><div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">{TIPOS.map(t => (<button key={t.cod} onClick={() => setSelectedTipo(t)} className={`border rounded-xl p-5 flex flex-col gap-3 text-left transition-all cursor-pointer hover:shadow-md ${COLOR_MAP[t.color]}`}><div className="w-10 h-10 rounded-lg border flex items-center justify-center">{t.icon}</div><div><p className="text-sm font-bold">{t.label}</p><p className="text-xs text-slate-500 mt-0.5">{t.desc}</p></div><div className="text-[10px] font-bold flex items-center gap-1 mt-auto">Emitir →</div></button>))}</div></main></>);
+  if (!hasSriLinked) return (<><title>Emitir - OFSERCONT IA</title><Topbar title="Emitir Comprobantes" /><main className="p-6 w-full text-center text-slate-500">Vincula tu RUC del SRI en Configuración para emitir comprobantes.</main></>);
+  if (!selectedTipo) return (<><title>Emitir - OFSERCONT IA</title><Topbar title="Emitir Comprobantes Electrónicos" /><main className="p-3 flex-1 flex flex-col gap-6 w-full"><p className="text-sm text-slate-500">Selecciona el tipo de comprobante a emitir:</p><div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">{TIPOS.map(t => (<button key={t.cod} onClick={() => setSelectedTipo(t)} className={`border rounded-xl p-5 flex flex-col gap-3 text-left transition-all cursor-pointer hover:shadow-md ${COLOR_MAP[t.color]}`}><div className="w-10 h-10 rounded-lg border flex items-center justify-center">{t.icon}</div><div><p className="text-sm font-bold">{t.label}</p><p className="text-xs text-slate-500 mt-0.5">{t.desc}</p></div><div className="text-[10px] font-bold flex items-center gap-1 mt-auto">Emitir →</div></button>))}</div></main></>);
 
   const t = selectedTipo.cod;
   const totales = t === '01' || t === '03' || t === '04' ? calcTotal(detalles) : null;
@@ -369,7 +369,7 @@ export default function EmitirPage() {
     <>
       <title>Emitir {selectedTipo.label} - OFSERCONT IA</title>
       <Topbar title={`Emitir ${selectedTipo.label}`} />
-      <main className="p-6 max-w-5xl mx-auto flex flex-col gap-5">
+      <main className="p-3 flex-1 flex flex-col gap-5 w-full">
         <Button variant="outline" size="sm" className="self-start" onClick={() => { setSelectedTipo(null); setResultado(null); }}>← Cambiar tipo</Button>
         <Card className="p-5 flex flex-col gap-5">
 

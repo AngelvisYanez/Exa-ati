@@ -5,7 +5,8 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { sriClient } from "@/lib/sriClient";
-import { Menu, ChevronLeft, ChevronDown, Check, Bell } from "lucide-react";
+import { Menu, ChevronLeft, ChevronDown, Check, Bell, LogOut, Settings, Building2, Plus, Loader2, X, KeyRound } from "lucide-react";
+import { toast } from "sonner";
 
 interface TopbarProps {
   title: string;
@@ -14,6 +15,11 @@ interface TopbarProps {
     href: string;
     label: string;
   };
+  lastSyncLabel?: string | null;
+  syncPendientes?: number;
+  isConnected?: boolean;
+  enProcesoCount?: number;
+  pprCount?: number;
 }
 
 type NotificationItem = {
@@ -37,17 +43,21 @@ const typeStyles: Record<string, { color: string; bg: string; dot: string }> = {
   sri: { color: "text-blue-600", bg: "bg-blue-50", dot: "bg-blue-500" },
 };
 
-export default function Topbar({ title, period = "Período actual", backLink }: TopbarProps) {
+export default function Topbar({ title, period = "Período actual", backLink, lastSyncLabel, syncPendientes, isConnected, enProcesoCount, pprCount }: TopbarProps) {
   const { user, hasSriLinked, activeRuc, rucList, setActiveRuc } = useAuth();
   const { setMobileOpen } = useSidebar();
   const [notifOpen, setNotifOpen] = useState(false);
-  const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [vincularOpen, setVincularOpen] = useState(false);
+  const [vincularRuc, setVincularRuc] = useState("");
+  const [vincularPassword, setVincularPassword] = useState("");
+  const [vinculando, setVinculando] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [sriConnected, setSriConnected] = useState(false);
   const [userName, setUserName] = useState("");
   const [userInitials, setUserInitials] = useState("—");
   const notifRef = useRef<HTMLDivElement>(null);
-  const companyRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (user?.email) {
@@ -56,19 +66,18 @@ export default function Topbar({ title, period = "Período actual", backLink }: 
       setUserInitials(emailName.slice(0, 2).toUpperCase());
     }
     if (!hasSriLinked) return;
-    sriClient.getEmisor().then((res) => {
-      if (res.success && res.emisor) {
-        const name = res.emisor.razonSocial || res.emisor.ruc || "";
-        setUserName(name);
-        const parts = name.trim().split(/\s+/).filter(Boolean);
-        setUserInitials(
-          parts.length >= 2
-            ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-            : name.slice(0, 2).toUpperCase() || "—"
-        );
-      }
-    }).catch(() => {});
-  }, [user, hasSriLinked]);
+    const activeCompany = rucList.find((r) => r.ruc === activeRuc);
+    if (activeCompany) {
+      const name = activeCompany.razonSocial || activeCompany.ruc || "";
+      setUserName(name);
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      setUserInitials(
+        parts.length >= 2
+          ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+          : name.slice(0, 2).toUpperCase() || "—"
+      );
+    }
+  }, [user, hasSriLinked, activeRuc, rucList]);
 
   useEffect(() => {
     const load = async () => {
@@ -107,8 +116,8 @@ export default function Topbar({ title, period = "Período actual", backLink }: 
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setNotifOpen(false);
       }
-      if (companyRef.current && !companyRef.current.contains(e.target as Node)) {
-        setCompanyDropdownOpen(false);
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClick);
@@ -117,6 +126,29 @@ export default function Topbar({ title, period = "Período actual", backLink }: 
 
   const markAllRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+  };
+
+  const handleVincular = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vincularRuc || !vincularPassword) return;
+    setVinculando(true);
+    try {
+      const res = await sriClient.vincularSri(vincularRuc, vincularPassword);
+      if (res.success) {
+        toast.success("Empresa vinculada correctamente");
+        setVincularOpen(false);
+        setVincularRuc("");
+        setVincularPassword("");
+        setUserDropdownOpen(false);
+        window.location.reload();
+      } else {
+        toast.error(res.error || "Error al vincular");
+      }
+    } catch {
+      toast.error("Error de red al vincular");
+    } finally {
+      setVinculando(false);
+    }
   };
 
   return (
@@ -152,68 +184,187 @@ export default function Topbar({ title, period = "Período actual", backLink }: 
       </div>
 
       <div className="flex items-center gap-1.5">
-        {/* Selector de Empresa/RUC */}
-        {rucList.length > 0 && (
-          <div ref={companyRef} className="relative mr-1 hidden sm:block">
-            <button
-              type="button"
-              onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
-              className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-all cursor-pointer shadow-sm active:scale-[0.98] outline-none"
+        {/* Sync Status + Connection */}
+        <div className="hidden lg:flex items-center gap-1.5 mr-1">
+          {lastSyncLabel && (
+            <Link
+              href="/documentos"
+              className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+              title="Ir a documentos"
             >
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0"></span>
-              <span className="max-w-[180px] truncate">
-                {(() => {
-                  const activeCompany = rucList.find((r) => r.ruc === activeRuc);
-                  return activeCompany
-                    ? `${activeCompany.razonSocial} (${activeCompany.ruc})`
-                    : activeRuc || "Seleccionar Empresa";
-                })()}
-              </span>
-              {rucList.length > 1 && (
-                <ChevronDown className={`w-2.5 h-2.5 transition-transform duration-200 ${companyDropdownOpen ? "rotate-180" : ""}`} strokeWidth={2.5} />
+              <span className="font-semibold text-slate-800">Sync:</span>
+              {lastSyncLabel}
+              {(syncPendientes ?? 0) > 0 && (
+                <span className="text-amber-700 font-bold">·{syncPendientes}</span>
               )}
-            </button>
+            </Link>
+          )}
+          {isConnected && (
+            <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 text-[10px] font-semibold text-emerald-700 whitespace-nowrap">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shrink-0"></span>
+              API Conectado
+            </div>
+          )}
+          {(pprCount ?? 0) + (enProcesoCount ?? 0) > 0 && (
+            <Link
+              href="/documentos?estado=EN_PROCESO"
+              className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 text-[10px] font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+            >
+              <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse shrink-0"></span>
+              {(pprCount ?? 0) + (enProcesoCount ?? 0)} en proc.
+            </Link>
+          )}
+        </div>
 
-            {companyDropdownOpen && rucList.length > 1 && (
-              <div className="absolute right-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-1 duration-150">
-                <div className="px-3 py-2 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Cambiar de Empresa / RUC
-                </div>
-                <div className="max-h-60 overflow-y-auto">
-                  {rucList.map((item) => (
-                    <button
-                      key={item.ruc}
-                      onClick={() => {
-                        setActiveRuc(item.ruc);
-                        setCompanyDropdownOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3.5 py-2.5 text-left text-xs hover:bg-slate-50 transition-colors cursor-pointer ${
-                        item.ruc === activeRuc ? "text-brand-navy font-bold bg-slate-50/50" : "text-slate-700"
-                      }`}
-                    >
-                      <div className="truncate pr-2">
-                        <p className="truncate">{item.razonSocial}</p>
-                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">{item.ruc}</p>
-                      </div>
-                      {item.ruc === activeRuc && (
-                        <Check className="w-3.5 h-3.5 text-brand-navy shrink-0" strokeWidth={2.5} />
-                      )}
-                    </button>
-                  ))}
+        {/* Menú de usuario combinado */}
+        <div ref={userMenuRef} className="relative hidden sm:block">
+          <button
+            type="button"
+            onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+            className="flex items-center gap-2 pl-2 pr-2.5 py-1 rounded-lg hover:bg-accent transition-colors cursor-pointer"
+          >
+            <div className="w-7 h-7 bg-gradient-to-br from-brand-navy-light to-brand-sky rounded-lg flex items-center justify-center font-bold text-[11px] text-white shrink-0 shadow-sm">
+              {userInitials}
+            </div>
+            <div className="text-right leading-tight hidden md:block">
+              <div className="text-[12px] font-semibold text-foreground truncate max-w-[130px]">{userName || user?.email || "Usuario"}</div>
+              <div className="text-[9px] text-muted-foreground truncate max-w-[130px]">{sriConnected ? "Conectado SRI" : "Sin SRI"}</div>
+            </div>
+            <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform duration-200 ${userDropdownOpen ? "rotate-180" : ""}`} strokeWidth={2} />
+          </button>
+
+          {userDropdownOpen && (
+            <div className="absolute right-0 mt-1.5 w-72 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+              {/* Info del usuario */}
+              <div className="px-4 py-3 border-b border-border">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-gradient-to-br from-brand-navy-light to-brand-sky rounded-xl flex items-center justify-center font-bold text-sm text-white shrink-0 shadow-sm">
+                    {userInitials}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold text-foreground truncate">{userName || user?.email || "Usuario"}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{user?.email || ""}</p>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
-        )}
 
-        <div className="hidden sm:flex items-center gap-2 mr-1 pr-2 border-r border-border">
-          <div className="text-right leading-tight">
-            <div className="text-[12px] font-semibold text-foreground truncate max-w-[110px]">{userName || user?.email || "Usuario"}</div>
-            <div className="text-[9px] text-muted-foreground truncate max-w-[110px]">{sriConnected ? "Conectado SRI" : "Sin SRI"}</div>
-          </div>
-          <div className="w-8 h-8 bg-gradient-to-br from-brand-navy-light to-brand-sky rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-sm">
-            {userInitials}
-          </div>
+              {/* Lista de RUCs */}
+              <div className="py-1">
+                <div className="flex items-center justify-between px-4 py-1.5">
+                  <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Empresas / RUCs Vinculados
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setVincularOpen(true)}
+                    className="flex items-center gap-1 text-[10px] font-semibold text-brand-navy hover:text-brand-navy-light transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" strokeWidth={2.5} />
+                    Añadir
+                  </button>
+                </div>
+                {rucList.map((item) => (
+                  <button
+                    key={item.ruc}
+                    onClick={() => {
+                      setActiveRuc(item.ruc);
+                      setUserDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-2 text-left text-xs hover:bg-accent transition-colors cursor-pointer ${
+                      item.ruc === activeRuc ? "bg-accent font-semibold text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    <div className={`p-1 rounded-md ${item.ruc === activeRuc ? 'bg-brand-navy text-white' : 'bg-muted text-muted-foreground'}`}>
+                      <Building2 className="w-3 h-3" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`truncate ${item.ruc === activeRuc ? 'text-foreground' : ''}`}>{item.razonSocial}</p>
+                      <p className="text-[9px] text-muted-foreground/70 font-mono">{item.ruc}</p>
+                    </div>
+                    {item.ruc === activeRuc && (
+                      <Check className="w-3.5 h-3.5 text-brand-navy shrink-0" strokeWidth={2.5} />
+                    )}
+                  </button>
+                ))}
+                {rucList.length === 0 && (
+                  <div className="px-4 py-3 text-[11px] text-muted-foreground text-center">
+                    No hay empresas vinculadas
+                  </div>
+                )}
+              </div>
+
+              {/* Formulario de vincular */}
+              {vincularOpen && (
+                <div className="border-t border-border px-4 py-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-foreground">Vincular nueva empresa</span>
+                    <button
+                      type="button"
+                      onClick={() => { setVincularOpen(false); setVincularRuc(""); setVincularPassword(""); }}
+                      className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" strokeWidth={2} />
+                    </button>
+                  </div>
+                  <form onSubmit={handleVincular} className="flex flex-col gap-2">
+                    <input
+                      type="text"
+                      placeholder="RUC"
+                      value={vincularRuc}
+                      onChange={(e) => setVincularRuc(e.target.value.replace(/\D/g, "").slice(0, 13))}
+                      className="w-full h-8 px-2.5 text-xs rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-brand-navy transition-colors"
+                      required
+                    />
+                    <div className="relative">
+                      <input
+                        type="password"
+                        placeholder="Contraseña SRI"
+                        value={vincularPassword}
+                        onChange={(e) => setVincularPassword(e.target.value)}
+                        className="w-full h-8 px-2.5 pr-8 text-xs rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-brand-navy transition-colors"
+                        required
+                      />
+                      <KeyRound className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50 pointer-events-none" strokeWidth={1.5} />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={vinculando}
+                      className="w-full h-8 rounded-lg bg-brand-navy text-white text-[11px] font-semibold hover:bg-brand-navy-light disabled:opacity-50 transition-colors cursor-pointer flex items-center justify-center"
+                    >
+                      {vinculando ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        "Vincular"
+                      )}
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {/* Acciones */}
+              <div className="border-t border-border py-1">
+                <Link
+                  href="/configuracion"
+                  onClick={() => setUserDropdownOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                >
+                  <Settings className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  Configuración
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.removeItem('sri_access_token');
+                    window.location.href = '/login';
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  Cerrar sesión
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div ref={notifRef} className="relative">

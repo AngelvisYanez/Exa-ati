@@ -85,12 +85,12 @@ export default function NuevoAtsPage() {
     <>
       <title>Nuevo ATS - OFSERCONT IA</title>
       <Topbar title="Nuevo ATS" backLink={{ href: "/declaraciones/ats", label: "ATS" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full max-w-3xl mx-auto">
+      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Generar ATS</h1>
 
         <Card className="p-5 border-brand-gray-200">
           <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-1.5 max-w-xs">
+            <div className="flex flex-col gap-1.5 max-w-sm">
               <Label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">Período</Label>
               <input
                 type="month"

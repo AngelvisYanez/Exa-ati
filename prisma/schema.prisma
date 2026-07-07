@@ -78,12 +78,18 @@ model Emisor {
   contribuyenteRimpe           String?   @map("contribuyente_rimpe") @db.VarChar(2)
   tipoContribuyente            String?   @map("tipo_contribuyente") @db.VarChar(50)
   whatsappNumero               String?   @map("whatsapp_numero") @db.VarChar(20)
+  whatsappEstado               String    @default("DESCONECTADO") @map("whatsapp_estado") @db.VarChar(20)
+  notifDocumentos              Boolean   @default(true) @map("notif_documentos")
+  notifGeneracion              Boolean   @default(true) @map("notif_generacion")
+  whatsappNotifDocumentos      Boolean?  @default(true) @map("whatsapp_notif_documentos")
+  whatsappNotifGeneracion      Boolean?  @default(true) @map("whatsapp_notif_generacion")
   certificadoP12               Bytes?    @map("certificado_p12")
   certificadoPassword          String?   @map("certificado_password") @db.VarChar(500)
   passwordCertificado          String?   @map("password_certificado") @db.Text
   certificadoPasswordEncrypted String?   @map("certificado_password_encrypted") @db.Text
   certificadoNombre            String?   @map("certificado_nombre") @db.VarChar(500)
   certificadoValidoHasta       DateTime? @map("certificado_valido_hasta")
+  certValidoHasta              DateTime? @map("cert_valido_hasta")
   claveSriEncrypted            String?   @map("clave_sri_encrypted") @db.Text
   activo                       Boolean   @default(true)
   createdAt                    DateTime  @default(now()) @map("created_at")
@@ -244,6 +250,8 @@ model TenantSettings {
   geminiApiKeyEncrypted String?   @map("gemini_api_key_encrypted") @db.Text
   claudeApiKeyEncrypted String?   @map("claude_api_key_encrypted") @db.Text
   llmConfiguredAt       DateTime? @map("llm_configured_at")
+  lastSyncAt            DateTime? @map("last_sync_at")
+  lastSyncResult        String?   @map("last_sync_result") @db.Text
 
   // Ecuadorian localization settings
   regime                    String?  @default("REGIMEN_GENERAL") @map("regime") @db.VarChar(50)

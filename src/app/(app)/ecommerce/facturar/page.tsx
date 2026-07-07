@@ -212,7 +212,7 @@ export default function EcommerceFacturarPage() {
       <>
         <title>Facturar - eCommerce - EXA ATI</title>
         <Topbar title="Facturación eCommerce" />
-        <main className="p-6 max-w-3xl mx-auto text-center text-slate-500">
+        <main className="p-6 w-full text-center text-slate-500">
           Vincula tu RUC del SRI en Configuración para facturar.
         </main>
       </>
@@ -224,7 +224,7 @@ export default function EcommerceFacturarPage() {
       <>
         <title>Factura Emitida - EXA ATI</title>
         <Topbar title="Facturación eCommerce" />
-        <main className="p-6 max-w-lg mx-auto">
+        <main className="p-6 w-full">
           <Card className="p-6 text-center">
             <div className="flex flex-col items-center gap-3">
               <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -255,7 +255,7 @@ export default function EcommerceFacturarPage() {
     <>
       <title>Facturar - eCommerce - EXA ATI</title>
       <Topbar title="Nueva Factura eCommerce" />
-      <main className="p-4 max-w-5xl mx-auto flex flex-col gap-4">
+      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
         <Card className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold uppercase text-slate-500 tracking-wider flex items-center gap-2">
@@ -263,7 +263,7 @@ export default function EcommerceFacturarPage() {
             </h3>
             {emisores.length > 0 && (
               <select value={emisorId} onChange={e => setEmisorId(e.target.value)}
-                className="h-7 text-xs rounded-lg border border-input bg-transparent px-2 max-w-xs">
+                className="h-7 text-xs rounded-lg border border-input bg-transparent px-2 w-full max-w-sm">
                 <option value="">Seleccionar emisor...</option>
                 {emisores.map(em => (
                   <option key={em.id} value={em.id}>{em.ruc} — {em.razonSocial}</option>

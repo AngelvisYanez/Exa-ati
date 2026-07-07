@@ -75,7 +75,7 @@ export default function EcommerceDashboardPage() {
       <>
         <title>eCommerce - EXA ATI</title>
         <Topbar title="eCommerce" />
-        <main className="p-6 max-w-3xl mx-auto text-center text-slate-500">
+        <main className="p-6 w-full text-center text-slate-500">
           Vincula tu RUC del SRI en Configuración para usar el módulo eCommerce.
         </main>
       </>
@@ -86,7 +86,7 @@ export default function EcommerceDashboardPage() {
     <>
       <title>eCommerce - EXA ATI</title>
       <Topbar title="Facturación eCommerce" />
-      <main className="p-4 max-w-6xl mx-auto flex flex-col gap-4">
+      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="p-4 flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">

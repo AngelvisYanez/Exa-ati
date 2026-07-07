@@ -396,9 +396,9 @@ export async function downloadReceivedComprobantes(
               
               const insertQuery = `
                 INSERT INTO comprobantes (
-                  clave_acceso, tipo, emisor_ruc, serie, secuencial, estado, receptor_identificacion, tenant_id, fecha_emision, categoria
+                  id, clave_acceso, tipo, emisor_ruc, serie, secuencial, estado, receptor_identificacion, tenant_id, fecha_emision, categoria
                 ) VALUES (
-                  $1, $2, $3, $4, $5, 'PENDIENTE', $6, $7, $8, 'Otros'
+                  gen_random_uuid(), $1, $2, $3, $4, $5, 'PENDIENTE', $6, $7, $8, 'Otros'
                 )
               `;
               await db.query(insertQuery, [
@@ -561,10 +561,10 @@ export async function downloadReceivedComprobantes(
           if (!recordId) {
             const insertQuery = `
               INSERT INTO comprobantes (
-                clave_acceso, tipo, emisor_ruc, emisor_razon_social,
+                id, clave_acceso, tipo, emisor_ruc, emisor_razon_social,
                 serie, secuencial, estado, importe_total, receptor_identificacion, tenant_id, fecha_emision, categoria
               ) VALUES (
-                $1, $2, $3, $4, $5, $6, 'PENDIENTE', $7, $8, $9, $10, $11
+                gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'PENDIENTE', $7, $8, $9, $10, $11
               )
             `;
             const serie = extractSerie(claveAcceso);
@@ -707,8 +707,8 @@ export async function downloadReceivedComprobantes(
                     );
                     if (!relExists) {
                       await db.query(
-                        `INSERT INTO comprobantes (clave_acceso, tipo, emisor_ruc, serie, secuencial, estado, receptor_identificacion, tenant_id, fecha_emision, categoria)
-                         VALUES ($1, $2, $3, $4, $5, 'PENDIENTE', $6, $7, $8, 'Otros')`,
+                        `INSERT INTO comprobantes (id, clave_acceso, tipo, emisor_ruc, serie, secuencial, estado, receptor_identificacion, tenant_id, fecha_emision, categoria)
+                         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, 'PENDIENTE', $6, $7, $8, 'Otros')`,
                         [relatedClave, mapSriTypeCode(typeCode), extractRuc(relatedClave), extractSerie(relatedClave), extractSecuencial(relatedClave), job.ruc, tenantId, extractFechaEmision(relatedClave)]
                       );
                     }

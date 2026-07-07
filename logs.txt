@@ -1,0 +1,43 @@
+========================================
+  OFSERCONT IA — Entrypoint
+========================================
+[ENTRYPOINT] Verificando PostgreSQL...
+[ENTRYPOINT] PostgreSQL está listo.
+[ENTRYPOINT] Ejecutando prisma generate...
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+
+✔ Generated Prisma Client (v7.8.0) to ./node_modules/@prisma/client in 321ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+
+npm notice
+npm notice New minor version of npm available! 11.13.0 -> 11.18.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.18.0
+npm notice To update run: npm install -g npm@11.18.0
+npm notice
+[ENTRYPOINT] Ejecutando prisma db push...
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": PostgreSQL database "exa_ati", schema "public" at "db:5432"
+
+PostgreSQL database exa_ati created at db:5432
+
+🚀  Your database is now in sync with your Prisma schema. Done in 515ms
+
+[ENTRYPOINT] Ejecutando seed...
+Loaded Prisma config from prisma.config.ts.
+
+Running seed command `tsx prisma/seed.ts` ...
+[SEED] Tenant por defecto creado: c4dd1af8-ed1c-445b-9268-7ac293bab28c
+[SEED] Seed completed successfully
+
+🌱  The seed command has been executed.
+[ENTRYPOINT] Iniciando aplicación...
+▲ Next.js 16.2.9
+- Local:         http://localhost:3001
+- Network:       http://172.19.0.3:3001
+✓ Ready in 135ms

@@ -188,6 +188,8 @@ export async function POST(req: Request) {
         status: 'PENDING',
         action_type: 'DOWNLOAD_RECEIVED',
         tenant_id: tenantId,
+        updated_at: new Date(),
+        created_at: new Date(),
       };
 
       const insertedJob = await db.insert('scraping_jobs', jobData, 'id');

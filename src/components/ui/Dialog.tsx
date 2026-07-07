@@ -96,7 +96,7 @@ export default function Dialog({
     >
       <div
         ref={dialogRef}
-        className={`bg-card border border-border rounded-2xl shadow-2xl w-full ${sizeClasses[size]} flex flex-col gap-4 text-left max-h-[85vh] overflow-y-auto animate-scale-in`}
+        className={`bg-card border border-border rounded-2xl shadow-2xl w-full ${sizeClasses[size]} flex flex-col gap-4 text-left animate-scale-in`}
         onClick={(e) => e.stopPropagation()}
       >
         {(title || showClose) && (

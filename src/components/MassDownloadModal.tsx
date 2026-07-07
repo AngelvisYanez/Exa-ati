@@ -1,33 +1,35 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import Dialog from '@/components/ui/Dialog';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   DownloadCloud, 
   RefreshCw, 
   User, 
   KeyRound, 
   Calendar, 
-  Eye, 
-  EyeOff,
+
   Loader2,
   CheckCircle2,
   XCircle,
   Clock,
   Inbox,
   Ban,
-  ArrowRight,
   History,
-  Settings,
-  ChevronDown,
-  ChevronUp,
-  Trash2
+  Trash2,
+  ArrowUpDown,
+  FileText,
+  Send,
+  CornerDownRight,
+
+  Terminal,
+  X,
 } from 'lucide-react';
 
 interface MassDownloadModalProps {
@@ -37,49 +39,36 @@ interface MassDownloadModalProps {
 
 type JobStatus = 'COMPLETED' | 'ERROR' | 'PROCESSING' | 'CANCELLED' | 'PENDING';
 
-const statusConfig: Record<JobStatus, { label: string; icon: typeof Loader2; className: string }> = {
-  COMPLETED: { label: 'Completado', icon: CheckCircle2, className: 'bg-success-pale text-success border-success/30' },
-  ERROR: { label: 'Error', icon: XCircle, className: 'bg-destructive/15 text-destructive border-destructive/30' },
-  PROCESSING: { label: 'Procesando', icon: Loader2, className: 'bg-amber-50 text-amber-700 border-amber-300' },
-  CANCELLED: { label: 'Cancelado', icon: Ban, className: 'bg-brand-gray-100 text-brand-gray-600 border-brand-gray-300' },
-  PENDING: { label: 'Pendiente', icon: Clock, className: 'bg-brand-gray-100 text-brand-gray-700 border-brand-gray-300' },
+const statusConfig: Record<JobStatus, { label: string; icon: typeof Loader2; color: string; bg: string }> = {
+  COMPLETED: { label: 'Completado', icon: CheckCircle2, color: 'text-success', bg: 'bg-success-pale border-success-light' },
+  ERROR: { label: 'Error', icon: XCircle, color: 'text-brand-red', bg: 'bg-brand-red-pale border-brand-red-light' },
+  PROCESSING: { label: 'Procesando', icon: Loader2, color: 'text-brand-amber', bg: 'bg-brand-amber-pale border-brand-amber' },
+  CANCELLED: { label: 'Cancelado', icon: Ban, color: 'text-brand-gray-400', bg: 'bg-brand-gray-50 border-brand-gray-200' },
+  PENDING: { label: 'Pendiente', icon: Clock, color: 'text-brand-navy', bg: 'bg-brand-red-pale border-brand-red-light' },
 };
+
+type Direction = 'recibidos' | 'emitidos' | 'ambos';
+
+const directionMeta: Record<Direction, { icon: typeof FileText; label: string; desc: string }> = {
+  recibidos: { icon: CornerDownRight, label: 'Recibidos', desc: 'Comprobantes que te emitieron' },
+  emitidos: { icon: Send, label: 'Emitidos', desc: 'Comprobantes que emitiste' },
+  ambos: { icon: ArrowUpDown, label: 'Ambos', desc: 'Recibidos y emitidos secuencialmente' },
+};
+
+const tipoOptions = [
+  { value: '1', label: 'Factura' },
+  { value: '2', label: 'Liquidación de compra' },
+  { value: '3', label: 'Nota de Crédito' },
+  { value: '4', label: 'Nota de Débito' },
+  { value: '6', label: 'Comprobante de Retención' },
+];
 
 export default function MassDownloadModal({ open, onClose }: MassDownloadModalProps) {
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showDevOptions, setShowDevOptions] = useState(false);
-  const [isDevMode, setIsDevMode] = useState(false);
+  const [direction, setDirection] = useState<Direction>('ambos');
+  const logEndRef = useRef<HTMLDivElement>(null);
 
-  const [devOptions, setDevOptions] = useState({
-    connection_mode: 'http' as 'cdp' | 'new_browser' | 'headless_separate' | 'playwright' | 'http' | 'cloudflare',
-    captcha_strategy: 'auto' as 'auto' | 'anticaptcha' | 'buster' | 'manual',
-    debug_screenshots: false,
-    verbose_logging: false,
-    dom_dump_on_error: true,
-    use_listado_txt: true,
-    parallel_days: 1,
-    soap_sync_limit: 30,
-    http_retry_count: 3,
-    use_proxy: true,
-    cf_token: '',
-    cf_account_id: '',
-    cf_worker_url: 'https://scrapper-cloudflare.angelvisyanez7.workers.dev',
-  });
-
-  useEffect(() => {
-    setIsDevMode(
-      process.env.NODE_ENV === 'development' ||
-      (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('dev') === 'true')
-    );
-  }, []);
-
-  const isHttpMode = devOptions.connection_mode === 'http';
-  const isPlaywrightMode = devOptions.connection_mode === 'playwright';
-  const isPuppeteerMode = devOptions.connection_mode === 'cdp' || devOptions.connection_mode === 'new_browser' || devOptions.connection_mode === 'headless_separate';
-  const isCloudflareMode = devOptions.connection_mode === 'cloudflare';
-  
   const [formData, setFormData] = useState({
     ruc: '',
     clave_sri: '',
@@ -89,7 +78,7 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
   });
 
   const [dateMode, setDateMode] = useState<'range' | 'month'>('range');
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   useEffect(() => {
@@ -97,12 +86,10 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
       const yearStr = String(selectedYear);
       const monthStr = String(selectedMonth).padStart(2, '0');
       const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
-      const lastDayStr = String(lastDay).padStart(2, '0');
-      
       setFormData(prev => ({
         ...prev,
         fecha_desde: `${yearStr}-${monthStr}-01`,
-        fecha_hasta: `${yearStr}-${monthStr}-${lastDayStr}`
+        fecha_hasta: `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`
       }));
     }
   }, [dateMode, selectedMonth, selectedYear]);
@@ -112,14 +99,23 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
   const [logs, setLogs] = useState<{ id: number; level: string; message: string; created_at: string }[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState<string | null>(null);
-  const { hasSriLinked } = useAuth();
+  const [emisores, setEmisores] = useState<{ ruc: string; razonSocial: string; tieneCredenciales: boolean }[]>([]);
+  const [selectedRuc, setSelectedRuc] = useState('');
+  const [hasCredentials, setHasCredentials] = useState(false);
+  const { hasSriLinked, activeRuc } = useAuth();
 
   useEffect(() => {
     if (open && hasSriLinked) {
       import('@/lib/sriClient').then(({ sriClient }) => {
-        sriClient.getEmisor().then((res) => {
-          if (res.success && res.emisor?.ruc) {
-            setFormData(prev => ({ ...prev, ruc: res.emisor.ruc }));
+        sriClient.getEmisores().then((res: any) => {
+          if (res.success && res.emisores?.length) {
+            setEmisores(res.emisores);
+            const preferred = activeRuc && res.emisores.some((e: any) => e.ruc === activeRuc)
+              ? activeRuc : res.emisores[0].ruc;
+            setSelectedRuc(preferred);
+            setFormData(prev => ({ ...prev, ruc: preferred }));
+            const emisor = res.emisores.find((e: any) => e.ruc === preferred);
+            setHasCredentials(Boolean(emisor?.tieneCredenciales));
           }
         }).catch(() => {});
       });
@@ -138,7 +134,6 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
       if (data.success && data.jobs) setJobs(data.jobs);
     } catch (e) {
       console.error(e);
-      if (manual) toast.error('Error al actualizar los trabajos');
     } finally {
       if (manual) setTimeout(() => setIsRefreshing(false), 500);
     }
@@ -159,14 +154,14 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
       } else {
         setLogsError(data.error || 'Error al cargar logs');
       }
-    } catch (e) {
+    } catch {
       setLogsError('Error de red al cargar logs');
     }
     finally { setLogsLoading(false); }
   }, []);
 
   useEffect(() => {
-    if (selectedJob && selectedJob.status === 'PROCESSING') {
+    if (selectedJob?.status === 'PROCESSING') {
       const interval = setInterval(() => fetchLogs(selectedJob), 3000);
       return () => clearInterval(interval);
     }
@@ -179,6 +174,10 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
       return () => clearInterval(interval);
     }
   }, [fetchJobs, open]);
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
 
   const cancelJob = async (jobId: string) => {
     try {
@@ -199,7 +198,7 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
         toast.error(data.error || 'Error al cancelar');
       }
     } catch {
-      toast.error('Error de red al cancelar el trabajo');
+      toast.error('Error de red');
     }
   };
 
@@ -224,12 +223,12 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
         toast.error(data.error || 'Error al eliminar');
       }
     } catch {
-      toast.error('Error de red al eliminar la tarea');
+      toast.error('Error de red');
     }
   };
 
   const deleteAllJobs = async () => {
-    if (!confirm('¿Eliminar todo el historial de tareas? Esta acción no se puede deshacer.')) return;
+    if (!confirm('¿Eliminar todo el historial?')) return;
     try {
       const token = localStorage.getItem('sri_access_token');
       const res = await fetch('/api/sri/scraping', {
@@ -247,40 +246,42 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
         setLogs([]);
         fetchJobs(true);
       } else {
-        toast.error(data.error || 'Error al eliminar historial');
+        toast.error(data.error || 'Error al eliminar');
       }
     } catch {
-      toast.error('Error de red al eliminar el historial');
+      toast.error('Error de red');
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const getActionType = (dir: Direction): string => {
+    if (dir === 'recibidos') return 'DOWNLOAD_RECEIVED';
+    if (dir === 'emitidos') return 'DOWNLOAD_EMITTED';
+    return 'DOWNLOAD_BOTH';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.fecha_desde > formData.fecha_hasta) {
-      toast.error('La fecha "Desde" no puede ser mayor que la fecha "Hasta".');
+      toast.error('La fecha "Desde" no puede ser mayor que "Hasta".');
       return;
     }
-    
     setLoading(true);
     try {
       const token = localStorage.getItem('sri_access_token');
-      const payload: Record<string, unknown> = { ...formData };
-      if (isDevMode) {
-        payload.options = devOptions;
-      }
-
-      // Always include options for cloudflare mode (even in production)
-      if (devOptions.connection_mode === 'cloudflare') {
-        payload.options = {
-          connection_mode: 'cloudflare',
-          cf_account_id: devOptions.cf_account_id,
-          cf_token: devOptions.cf_token,
-          cf_worker_url: devOptions.cf_worker_url,
-        };
+      const payload: Record<string, unknown> = {
+        ruc: formData.ruc,
+        fecha_desde: formData.fecha_desde,
+        fecha_hasta: formData.fecha_hasta,
+        tipo_comprobante: formData.tipo_comprobante,
+        action_type: getActionType(direction),
+        options: { connection_mode: 'playwright' },
+      };
+      if (!hasCredentials && formData.clave_sri) {
+        payload.clave_sri = formData.clave_sri;
       }
 
       const response = await fetch('/api/sri/scraping', {
@@ -295,716 +296,500 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
       const data = await response.json();
 
       if (response.ok && data.jobId) {
-        toast.success(data.message || 'Trabajo de descarga iniciado');
+        toast.success('Descarga encolada correctamente');
         fetch('/api/sri/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ jobId: data.jobId }),
-        }).catch(err => console.error('[Sync] Error:', err));
+        }).catch(err => console.error('[Sync]', err));
       } else {
-        toast.error(data.error || 'Error al iniciar la descarga');
+        toast.error(data.error || 'Error al iniciar');
       }
     } catch {
-      toast.error('Error de red al intentar comunicarse con el servidor');
+      toast.error('Error de red al comunicarse con el servidor');
     } finally {
       setLoading(false);
       fetchJobs(true);
     }
   };
 
-  const getTipoLabel = (tipo: string) => {
-    switch (tipo) {
-      case '1': return 'Factura';
-      case '2': return 'Liquidación de compra';
-      case '3': return 'Nota de Crédito';
-      case '4': return 'Nota de Débito';
-      case '6': return 'Retención';
-      default: return tipo;
-    }
-  };
-
   return (
-    <Dialog open={open} onClose={onClose} size="2xl" showClose>
-      <div className="flex flex-col gap-5">
-        {/* Header */}
-        <div className="flex items-center gap-3 pb-2 border-b border-border">
-          <div className="p-2 rounded-lg bg-brand-navy text-white shadow-sm">
-            <DownloadCloud className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-foreground">Descarga Masiva SRI</h2>
-            <p className="text-xs text-muted-foreground">Sincroniza comprobantes desde el portal SRI</p>
+    <Dialog open={open} onClose={onClose} size="2xl" showClose={false}>
+      <div className="flex flex-col">
+        {/* ─── Header ─── */}
+        <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-brand-navy to-brand-navy-mid px-4 py-3 mb-5">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAyNHYySDI0di0yaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-40" />
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/20">
+                <DownloadCloud className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-white leading-tight">Descarga Masiva SRI</h2>
+                <p className="text-[10px] text-white/60">Sincroniza comprobantes desde el portal SRI</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-7 w-7 flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white transition-all cursor-pointer"
+              aria-label="Cerrar"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          {/* Form */}
-          <div className="lg:col-span-5 space-y-4 order-2 lg:order-1">
-            <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
-              <div className="px-4 py-3 bg-muted/50 border-b border-border">
-                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <KeyRound className="w-4 h-4 text-brand-navy" />
-                  Credenciales SRI
-                </h3>
-              </div>
-              
-              <form onSubmit={handleSubmit} className="p-4 space-y-3.5">
-                <div className="space-y-1">
-                  <Label htmlFor="ruc_modal" className="text-xs font-medium text-muted-foreground">RUC</Label>
-                  <div className="relative">
-                    <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    <Input id="ruc_modal" name="ruc" placeholder="1790000000001" value={formData.ruc} onChange={handleChange} autoComplete="off" className="pl-8 h-9 text-sm" required />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="clave_sri_modal" className="text-xs font-medium text-muted-foreground">Clave de acceso</Label>
-                  <div className="relative">
-                    <KeyRound className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    <Input id="clave_sri_modal" name="clave_sri" type={showPassword ? "text" : "password"} placeholder="••••••••" value={formData.clave_sri} onChange={handleChange} autoComplete="off" className="pl-8 pr-9 h-9 text-sm" required />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer" tabIndex={-1}>
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="tipo_comprobante_modal" className="text-xs font-medium text-muted-foreground">Tipo de comprobante</Label>
-                  <select id="tipo_comprobante_modal" name="tipo_comprobante" value={formData.tipo_comprobante} onChange={handleChange} className="w-full h-9 px-3 rounded-lg border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" required>
-                    <option value="1">Factura</option>
-                    <option value="2">Liquidación de compra</option>
-                    <option value="3">Nota de Crédito</option>
-                    <option value="4">Nota de Débito</option>
-                    <option value="6">Comprobante de Retención</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-muted-foreground">Período de consulta</Label>
-                  <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg">
-                    <button
-                      type="button"
-                      onClick={() => setDateMode('range')}
-                      className={`py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
-                        dateMode === 'range' 
-                          ? 'bg-background text-foreground shadow-xs font-semibold' 
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      Rango de fechas
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDateMode('month')}
-                      className={`py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
-                        dateMode === 'month' 
-                          ? 'bg-background text-foreground shadow-xs font-semibold' 
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      Mes completo (Todos)
-                    </button>
-                  </div>
-                </div>
-
-                {dateMode === 'month' ? (
-                  <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
-                    <div className="space-y-1">
-                      <Label htmlFor="mes_select" className="text-xs font-medium text-muted-foreground">Mes (Todos)</Label>
-                      <select
-                        id="mes_select"
-                        value={selectedMonth}
-                        onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                        className="w-full h-9 px-3 rounded-lg border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        <option value="1">Enero</option>
-                        <option value="2">Febrero</option>
-                        <option value="3">Marzo</option>
-                        <option value="4">Abril</option>
-                        <option value="5">Mayo</option>
-                        <option value="6">Junio</option>
-                        <option value="7">Julio</option>
-                        <option value="8">Agosto</option>
-                        <option value="9">Septiembre</option>
-                        <option value="10">Octubre</option>
-                        <option value="11">Noviembre</option>
-                        <option value="12">Diciembre</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="anio_select" className="text-xs font-medium text-muted-foreground">Año</Label>
-                      <select
-                        id="anio_select"
-                        value={selectedYear}
-                        onChange={(e) => setSelectedYear(Number(e.target.value))}
-                        className="w-full h-9 px-3 rounded-lg border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        {Array.from({ length: 5 }, (_, i) => {
-                          const year = new Date().getFullYear() - i;
-                          return (
-                            <option key={year} value={year}>
-                              {year}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-brand-gray-200">
+          {/* ─── Form ─── */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="lg:col-span-5 pr-0 lg:pr-5 space-y-4"
+          >
+            <form onSubmit={handleSubmit} className="space-y-3.5">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold text-brand-gray-600">RUC</Label>
+                {emisores.length > 1 ? (
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {emisores.map((e) => {
+                      const isActive = selectedRuc === e.ruc;
+                      return (
+                        <button
+                          key={e.ruc}
+                          type="button"
+                          onClick={() => {
+                            setSelectedRuc(e.ruc);
+                            setFormData(prev => ({ ...prev, ruc: e.ruc }));
+                            setHasCredentials(Boolean(e.tieneCredenciales));
+                          }}
+                          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border text-left transition-all duration-150 cursor-pointer ${
+                            isActive
+                              ? 'border-brand-navy bg-brand-red-pale shadow-xs'
+                              : 'border-brand-gray-200 bg-white hover:border-brand-gray-300'
+                          }`}
+                        >
+                          <div className={`p-1 rounded-md transition-colors ${
+                            isActive ? 'bg-brand-navy text-white' : 'bg-brand-gray-100 text-brand-gray-400'
+                          }`}>
+                            <User className="h-3.5 w-3.5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className={`text-sm font-medium truncate ${
+                              isActive ? 'text-brand-navy' : 'text-brand-gray-700'
+                            }`}>
+                              {e.ruc}
+                            </div>
+                            {e.razonSocial && (
+                              <div className="text-[10px] text-brand-gray-400 truncate">{e.razonSocial}</div>
+                            )}
+                          </div>
+                          {e.tieneCredenciales && (
+                            <span className={`shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${
+                              isActive
+                                ? 'bg-success-pale text-success border-success-light'
+                                : 'bg-brand-gray-50 text-brand-gray-400 border-brand-gray-200'
+                            }`}>
+                              {isActive ? 'Seleccionado' : 'Conectado'}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
-                    <div className="space-y-1">
-                      <Label htmlFor="fecha_desde_modal" className="text-xs font-medium text-muted-foreground">Desde</Label>
-                      <div className="relative">
-                        <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                        <Input id="fecha_desde_modal" name="fecha_desde" type="date" value={formData.fecha_desde} onChange={handleChange} className="pl-8 h-9 text-xs" required />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="fecha_hasta_modal" className="text-xs font-medium text-muted-foreground">Hasta</Label>
-                      <div className="relative">
-                        <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                        <Input id="fecha_hasta_modal" name="fecha_hasta" type="date" value={formData.fecha_hasta} onChange={handleChange} min={formData.fecha_desde} className="pl-8 h-9 text-xs" required />
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2.5 px-3 h-9 rounded-lg border border-brand-gray-200 bg-brand-gray-50 text-sm text-brand-gray-700 font-medium">
+                    <User className="h-4 w-4 text-brand-gray-400 shrink-0" />
+                    {formData.ruc || 'No hay RUC disponible'}
                   </div>
                 )}
+              </div>
 
-                {/* ─── Selector rápido de scraper ─── */}
-                <div className="grid grid-cols-4 gap-2">
-                  {(['http', 'cdp', 'playwright', 'cloudflare'] as const).map((mode) => (
+              {hasCredentials ? (
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-semibold text-brand-gray-600">Clave de acceso</Label>
+                  <div className="flex items-center gap-2.5 px-3 h-9 rounded-lg border border-success-light bg-success-pale text-sm text-success font-medium">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    Usando credenciales guardadas
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label htmlFor="clave_sri_modal" className="text-[11px] font-semibold text-brand-gray-600">Clave de acceso</Label>
+                  <div className="relative group">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray-400 group-focus-within:text-brand-navy transition-colors duration-200">
+                      <KeyRound className="h-4 w-4" />
+                    </div>
+                    <Input
+                      id="clave_sri_modal"
+                      name="clave_sri"
+                      type="password"
+                      placeholder="Ingrese la clave"
+                      value={formData.clave_sri}
+                      onChange={handleChange}
+                      autoComplete="off"
+                      className="pl-9 h-9 text-sm border-brand-gray-200 bg-brand-gray-50/50 focus:bg-white focus:border-brand-navy transition-all duration-200"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label htmlFor="tipo_comprobante_modal" className="text-[11px] font-semibold text-brand-gray-600">Tipo de comprobante</Label>
+                <select
+                  id="tipo_comprobante_modal"
+                  name="tipo_comprobante"
+                  value={formData.tipo_comprobante}
+                  onChange={handleChange}
+                  className="w-full h-9 px-3 rounded-lg border border-brand-gray-200 bg-brand-gray-50/50 text-sm focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/15 outline-none transition-all duration-200"
+                  required
+                >
+                  {tipoOptions.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold text-brand-gray-600">Período</Label>
+                <div className="flex gap-1.5 p-1 rounded-lg bg-brand-gray-100">
+                  {(['range', 'month'] as const).map(mode => (
                     <button
                       key={mode}
                       type="button"
-                      onClick={() => (isDevMode || mode === 'http' || mode === 'cloudflare') && setDevOptions(prev => ({ ...prev, connection_mode: mode }))}
-                      className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all cursor-pointer ${
-                        devOptions.connection_mode === mode
-                          ? 'border-brand-navy bg-brand-navy/5 shadow-xs'
-                          : 'border-border bg-card hover:border-muted-foreground/30'
-                      } ${!isDevMode && mode !== 'http' && mode !== 'cloudflare' ? 'opacity-60' : ''}`}
-                      title={
-                        !isDevMode && mode !== 'http' && mode !== 'cloudflare' ? 'Solo HTTP y Cloudflare en producción' :
-                        mode === 'cloudflare' ? 'Cloudflare Browser Run — scraping remoto serverless' :
-                        mode === 'playwright' ? 'Playwright — scraper robusto con auto-wait' : undefined
-                      }
+                      onClick={() => setDateMode(mode)}
+                      className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all duration-200 cursor-pointer ${
+                        dateMode === mode
+                          ? 'bg-white text-brand-gray-800 shadow-xs'
+                          : 'text-brand-gray-400 hover:text-brand-gray-600'
+                      }`}
                     >
-                      <div className={`p-1.5 rounded-lg ${devOptions.connection_mode === mode ? 'bg-brand-navy text-white' : 'bg-muted text-muted-foreground'}`}>
-                        {mode === 'http' ? (
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                          </svg>
-                        ) : mode === 'cloudflare' ? (
-                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M11.32 2.617a.68.68 0 01.633-.424h6.16a.68.68 0 01.633.424l2.567 6.667a.68.68 0 01-.633.936h-2.843l2.627 6.81a.68.68 0 01-.633.936H8.47a.68.68 0 01-.633-.424L5.34 10.676a.68.68 0 01.633-.936l8.403.001-2.446-6.124h-.607z"/>
-                          </svg>
-                        ) : mode === 'playwright' ? (
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        ) : (
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className={`text-[11px] font-semibold leading-tight text-center ${devOptions.connection_mode === mode ? 'text-brand-navy' : 'text-muted-foreground'}`}>
-                        {mode === 'http' ? 'HTTP directo' : mode === 'cloudflare' ? 'Cloudflare' : mode === 'playwright' ? 'Playwright' : 'Puppeteer'}
-                      </span>
-                      <span className={`text-[9px] leading-tight text-center ${devOptions.connection_mode === mode ? 'text-brand-navy/70' : 'text-muted-foreground/60'}`}>
-                        {mode === 'http' ? 'Sin navegador' : mode === 'cloudflare' ? 'Serverless remoto' : mode === 'playwright' ? 'Navegador nuevo' : 'Chrome real'}
-                      </span>
-                      {devOptions.connection_mode === mode && (
-                        <div className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-brand-navy rounded-full" />
-                      )}
-                      {mode === 'http' && (
-                        <span className="text-[8px] font-medium text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full mt-0.5">recomendado</span>
-                      )}
-                      {mode === 'cloudflare' && (
-                        <span className="text-[8px] font-medium text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded-full mt-0.5">beta</span>
-                      )}
+                      {mode === 'range' ? 'Rango' : 'Mes completo'}
                     </button>
                   ))}
                 </div>
-
-                {/* ─── Proxy toggle ─── */}
-                {!isCloudflareMode && (
-                  <label className="flex items-center gap-2 py-1.5 px-1 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={devOptions.use_proxy}
-                      onChange={() => setDevOptions(prev => ({ ...prev, use_proxy: !prev.use_proxy }))}
-                      className="accent-brand-navy"
-                    />
-                    <span className="text-xs text-foreground">
-                      Usar proxy{' '}
-                      <span className="text-muted-foreground">— asigna proxy del pool si está disponible</span>
-                    </span>
-                  </label>
-                )}
-
-                {/* ─── Opciones específicas por scraper ─── */}
-                <div className="border border-dashed border-amber-300 rounded-lg overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setShowDevOptions(!showDevOptions)}
-                    className="w-full flex items-center justify-between px-3 py-2 bg-amber-50 hover:bg-amber-100 transition-colors cursor-pointer"
-                  >
-                    <span className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
-                      <Settings className="w-3.5 h-3.5" />
-                      Configuración avanzada
-                    </span>
-                    {showDevOptions ? <ChevronUp className="w-3.5 h-3.5 text-amber-700" /> : <ChevronDown className="w-3.5 h-3.5 text-amber-700" />}
-                  </button>
-
-                  {showDevOptions && (
-                    <div className="p-3 space-y-3 bg-amber-50/50">
-
-                      {/* HTTP-specific options */}
-                      {isHttpMode && (
-                        <>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Optimización HTTP</Label>
-
-                            <label className="flex items-center gap-2 py-0.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={devOptions.use_listado_txt}
-                                onChange={() => setDevOptions(prev => ({ ...prev, use_listado_txt: !prev.use_listado_txt }))}
-                                className="accent-amber-600"
-                              />
-                              <span className="text-[11px] text-amber-900">
-                                Usar listado TXT (más rápido){' '}
-                                <span className="text-amber-600/70">— descarga lista de claves en vez de página HTML</span>
-                              </span>
-                            </label>
-
-                            <div className="flex items-center gap-2 py-0.5">
-                              <span className="text-[11px] text-amber-900 min-w-[90px]">Días en paralelo:</span>
-                              <div className="flex items-center gap-1">
-                                {[1, 2, 3, 5].map(n => (
-                                  <button
-                                    key={n}
-                                    type="button"
-                                    onClick={() => setDevOptions(prev => ({ ...prev, parallel_days: n }))}
-                                    className={`px-2 py-0.5 text-[10px] font-medium rounded border cursor-pointer transition-colors ${
-                                      devOptions.parallel_days === n
-                                        ? 'bg-amber-200 text-amber-900 border-amber-400'
-                                        : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-100'
-                                    }`}
-                                  >
-                                    {n}
-                                  </button>
-                                ))}
-                                <span className="text-[9px] text-amber-600/70 ml-1">(max días simultáneos)</span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 py-0.5">
-                              <span className="text-[11px] text-amber-900 min-w-[90px]">Reintentos HTTP:</span>
-                              <div className="flex items-center gap-1">
-                                {[1, 2, 3, 5].map(n => (
-                                  <button
-                                    key={n}
-                                    type="button"
-                                    onClick={() => setDevOptions(prev => ({ ...prev, http_retry_count: n }))}
-                                    className={`px-2 py-0.5 text-[10px] font-medium rounded border cursor-pointer transition-colors ${
-                                      devOptions.http_retry_count === n
-                                        ? 'bg-amber-200 text-amber-900 border-amber-400'
-                                        : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-100'
-                                    }`}
-                                  >
-                                    {n}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-
-                        </>
-                      )}
-
-                      {/* Browser-specific options (Puppeteer) */}
-                      {isPuppeteerMode && (
-                        <>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Modo de conexión Puppeteer</Label>
-                            {(['cdp', 'new_browser', 'headless_separate'] as const).map((mode) => (
-                              <label key={mode} className="flex items-center gap-2 py-0.5 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="connection_mode_browser"
-                                  checked={devOptions.connection_mode === mode}
-                                  onChange={() => setDevOptions(prev => ({ ...prev, connection_mode: mode }))}
-                                  className="accent-amber-600"
-                                />
-                                <span className="text-[11px] text-amber-900">
-                                  {mode === 'cdp' && 'CDP (misma ventana Chrome, prof. ./browser_session/)'}
-                                  {mode === 'new_browser' && 'Ventana separada (perfil nuevo)'}
-                                  {mode === 'headless_separate' && 'Headless aislado (./browser_session/)'}
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-
-                          <span className="block border-t border-amber-200" />
-                        </>
-                      )}
-
-                      {/* Playwright-specific options */}
-                      {isPlaywrightMode && (
-                        <>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Playwright</Label>
-                            <div className="text-[11px] text-amber-900 space-y-1 py-0.5">
-                              <p>Usa Chromium vía Playwright con auto-wait nativo, 3 estrategias de click, y diagnóstico automático.</p>
-                              <p className="text-amber-700/70">No requiere configuración adicional — inicia automáticamente.</p>
-                            </div>
-                          </div>
-
-                          <span className="block border-t border-amber-200" />
-                        </>
-                      )}
-
-                      {/* Cloudflare-specific options */}
-                      {isCloudflareMode && (
-                        <>
-                          <div className="space-y-2">
-                            <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Cloudflare Browser Run</Label>
-                            <p className="text-[11px] text-amber-900">Usa Puppeteer vía Cloudflare Browser Run — scraping remoto sin infraestructura local.</p>
-                            <div className="space-y-1">
-                              <Label htmlFor="cf_account_id" className="text-[10px] font-medium text-amber-800">Account ID</Label>
-                              <input
-                                id="cf_account_id"
-                                type="text"
-                                placeholder="a9033da9529c1df08cf8073f256dac69"
-                                value={devOptions.cf_account_id}
-                                onChange={(e) => setDevOptions(prev => ({ ...prev, cf_account_id: e.target.value }))}
-                                className="w-full h-8 px-2.5 rounded-lg border border-input bg-background text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label htmlFor="cf_token" className="text-[10px] font-medium text-amber-800">API Token</Label>
-                              <input
-                                id="cf_token"
-                                type="password"
-                                placeholder="cfat_..."
-                                value={devOptions.cf_token}
-                                onChange={(e) => setDevOptions(prev => ({ ...prev, cf_token: e.target.value }))}
-                                className="w-full h-8 px-2.5 rounded-lg border border-input bg-background text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label htmlFor="cf_worker_url" className="text-[10px] font-medium text-amber-800">Worker URL</Label>
-                              <input
-                                id="cf_worker_url"
-                                type="text"
-                                value={devOptions.cf_worker_url}
-                                onChange={(e) => setDevOptions(prev => ({ ...prev, cf_worker_url: e.target.value }))}
-                                className="w-full h-8 px-2.5 rounded-lg border border-input bg-background text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              />
-                            </div>
-                          </div>
-
-                          <span className="block border-t border-amber-200" />
-                        </>
-                      )}
-
-                      {/* Cloudflare-specific options */}
-                      {isCloudflareMode && (
-                        <>
-                          <div className="space-y-2">
-                            <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Cloudflare Browser Run</Label>
-
-                            <div className="space-y-1">
-                              <Label htmlFor="cf_token" className="text-[11px] text-amber-900">API Token</Label>
-                              <input
-                                id="cf_token"
-                                type="password"
-                                placeholder="cfat_..."
-                                value={devOptions.cf_token}
-                                onChange={(e) => setDevOptions(prev => ({ ...prev, cf_token: e.target.value }))}
-                                className="w-full h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <Label htmlFor="cf_account_id" className="text-[11px] text-amber-900">Account ID</Label>
-                              <input
-                                id="cf_account_id"
-                                type="text"
-                                placeholder="a9033da9529c1df08cf8073f256dac69"
-                                value={devOptions.cf_account_id}
-                                onChange={(e) => setDevOptions(prev => ({ ...prev, cf_account_id: e.target.value }))}
-                                className="w-full h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-                              />
-                            </div>
-
-                            <div className="text-[10px] text-amber-700/80 bg-amber-100/50 p-2 rounded-md mt-1">
-                              Worker URL: <code className="text-[9px] font-mono">{devOptions.cf_worker_url}</code>
-                            </div>
-                          </div>
-
-                          <span className="block border-t border-amber-200" />
-                        </>
-                      )}
-
-                      {/* CAPTCHA (common to both) */}
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Estrategia CAPTCHA</Label>
-                        {(['auto', 'anticaptcha', 'buster', 'manual'] as const).map((strategy) => (
-                          <label key={strategy} className="flex items-center gap-2 py-0.5 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="captcha_strategy"
-                              checked={devOptions.captcha_strategy === strategy}
-                              onChange={() => setDevOptions(prev => ({ ...prev, captcha_strategy: strategy }))}
-                              className="accent-amber-600"
-                            />
-                            <span className="text-[11px] text-amber-900">
-                              {strategy === 'auto' && `Auto ${isHttpMode ? '(Anti-Captcha → 2captcha)' : '(Anti-Captcha → Buster)'}`}
-                              {strategy === 'anticaptcha' && 'Solo Anti-Captcha'}
-                              {strategy === 'buster' && `Solo Buster ${isHttpMode ? '(no disponible en HTTP)' : ''}`}
-                              {strategy === 'manual' && `Manual ${isHttpMode ? '(no aplica en HTTP)' : '(modo visible)'}`}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-
-                      <span className="block border-t border-amber-200" />
-
-                      {/* Post-scrape SOAP sync */}
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider">Post-procesamiento SOAP</Label>
-                        <div className="flex items-center gap-2 py-0.5">
-                          <span className="text-[11px] text-amber-900 min-w-[70px]">Sync límite:</span>
-                          <div className="flex items-center gap-1">
-                            {[0, 10, 30, 50, 100].map(n => (
-                              <button
-                                key={n}
-                                type="button"
-                                onClick={() => setDevOptions(prev => ({ ...prev, soap_sync_limit: n }))}
-                                className={`px-2 py-0.5 text-[10px] font-medium rounded border cursor-pointer transition-colors ${
-                                  devOptions.soap_sync_limit === n
-                                    ? 'bg-amber-200 text-amber-900 border-amber-400'
-                                    : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-100'
-                                }`}
-                              >
-                                {n === 0 ? 'Off' : n}
-                              </button>
-                            ))}
-                            <span className="text-[9px] text-amber-600/70 ml-1">(comprobantes vía SOAP después del scrape)</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <span className="block border-t border-amber-200" />
-
-                      {/* Debug toggles */}
-                      <div className="flex flex-wrap gap-3 pt-1">
-                        {([
-                          { key: 'debug_screenshots' as const, label: 'Debug screenshots' },
-                          { key: 'verbose_logging' as const, label: 'Verbose logging' },
-                          { key: 'dom_dump_on_error' as const, label: 'DOM dump on error' },
-                        ]).map(opt => (
-                          <label key={opt.key} className="flex items-center gap-1.5 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={devOptions[opt.key]}
-                              onChange={() => setDevOptions(prev => ({ ...prev, [opt.key]: !prev[opt.key] }))}
-                              className="accent-amber-600"
-                            />
-                            <span className="text-[10px] text-amber-800">{opt.label}</span>
-                          </label>
-                        ))}
-                      </div>
-
-                      {/* Restart Chrome (solo Puppeteer CDP) */}
-                      {isPuppeteerMode && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              const res = await fetch('/api/system/restart-chrome', { method: 'POST' });
-                              const data = await res.json();
-                              if (data.success) {
-                                toast.success(data.message);
-                              } else {
-                                toast.error(data.error || 'Error al reiniciar Chrome');
-                              }
-                            } catch {
-                              toast.error('Error de red al intentar reiniciar Chrome');
-                            }
-                          }}
-                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-md transition-colors cursor-pointer"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                          Reiniciar Chrome con debug port (usa tu sesión SRI activa)
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <Button type="submit" disabled={loading} className="w-full mt-2 cursor-pointer">
-                  {loading ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Iniciando...</>
-                  ) : (
-                    <><DownloadCloud className="mr-2 h-4 w-4" /> Iniciar Descarga</>
-                  )}
-                </Button>
-              </form>
-            </div>
-          </div>
-
-          {/* Jobs */}
-          <div className="lg:col-span-7 order-1 lg:order-2">
-            <div className="rounded-xl border border-border bg-card shadow-xs flex flex-col min-h-[400px] overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <History className="w-4 h-4 text-brand-navy" />
-                  Historial de Tareas
-                </h3>
-                <div className="flex items-center gap-1.5">
-                  {jobs.length > 0 && (
-                    <Button variant="ghost" size="sm" onClick={deleteAllJobs} className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer" title="Eliminar todo el historial">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                  <Button variant="outline" size="sm" onClick={() => fetchJobs(true)} disabled={isRefreshing} className="gap-1.5 h-8 text-xs cursor-pointer">
-                    <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-brand-navy' : ''}`} />
-                    <span className="hidden sm:inline">Actualizar</span>
-                  </Button>
-                </div>
               </div>
 
-              <div className="flex-1 relative">
-                {jobs.length === 0 ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
-                    <div className="p-3 rounded-full bg-muted mb-3">
-                      <Inbox className="h-8 w-8 text-muted-foreground" />
+              <AnimatePresence mode="wait">
+                {dateMode === 'month' ? (
+                  <motion.div
+                    key="month"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="grid grid-cols-2 gap-3 overflow-hidden"
+                  >
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-brand-gray-600">Mes</Label>
+                      <select
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                        className="w-full h-9 px-3 rounded-lg border border-brand-gray-200 bg-brand-gray-50/50 text-sm focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/15 outline-none transition-all duration-200"
+                      >
+                        {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => (
+                          <option key={i + 1} value={i + 1}>{m}</option>
+                        ))}
+                      </select>
                     </div>
-                    <h4 className="text-sm font-semibold text-foreground mb-1">Sin descargas aún</h4>
-                    <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
-                      Completa el formulario de la izquierda para iniciar tu primera sincronización.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto max-h-[40vh] md:max-h-[400px] overflow-y-auto">
-                    <table className="w-full text-xs text-left">
-                      <thead className="bg-muted/50 text-muted-foreground font-semibold uppercase tracking-wider sticky top-0 z-10">
-                        <tr>
-                          <th className="px-3 py-2.5">Estado</th>
-                          <th className="px-3 py-2.5">RUC</th>
-                          <th className="px-3 py-2.5">Período</th>
-                          <th className="px-3 py-2.5 hidden sm:table-cell">Tipo</th>
-                          <th className="px-3 py-2.5">Detalle</th>
-                          <th className="px-3 py-2.5 text-right hidden sm:table-cell">Fecha</th>
-                          <th className="px-3 py-2.5 text-center w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {jobs.map((job, i) => {
-                          const status = job.status as JobStatus;
-                          const cfg = statusConfig[status] || statusConfig.PENDING;
-                          const Icon = cfg.icon;
-                          return (
-                            <tr key={job.id} onClick={() => { setSelectedJob(selectedJob?.id === job.id ? null : job); fetchLogs(job); }} className={`hover:bg-accent/50 transition-colors cursor-pointer ${selectedJob?.id === job.id ? 'bg-accent/70 ring-1 ring-inset ring-brand-navy/20' : ''}`} style={{ animationDelay: `${i * 30}ms`, animationFillMode: 'both' }}>
-                              <td className="px-3 py-2.5 whitespace-nowrap">
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${cfg.className} ${status === 'PROCESSING' ? 'animate-pulse' : ''}`}>
-                                  <Icon className={`w-3 h-3 ${status === 'PROCESSING' ? 'animate-spin' : ''}`} />
-                                  {cfg.label}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2.5 font-mono text-muted-foreground text-[10px]">{job.ruc}</td>
-                              <td className="px-3 py-2.5 font-medium text-foreground whitespace-nowrap text-[11px]">
-                                {job.fecha_desde
-                                  ? `${new Date(job.fecha_desde).toLocaleDateString()} - ${new Date(job.fecha_hasta).toLocaleDateString()}`
-                                  : `${job.mes?.toString().padStart(2, '0')}/${job.anio}`}
-                              </td>
-                              <td className="px-3 py-2.5 text-muted-foreground hidden sm:table-cell text-[11px]">{getTipoLabel(job.tipo_comprobante)}</td>
-                              <td className="px-3 py-2.5 min-w-[140px]">
-                                <div className="flex flex-col gap-1">
-                                  {status === 'PROCESSING' && (
-                                    <div className="w-20 h-1 bg-border rounded-full overflow-hidden">
-                                      <div className="h-full bg-brand-navy-light rounded-full w-2/3 animate-pulse" />
-                                    </div>
-                                  )}
-                                  <span className="text-muted-foreground truncate max-w-[160px] text-[10px] leading-tight" title={job.progress_message || ''}>
-                                    {job.progress_message || (status === 'PENDING' ? 'Esperando inicio...' : '')}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-3 py-2.5 text-muted-foreground text-right whitespace-nowrap text-[10px] hidden sm:table-cell">
-                                {new Date(job.created_at).toLocaleDateString()}
-                              </td>
-                              <td className="px-3 py-2.5 text-center">
-                                <div className="flex items-center justify-center gap-0.5">
-                                  {(status === 'PENDING' || status === 'PROCESSING') && (
-                                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); cancelJob(job.id); }} className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer" title="Cancelar">
-                                      <Ban className="h-3.5 w-3.5" />
-                                    </Button>
-                                  )}
-                                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); deleteJob(job.id); }} className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer" title="Eliminar del historial">
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-brand-gray-600">Año</Label>
+                      <select
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(Number(e.target.value))}
+                        className="w-full h-9 px-3 rounded-lg border border-brand-gray-200 bg-brand-gray-50/50 text-sm focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/15 outline-none transition-all duration-200"
+                      >
+                        {Array.from({ length: 5 }, (_, i) => {
+                          const year = new Date().getFullYear() - i;
+                          return <option key={year} value={year}>{year}</option>;
                         })}
-                      </tbody>
-                    </table>
-                  </div>
+                      </select>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="range"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="grid grid-cols-2 gap-3 overflow-hidden"
+                  >
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-brand-gray-600">Desde</Label>
+                      <div className="relative group">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-gray-400 group-focus-within:text-brand-navy transition-colors duration-200 pointer-events-none" />
+                        <Input
+                          name="fecha_desde"
+                          type="date"
+                          value={formData.fecha_desde}
+                          onChange={handleChange}
+                          className="pl-9 h-9 text-xs border-brand-gray-200 bg-brand-gray-50/50 focus:bg-white focus:border-brand-navy transition-all duration-200"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-brand-gray-600">Hasta</Label>
+                      <div className="relative group">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-gray-400 group-focus-within:text-brand-navy transition-colors duration-200 pointer-events-none" />
+                        <Input
+                          name="fecha_hasta"
+                          type="date"
+                          value={formData.fecha_hasta}
+                          onChange={handleChange}
+                          min={formData.fecha_desde}
+                          className="pl-9 h-9 text-xs border-brand-gray-200 bg-brand-gray-50/50 focus:bg-white focus:border-brand-navy transition-all duration-200"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
                 )}
+              </AnimatePresence>
 
-                {/* ─── Log Viewer ─── */}
+              {/* ─── Dirección ─── */}
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold text-brand-gray-600">Dirección</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(Object.entries(directionMeta) as [Direction, typeof directionMeta['recibidos']][]).map(([key, meta]) => {
+                    const DirIcon = meta.icon;
+                    const isActive = direction === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setDirection(key)}
+                        className={`relative flex flex-col items-center gap-1.5 px-2 py-2.5 rounded-xl border-2 transition-all duration-200 cursor-pointer ${
+                          isActive
+                            ? 'border-brand-navy bg-brand-red-pale shadow-xs'
+                            : 'border-brand-gray-200 bg-white hover:border-brand-navy/30 hover:bg-brand-gray-50'
+                        }`}
+                      >
+                        <div className={`p-1.5 rounded-lg transition-colors duration-200 ${
+                          isActive ? 'bg-brand-navy text-white' : 'bg-brand-gray-100 text-brand-gray-400'
+                        }`}>
+                          <DirIcon className="w-4 h-4" />
+                        </div>
+                        <span className={`text-[11px] font-semibold leading-tight ${
+                          isActive ? 'text-brand-navy' : 'text-brand-gray-400'
+                        }`}>
+                          {meta.label}
+                        </span>
+                        {isActive && (
+                          <motion.div
+                            layoutId="directionDot"
+                            className="absolute -top-1 -right-1 w-3 h-3 bg-brand-navy rounded-full ring-2 ring-white"
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-brand-gray-400 leading-relaxed">
+                  {directionMeta[direction].desc}
+                </p>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={loading}
+                className="relative w-full h-9 mt-2 overflow-hidden rounded-xl bg-brand-navy text-white text-sm font-semibold hover:bg-brand-navy-light active:scale-[0.98] transition-all duration-150 cursor-pointer shadow-md shadow-brand-navy/20"
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Iniciando...
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <DownloadCloud className="h-4 w-4" />
+                    Iniciar Descarga
+                  </span>
+                )}
+              </Button>
+            </form>
+          </motion.div>
+
+          {/* ─── Jobs ─── */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
+            className="lg:col-span-7 pt-5 lg:pt-0 lg:pl-5 flex flex-col min-h-[480px]"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-semibold text-brand-gray-400 uppercase tracking-wider flex items-center gap-2">
+                <History className="w-3.5 h-3.5" />
+                Historial
+              </h3>
+              <div className="flex items-center gap-1">
+                {jobs.length > 0 && (
+                  <button
+                    onClick={deleteAllJobs}
+                    className="h-7 w-7 flex items-center justify-center rounded-md text-brand-gray-400 hover:text-brand-red hover:bg-brand-red-pale transition-all duration-150 cursor-pointer"
+                    title="Eliminar todo"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button
+                  onClick={() => fetchJobs(true)}
+                  disabled={isRefreshing}
+                  className="h-7 w-7 flex items-center justify-center rounded-md text-brand-gray-400 hover:text-brand-gray-600 hover:bg-brand-gray-100 transition-all duration-150 cursor-pointer"
+                  title="Actualizar"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-brand-navy' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 flex flex-col min-h-0">
+              {jobs.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-gray-100 ring-1 ring-brand-gray-200">
+                    <Inbox className="h-7 w-7 text-brand-gray-400" />
+                  </div>
+                  <h4 className="text-sm font-semibold text-brand-gray-700 mb-1">Sin descargas aún</h4>
+                  <p className="text-xs text-brand-gray-400 max-w-xs leading-relaxed">
+                    Completa el formulario para iniciar tu primera sincronización.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto flex-1">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-brand-gray-100">
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-brand-gray-400 uppercase tracking-wider">Estado</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-brand-gray-400 uppercase tracking-wider">Período</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-brand-gray-400 uppercase tracking-wider hidden sm:table-cell">Dir.</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-brand-gray-400 uppercase tracking-wider">Detalle</th>
+                        <th className="px-3 py-2 text-right w-16"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-gray-100">
+                      {jobs.map((job, i) => {
+                        const status = job.status as JobStatus;
+                        const cfg = statusConfig[status] || statusConfig.PENDING;
+                        const Icon = cfg.icon;
+                        const isSelected = selectedJob?.id === job.id;
+                        return (
+                          <motion.tr
+                            key={job.id}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: i * 0.03, duration: 0.2 }}
+                            onClick={() => {
+                              setSelectedJob(isSelected ? null : job);
+                              if (!isSelected) fetchLogs(job);
+                            }}
+                            className={`group transition-all duration-150 cursor-pointer ${
+                              isSelected
+                                ? 'bg-brand-gray-50 ring-1 ring-inset ring-brand-gray-200'
+                                : 'hover:bg-brand-gray-50/50'
+                            }`}
+                          >
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full border text-[10px] font-semibold ${cfg.bg} ${cfg.color}`}>
+                                <Icon className={`w-3 h-3 ${status === 'PROCESSING' ? 'animate-spin' : ''}`} />
+                                {cfg.label}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                              <span className="font-medium text-brand-gray-700 text-[11px]">
+                                {job.fecha_desde
+                                  ? `${new Date(job.fecha_desde).toLocaleDateString('es-EC', { day: '2-digit', month: 'short' })} - ${new Date(job.fecha_hasta).toLocaleDateString('es-EC', { day: '2-digit', month: 'short' })}`
+                                  : `${job.mes?.toString().padStart(2, '0')}/${job.anio}`}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 hidden sm:table-cell">
+                              <span className="text-[10px] font-medium text-brand-gray-400">
+                                {job.action_type === 'DOWNLOAD_BOTH' ? 'Rec+Emi' :
+                                 job.action_type === 'DOWNLOAD_EMITTED' ? 'Emitidos' :
+                                 job.action_type === 'DOWNLOAD_RECEIVED' ? 'Recibidos' : '-'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 min-w-0 max-w-[140px]">
+                              <span className="block truncate text-[10px] text-brand-gray-400 leading-tight" title={job.progress_message || ''}>
+                                {job.progress_message || (status === 'PENDING' ? '—' : '')}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                                {(status === 'PENDING' || status === 'PROCESSING') && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); cancelJob(job.id); }}
+                                    className="h-7 w-7 flex items-center justify-center rounded-md text-brand-gray-400 hover:text-brand-red hover:bg-brand-red-pale transition-all duration-150 cursor-pointer"
+                                    title="Cancelar"
+                                  >
+                                    <Ban className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); deleteJob(job.id); }}
+                                  className="h-7 w-7 flex items-center justify-center rounded-md text-brand-gray-400 hover:text-brand-red hover:bg-brand-red-pale transition-all duration-150 cursor-pointer"
+                                  title="Eliminar"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </motion.tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* ─── Logs ─── */}
+              <AnimatePresence>
                 {selectedJob && (
-                  <div className="border-t border-border mt-0">
-                    <div className="flex items-center justify-between px-4 py-2 bg-muted/30">
-                      <h4 className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h12" />
-                        </svg>
-                        Logs — {selectedJob.ruc}
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="border-t border-brand-gray-200 overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between px-4 py-2 bg-brand-gray-50">
+                      <h4 className="text-[10px] font-semibold text-brand-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Terminal className="w-3 h-3" />
+                        Logs
                         {selectedJob.status === 'PROCESSING' && (
-                          <span className="inline-flex items-center gap-1 ml-1 text-[9px] font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">
-                            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
-                            en vivo
+                          <span className="inline-flex items-center gap-1 ml-1 text-[8px] font-medium text-brand-amber bg-brand-amber-pale px-1.5 py-0.5 rounded-full border border-brand-amber">
+                            <span className="w-1.5 h-1.5 bg-brand-amber rounded-full animate-pulse" />
+                            vivo
                           </span>
                         )}
                       </h4>
                       <button
-                        type="button"
                         onClick={() => { setSelectedJob(null); setLogs([]); setLogsError(null); }}
-                        className="text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                        className="text-[10px] text-brand-gray-400 hover:text-brand-gray-600 transition-colors duration-150 cursor-pointer"
                       >
                         cerrar
                       </button>
                     </div>
-                    <div className="max-h-[180px] overflow-y-auto bg-[#0d1117] font-mono text-[10px] leading-relaxed">
+                    <div className="max-h-[180px] overflow-y-auto bg-[#0d1117]">
                       {logsLoading && logs.length === 0 ? (
-                        <div className="flex items-center gap-2 p-3 text-[#8b949e]">
-                          <span className="w-2 h-2 bg-[#8b949e] rounded-full animate-pulse" />
+                        <div className="flex items-center gap-2 p-3 text-[#8b949e] text-[11px]">
+                          <span className="w-1.5 h-1.5 bg-[#8b949e] rounded-full animate-pulse" />
                           Cargando logs...
                         </div>
                       ) : logsError ? (
-                        <div className="p-3 text-[#f85149] text-[10px]">
-                          {logsError}
-                        </div>
+                        <div className="p-3 text-[#f85149] text-[10px]">{logsError}</div>
                       ) : logs.length === 0 ? (
-                        <div className="p-3 text-[#8b949e] italic">
-                          Sin registros de log disponibles.
-                        </div>
+                        <div className="p-3 text-[#8b949e] text-[10px] italic">Sin registros.</div>
                       ) : (
                         <div className="divide-y divide-[#21262d]">
                           {logs.map((log) => (
-                            <div key={log.id} className="flex gap-2 px-3 py-1 hover:bg-[#161b22]">
-                              <span className="text-[#484f58] whitespace-nowrap shrink-0 w-[68px]">
+                            <div key={log.id} className="flex gap-2.5 px-3 py-1.5 hover:bg-[#161b22] transition-colors duration-100">
+                              <span className="text-[#484f58] text-[10px] whitespace-nowrap w-16 shrink-0 font-mono">
                                 {new Date(log.created_at).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                               </span>
-                              <span className={`shrink-0 w-[52px] text-[9px] font-semibold uppercase tracking-wider ${
+                              <span className={`text-[9px] font-semibold uppercase w-14 shrink-0 ${
                                 log.level === 'error' ? 'text-[#f85149]' :
                                 log.level === 'success' ? 'text-[#3fb950]' :
                                 log.level === 'warn' ? 'text-[#d29922]' :
@@ -1012,17 +797,18 @@ export default function MassDownloadModal({ open, onClose }: MassDownloadModalPr
                               }`}>
                                 {log.level}
                               </span>
-                              <span className="text-[#e6edf3] break-words">{log.message}</span>
+                              <span className="text-[#e6edf3] text-[11px] leading-relaxed break-words">{log.message}</span>
                             </div>
                           ))}
+                          <div ref={logEndRef} />
                         </div>
                       )}
                     </div>
-                  </div>
+                  </motion.div>
                 )}
-              </div>
+              </AnimatePresence>
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
     </Dialog>

@@ -144,6 +144,13 @@ export const db = {
       data.id = generatedId;
     }
 
+    if (!data.created_at) {
+      data.created_at = new Date();
+    }
+    if (!data.updated_at) {
+      data.updated_at = new Date();
+    }
+
     const keys = Object.keys(data);
     const values = Object.values(data);
     const columns = keys.map(k => `\`${k}\``).join(', ');

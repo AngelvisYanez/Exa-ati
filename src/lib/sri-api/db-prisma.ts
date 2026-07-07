@@ -1,6 +1,9 @@
-import { Pool } from 'pg';
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import ws from 'ws';
 type QueryResultRow = any;
 import { randomUUID } from 'crypto';
+
+neonConfig.webSocketConstructor = ws;
 
 declare global {
   var __pgPool: Pool | undefined;
@@ -92,6 +95,13 @@ export const dbPrisma = {
     const isUuidTable = ['usuarios', 'tenants', 'emisores', 'comprobantes', 'tenant_settings'].includes(table);
     if (isUuidTable && !data.id) {
       data.id = randomUUID();
+    }
+
+    if (!data.created_at) {
+      data.created_at = new Date();
+    }
+    if (!data.updated_at) {
+      data.updated_at = new Date();
     }
 
     const keys = Object.keys(data);

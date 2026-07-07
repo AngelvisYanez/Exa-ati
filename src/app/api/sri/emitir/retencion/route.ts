@@ -206,12 +206,12 @@ export async function POST(req: Request) {
 
     await db.query(
       `INSERT INTO comprobantes (
-        emisor_id, tipo, serie, secuencial, ambiente, tipo_emision, clave_acceso, fecha_emision,
+        id, emisor_id, tipo, serie, secuencial, ambiente, tipo_emision, clave_acceso, fecha_emision,
         estado, estado_sri, fecha_autorizacion, numero_autorizacion,
         importe_total, moneda,
         receptor_tipo_id, receptor_identificacion, receptor_razon_social, receptor_email,
         emisor_ruc, emisor_razon_social, tenant_id, periodo_fiscal
-      ) VALUES (?, '07', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (gen_random_uuid(), ?, '07', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         emisor.id, serie, secuencial, ambiente, tipoEmision, claveAcceso,
         fechaEmision.toISOString().split('T')[0], estado, resultado.estado,

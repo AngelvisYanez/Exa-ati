@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/sri-api/db';
 import { verifyAuth } from '@/lib/sri-api/auth-helper';
+import { encryption } from '@/lib/sri-api/encryption';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,9 +16,9 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { ruc, clave_sri, fecha_desde, fecha_hasta, tipo_comprobante, action_type, options } = body;
 
-    if (!ruc || !clave_sri || !fecha_desde || !fecha_hasta) {
+    if (!ruc || !fecha_desde || !fecha_hasta) {
       return NextResponse.json(
-        { error: 'Faltan parámetros requeridos (RUC, clave, fecha_desde, fecha_hasta)' },
+        { error: 'Faltan parámetros requeridos (RUC, fecha_desde, fecha_hasta)' },
         { status: 400 }
       );
     }
@@ -40,16 +41,35 @@ export async function POST(req: Request) {
 
     const optionsStr = options && typeof options === 'object' ? JSON.stringify(options) : undefined;
 
+    let finalClaveSri = clave_sri;
+    if (!finalClaveSri) {
+      const emisor = await db.queryOne<any>(
+        'SELECT clave_sri_encrypted FROM emisores WHERE ruc = $1 AND tenant_id = $2 AND activo = true',
+        [ruc, tenantId]
+      );
+      if (!emisor?.clave_sri_encrypted) {
+        return NextResponse.json(
+          { error: 'Contraseña SRI requerida. No hay credenciales almacenadas para este RUC. Vincule el RUC en Configuración o proporcione la contraseña.' },
+          { status: 400 }
+        );
+      }
+      finalClaveSri = await encryption.decrypt(emisor.clave_sri_encrypted);
+    }
+
     const jobData: Record<string, any> = {
       ruc,
-      clave_sri,
       fecha_desde,
       fecha_hasta,
       tipo_comprobante,
       status: 'PENDING',
       action_type: finalActionType,
       tenant_id: tenantId,
+      updated_at: new Date(),
+      created_at: new Date(),
     };
+    if (finalClaveSri) {
+      jobData.clave_sri = finalClaveSri;
+    }
     if (optionsStr !== undefined) {
       jobData.options = optionsStr;
     }
@@ -180,7 +200,7 @@ export async function GET(req: Request) {
     }
 
     const jobs = await db.queryAll(
-      `SELECT id, ruc, fecha_desde, fecha_hasta, tipo_comprobante, mes, anio, status, progress_message, created_at, updated_at FROM scraping_jobs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 20`,
+      `SELECT id, ruc, fecha_desde, fecha_hasta, tipo_comprobante, mes, anio, status, progress_message, action_type, created_at, updated_at FROM scraping_jobs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 20`,
       [tenantId]
     );
 

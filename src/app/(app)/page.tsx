@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import Topbar from "@/components/Topbar";
-import DateRangeFilter, {
-  DateRange,
+import {
   formatDateRangeLabel,
   getDefaultDateRange,
   getIvaVencimiento,
@@ -12,6 +10,8 @@ import DateRangeFilter, {
 import FlowComparisonChart from "@/components/charts/FlowComparisonChart";
 import ExpenseCategoryChart from "@/components/charts/ExpenseCategoryChart";
 import MonthlyTrendChart from "@/components/charts/MonthlyTrendChart";
+import DocumentDistributionChart from "@/components/charts/DocumentDistributionChart";
+import FeaturedModules from "@/components/FeaturedModules";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useAuth } from "@/contexts/AuthContext";
 import { KpiCard } from "@/components/StatCard";
@@ -23,7 +23,6 @@ const TIPO_MAP: Record<string, string> = {
 
 export default function Dashboard() {
   const { hasSriLinked, activeRuc } = useAuth();
-  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
   const {
     loading,
     isConnected,
@@ -40,11 +39,12 @@ export default function Dashboard() {
     retencionesCount,
     noAuthCount,
     notasCreditoCount,
+    notasDebitoCount,
     recentDocs,
     syncStatus,
     enProcesoCount,
     pprCount,
-  } = useDashboardData(dateRange, activeRuc);
+  } = useDashboardData(activeRuc);
 
   const lastSyncLabel = syncStatus?.lastSyncAt
     ? new Date(syncStatus.lastSyncAt).toLocaleString("es-EC", {
@@ -55,15 +55,23 @@ export default function Dashboard() {
       })
     : null;
 
-  const periodoLabel = formatDateRangeLabel(dateRange);
-  const vencimiento = getIvaVencimiento(dateRange);
+  const defaultRange = getDefaultDateRange();
+  const periodoLabel = formatDateRangeLabel(defaultRange);
+  const vencimiento = getIvaVencimiento(defaultRange);
 
   return (
     <>
       <title>Dashboard - OFSERCONT IA</title>
       <meta name="description" content="Panel de control tributario. Monitorea tus comprobantes electrónicos, IVA y obligaciones SRI." />
 
-      <Topbar title="Dashboard" period={formatDateRangeLabel(dateRange)} />
+      <Topbar
+        title="Dashboard"
+        lastSyncLabel={lastSyncLabel}
+        syncPendientes={syncStatus?.counts.pendientes}
+        isConnected={isConnected}
+        enProcesoCount={enProcesoCount}
+        pprCount={pprCount}
+      />
 
       {!activeRuc ? (
         <main className="p-3 flex-1 flex flex-col gap-5 w-full">
@@ -93,7 +101,6 @@ export default function Dashboard() {
         </main>
       ) : (
       <main className="p-3 flex-1 flex flex-col gap-5 w-full">
-        <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-slate-200 rounded-xl px-4 py-3" />
         {/* CERTIFICATE WARNING IF ANY */}
         {certWarning && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs font-medium text-amber-800 flex items-start gap-2.5 shadow-sm">
@@ -117,36 +124,6 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {hasSriLinked && syncStatus && (
-              <Link
-                href="/documentos"
-                className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-                title={syncStatus.lastSync?.message || "Ir a documentos para sincronizar"}
-              >
-                <span className="font-semibold text-slate-800">Último sync:</span>{" "}
-                {lastSyncLabel || "Nunca"}
-                {(syncStatus.counts.pendientes ?? 0) > 0 && (
-                  <span className="ml-1.5 text-amber-700 font-bold">
-                    · {syncStatus.counts.pendientes} pendientes
-                  </span>
-                )}
-              </Link>
-            )}
-            {isConnected && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-emerald-700 flex items-center gap-2">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                API SRI Conectado
-              </div>
-            )}
-            {(pprCount > 0 || enProcesoCount > 0) && (
-              <Link
-                href="/documentos?estado=EN_PROCESO"
-                className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-amber-700 flex items-center gap-2 hover:bg-amber-100 transition-colors"
-              >
-                <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
-                {pprCount + enProcesoCount} en proceso
-              </Link>
-            )}
             <Link
               href="/declaraciones/presentar"
               className="flex items-center gap-1.5 bg-brand-navy text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-brand-navy-light transition-colors"
@@ -312,6 +289,9 @@ export default function Dashboard() {
           )}
         </section>
 
+        {/* MODULES CAROUSEL */}
+        <FeaturedModules />
+
         {/* MAIN CONTENT GRID: chart+categories left, sidebar right */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 flex-1">
           
@@ -350,6 +330,29 @@ export default function Dashboard() {
                 <MonthlyTrendChart data={monthlyTrend} />
               ) : (
                 <div className="h-48 flex items-center justify-center text-slate-400 text-xs">Sin datos de tendencia</div>
+              )}
+            </div>
+
+            {/* DOCUMENT DISTRIBUTION CHART */}
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col gap-4">
+              <div>
+                <h3 className="text-base font-semibold tracking-tight">Distribución por Tipo</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Composición de comprobantes por categoría fiscal.</p>
+              </div>
+              {loading ? (
+                <div className="h-48 flex items-center justify-center text-slate-400 text-xs animate-pulse">Cargando distribución...</div>
+              ) : !isConnected || !hasSriLinked ? (
+                <div className="h-48 border border-dashed border-slate-200 rounded-lg flex flex-col items-center justify-center gap-2 p-6 text-center">
+                  <p className="text-xs text-slate-500 font-medium">Vincula tu RUC para ver la composición de documentos</p>
+                </div>
+              ) : (
+                <DocumentDistributionChart
+                  ventas={ventasCount}
+                  compras={comprasCount}
+                  retenciones={retencionesCount}
+                  notasCredito={notasCreditoCount}
+                  notasDebito={notasDebitoCount}
+                />
               )}
             </div>
 
@@ -509,24 +512,21 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* TENANT SUMMARY INFORMATION */}
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3">
-              <h3 className="text-sm font-semibold tracking-tight">
-                {razonSocialEmisor ? `${razonSocialEmisor} (${rucEmisor})` : "Datos del Contribuyente"}
-              </h3>
-              <div className="flex flex-col gap-2.5 text-xs text-slate-600">
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span>RUC Registrado</span>
-                  <span className="font-mono font-bold text-slate-900">{rucEmisor || "No disponible"}</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span>Firma Digital</span>
+            {/* FIRMA DIGITAL STATUS */}
+            {rucEmisor && (
+              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3">
+                <h3 className="text-sm font-semibold tracking-tight">Firma Digital</h3>
+                <div className="flex items-center gap-2.5 text-xs">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${certWarning ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                   <span className={`font-semibold ${certWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
                     {certWarning ? 'Revisar Advertencia' : 'Certificado Al Día'}
                   </span>
                 </div>
+                {certWarning && (
+                  <p className="text-[10px] text-amber-700 leading-relaxed">{certWarning}</p>
+                )}
               </div>
-            </div>
+            )}
 
           </div>
 

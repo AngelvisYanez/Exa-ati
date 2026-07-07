@@ -31,6 +31,8 @@ import {
   BarChart3,
   FileSpreadsheet,
   FolderTree,
+  Shield,
+  Users,
 } from "lucide-react";
 
 type NavItem = {
@@ -192,6 +194,35 @@ const navGroups: NavGroup[] = [
         href: "/notificaciones",
         label: "Notificaciones",
         icon: <Bell className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+    ],
+  },
+  {
+    group: "ADMINISTRACIÓN",
+    items: [
+      {
+        href: "/admin",
+        label: "Dashboard",
+        roles: ["ADMIN", "SUPERADMIN"],
+        icon: <Shield className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/admin/usuarios",
+        label: "Usuarios",
+        roles: ["ADMIN", "SUPERADMIN"],
+        icon: <Users className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/admin/empresas",
+        label: "Empresas",
+        roles: ["SUPERADMIN"],
+        icon: <Building2 className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        href: "/admin/auditoria",
+        label: "Auditoría",
+        roles: ["ADMIN", "SUPERADMIN"],
+        icon: <ScrollText className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
     ],
   },

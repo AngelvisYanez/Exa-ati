@@ -4,8 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { sriClient, Comprobante } from "@/lib/sriClient";
 import { calculateTaxSummary } from "@/lib/sri-api/tax-calculator";
 import {
-  DateRange,
-  filterByDateRange,
+  getDefaultDateRange,
   getComprobantesListLimit,
   toDateRangeParams,
 } from "@/components/DateRangeFilter";
@@ -65,7 +64,8 @@ export type SyncStatus = {
   };
 };
 
-export function useDashboardData(dateRange: DateRange, activeRuc?: string | null) {
+export function useDashboardData(activeRuc?: string | null) {
+  const dateRange = useMemo(() => getDefaultDateRange(), []);
   const [docs, setDocs] = useState<Comprobante[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -129,12 +129,11 @@ export function useDashboardData(dateRange: DateRange, activeRuc?: string | null
       })
       .catch(() => setIsConnected(false))
       .finally(() => setLoading(false));
-  }, [dateRange]);
+  }, [dateRange, activeRuc]);
 
-  const docsInRange = filterByDateRange(docs, (d) => d.fechaEmision, dateRange);
   const taxSummary = useMemo(
-    () => calculateTaxSummary(toTaxRows(docsInRange, rucEmisor), rucEmisor),
-    [docsInRange, rucEmisor]
+    () => calculateTaxSummary(toTaxRows(docs, rucEmisor), rucEmisor),
+    [docs, rucEmisor]
   );
 
   const getCategoryTotal = (catName: string) =>
@@ -157,7 +156,7 @@ export function useDashboardData(dateRange: DateRange, activeRuc?: string | null
     },
   ];
 
-  const monthlyTrend = useMemo(() => groupByMonth(docsInRange, rucEmisor), [docsInRange, rucEmisor]);
+  const monthlyTrend = useMemo(() => groupByMonth(docs, rucEmisor), [docs, rucEmisor]);
 
   return {
     loading,
@@ -165,7 +164,6 @@ export function useDashboardData(dateRange: DateRange, activeRuc?: string | null
     rucEmisor,
     razonSocialEmisor,
     certWarning,
-    docsInRange,
     taxSummary,
     categories,
     monthlyTrend,
@@ -175,9 +173,10 @@ export function useDashboardData(dateRange: DateRange, activeRuc?: string | null
     ventasCount: taxSummary.ventas.length,
     comprasCount: taxSummary.compras.length,
     retencionesCount: taxSummary.retenciones.length,
-    noAuthCount: docsInRange.filter((d) => d.estado !== "AUTORIZADO").length,
-    notasCreditoCount: docsInRange.filter((d) => d.tipoComprobante === "04").length,
-    recentDocs: docsInRange.slice(0, 6),
+    noAuthCount: docs.filter((d) => d.estado !== "AUTORIZADO").length,
+    notasCreditoCount: docs.filter((d) => d.tipoComprobante === "04").length,
+    notasDebitoCount: docs.filter((d) => d.tipoComprobante === "05").length,
+    recentDocs: docs.slice(0, 6),
     syncStatus,
     enProcesoCount,
     pprCount,

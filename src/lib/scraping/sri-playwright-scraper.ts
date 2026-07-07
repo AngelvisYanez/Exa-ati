@@ -296,13 +296,15 @@ export class SriPlaywrightScraper {
     return this.authenticated;
   }
 
-  async navigateToComprobantes(progress?: (msg: string) => Promise<void>): Promise<boolean> {
+  async navigateToComprobantes(flow: 'recibidos' | 'emitidos' = 'recibidos', progress?: (msg: string) => Promise<void>): Promise<boolean> {
     const page = this.page!;
     const log = progress || (async (msg: string) => console.log('[PW]', msg));
+    const flowLabel = flow === 'emitidos' ? 'Emitidos' : 'Recibidos';
 
     try {
-      await log('Navegando a Comprobantes Recibidos...');
-      await page.goto(`${SRI_BASE}/tuportal-internet/accederAplicacion.jspa?redireccion=57&idGrupo=55`, {
+      await log(`Navegando a Comprobantes ${flowLabel}...`);
+      const redirectCode = flow === 'emitidos' ? '56' : '57';
+      await page.goto(`${SRI_BASE}/tuportal-internet/accederAplicacion.jspa?redireccion=${redirectCode}&idGrupo=55`, {
         waitUntil: 'domcontentloaded',
         timeout: 60000,
       }).catch((err: any) => {
@@ -344,8 +346,10 @@ export class SriPlaywrightScraper {
   async runMassDownload(
     job: any,
     updateProgress: (jobId: string, msg: string, status?: string) => Promise<void>,
+    flow: 'recibidos' | 'emitidos' = 'recibidos',
   ): Promise<void> {
     const jobId = job.id;
+    const flowLabel = flow === 'emitidos' ? 'Emitidos' : 'Recibidos';
     const log = async (msg: string) => updateProgress(jobId, msg);
     const logWithStatus = async (msg: string, status?: string) => updateProgress(jobId, msg, status);
 
@@ -398,9 +402,9 @@ export class SriPlaywrightScraper {
         const periodStr = day === 0 
           ? `mes completo de ${this._monthName(month)} ${year}`
           : `${day.toString().padStart(2,'0')}/${month.toString().padStart(2,'0')}/${year}`;
-        await log(`Buscando ${typeLabel} para ${periodStr}...`);
+        await log(`Buscando ${typeLabel} (${flowLabel}) para ${periodStr}...`);
 
-        const ok = await this._searchAndDownload(year, month, day, typeCode, xmlDir, pdfDir, counters, log);
+        const ok = await this._searchAndDownload(year, month, day, typeCode, xmlDir, pdfDir, counters, log, flow);
         if (!ok) {
           await this._recoverSession(log);
         }
@@ -410,7 +414,7 @@ export class SriPlaywrightScraper {
     const totalXmls = counters.xmls + counters.xmls_exist;
     const totalPdfs = counters.pdfs + counters.pdfs_exist;
     await logWithStatus(
-      `Completado. Total comprobantes encontrados: ${counters.found}. XMLs: ${totalXmls} (${counters.xmls} nuevos, ${counters.xmls_exist} ya existentes), PDFs: ${totalPdfs} (${counters.pdfs} nuevos, ${counters.pdfs_exist} ya existentes)`,
+      `Completado (${flowLabel}). Total comprobantes encontrados: ${counters.found}. XMLs: ${totalXmls} (${counters.xmls} nuevos, ${counters.xmls_exist} ya existentes), PDFs: ${totalPdfs} (${counters.pdfs} nuevos, ${counters.pdfs_exist} ya existentes)`,
       'COMPLETED'
     );
   }
@@ -419,6 +423,7 @@ export class SriPlaywrightScraper {
     year: number, month: number, day: number, typeCode: string,
     xmlDir: string, pdfDir: string, counters: ScrapeCounters,
     log: (msg: string) => Promise<void>,
+    flow: 'recibidos' | 'emitidos' = 'recibidos',
   ): Promise<boolean> {
     const page = this.page!;
     const dateStr = day === 0
@@ -426,11 +431,11 @@ export class SriPlaywrightScraper {
       : `${day.toString().padStart(2,'0')}/${month.toString().padStart(2,'0')}/${year}`;
 
     try {
-      const navOk = await this.navigateToComprobantes(log);
+      const navOk = await this.navigateToComprobantes(flow, log);
       if (!navOk) {
         const relogged = await this.login(this.ruc, this.clave, log);
         if (!relogged) return false;
-        await this.navigateToComprobantes(log);
+        await this.navigateToComprobantes(flow, log);
       }
 
       await page.waitForTimeout(2000);
@@ -800,10 +805,10 @@ export class SriPlaywrightScraper {
         if (!exists) {
           try {
             await db.query(
-              `INSERT INTO comprobantes (clave_acceso, tipo, estado, receptor_identificacion, tenant_id,
+              `INSERT INTO comprobantes (id, clave_acceso, tipo, estado, receptor_identificacion, tenant_id,
                 emisor_ruc, emisor_razon_social, importe_total, total_sin_impuesto, total_iva,
                 fecha_emision, fecha_autorizacion, serie, secuencial)
-               VALUES ($1, $2, 'PENDIENTE', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+               VALUES (gen_random_uuid(), $1, $2, 'PENDIENTE', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
               [claveAcceso, tipoCode, this.ruc, this.tenantId, rucEmisorVal, emisorVal,
                total || null, subtotal || null, iva || null, fechaEmisionVal, fechaAutVal, extractSerie(claveAcceso), extractSecuencial(claveAcceso)],
             );

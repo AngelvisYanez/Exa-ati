@@ -163,7 +163,7 @@ export default function InventarioPage() {
       <>
         <title>Inventario - EXA ATI</title>
         <Topbar title="Inventario" />
-        <main className="p-6 max-w-3xl mx-auto text-center text-slate-500">
+        <main className="p-6 w-full text-center text-slate-500">
           Vincula tu RUC del SRI en Configuración para gestionar productos.
         </main>
       </>
@@ -174,10 +174,10 @@ export default function InventarioPage() {
     <>
       <title>Inventario - EXA ATI</title>
       <Topbar title="Inventario de Productos" />
-      <main className="p-4 max-w-6xl mx-auto flex flex-col gap-4">
+      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
         {/* Search + Add */}
         <div className="flex items-center gap-3">
-          <div className="relative flex-1 max-w-sm">
+          <div className="relative flex-1 max-w-md">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <Input
               size={1}

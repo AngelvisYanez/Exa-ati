@@ -78,7 +78,7 @@ export default function ClientesPage() {
           </Link>
         </div>
 
-        <div className="relative max-w-xs w-full">
+        <div className="relative max-w-sm w-full">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray-400" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar cliente..." className="pl-8 h-8 text-xs" />
         </div>

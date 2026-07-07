@@ -136,7 +136,7 @@ export default function EditarContactoPage() {
     <>
       <title>Editar Contacto - OFSERCONT IA</title>
       <Topbar title="Editar Contacto" backLink={{ href: "/contactos", label: "Contactos" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full max-w-2xl mx-auto">
+      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Editar Contacto</h1>
         <Card className="p-5 border-brand-gray-200">
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">

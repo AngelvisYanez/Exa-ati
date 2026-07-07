@@ -105,16 +105,16 @@ export async function POST(req: Request) {
       const usesPostgres = Boolean(process.env.DATABASE_URL);
       if (usesPostgres) {
         await db.query(
-          `INSERT INTO tenant_settings (tenant_id, last_sync_at, last_sync_result)
-           VALUES ($1, NOW(), $2)
-           ON CONFLICT (tenant_id) DO UPDATE SET last_sync_at = NOW(), last_sync_result = EXCLUDED.last_sync_result`,
+          `INSERT INTO tenant_settings (tenant_id, last_sync_at, last_sync_result, updated_at)
+           VALUES ($1, NOW(), $2, NOW())
+           ON CONFLICT (tenant_id) DO UPDATE SET last_sync_at = NOW(), last_sync_result = EXCLUDED.last_sync_result, updated_at = NOW()`,
           [tenantId, JSON.stringify(syncResult)]
         );
       } else {
         await db.query(
-          `INSERT INTO tenant_settings (tenant_id, last_sync_at, last_sync_result)
-           VALUES (?, NOW(), ?)
-           ON DUPLICATE KEY UPDATE last_sync_at = NOW(), last_sync_result = VALUES(last_sync_result)`,
+          `INSERT INTO tenant_settings (tenant_id, last_sync_at, last_sync_result, updated_at)
+           VALUES (?, NOW(), ?, NOW())
+           ON DUPLICATE KEY UPDATE last_sync_at = NOW(), last_sync_result = VALUES(last_sync_result), updated_at = NOW()`,
           [tenantId, JSON.stringify(syncResult)]
         );
       }

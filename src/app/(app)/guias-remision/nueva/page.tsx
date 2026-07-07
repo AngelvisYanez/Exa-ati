@@ -161,7 +161,7 @@ export default function NuevaGuiaPage() {
     <>
       <title>Nueva Guía de Remisión - OFSERCONT IA</title>
       <Topbar title="Nueva Guía de Remisión" backLink={{ href: "/guias-remision", label: "Guías de Remisión" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full max-w-4xl mx-auto">
+      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Nueva Guía de Remisión</h1>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">

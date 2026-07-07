@@ -92,8 +92,8 @@ export async function saveTenantLlmConfig(
     );
   } else {
     await db.query(
-      `INSERT INTO tenant_settings (tenant_id, llm_provider, llm_model, gemini_api_key_encrypted, claude_api_key_encrypted, llm_configured_at)
-       VALUES (?, ?, ?, ?, ?, NOW())`,
+      `INSERT INTO tenant_settings (tenant_id, llm_provider, llm_model, gemini_api_key_encrypted, claude_api_key_encrypted, llm_configured_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
       [
         tenantId,
         data.provider || 'gemini',

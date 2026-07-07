@@ -113,7 +113,7 @@ export default function VerReportePage() {
     <>
       <title>Reporte {reporte.tipo} - OFSERCONT IA</title>
       <Topbar title={`Reporte Form. ${reporte.tipo}`} backLink={{ href: "/declaraciones/reportes", label: "Reportes" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full max-w-4xl mx-auto">
+      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">

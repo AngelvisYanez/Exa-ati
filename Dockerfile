@@ -23,6 +23,7 @@ RUN npx prisma generate
 FROM deps AS builder
 
 WORKDIR /app
+ENV CACHE_BUST=4
 
 COPY . .
 

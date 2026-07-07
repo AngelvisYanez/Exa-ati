@@ -11,7 +11,7 @@ import ProxyConfigPanel from "@/components/ProxyConfigPanel";
 import { sriClient, setAuthToken } from "@/lib/sriClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { User, Users, Bell, MessageSquare, Bot, Building2, Plus, Edit, Trash2, Smartphone, Mail, Code } from "lucide-react";
+import { User, Users, Bell, MessageSquare, Bot, Building2, Plus, Edit, Trash2, Smartphone, Mail, Code, Loader2, X, KeyRound } from "lucide-react";
 
 type ConfigTab = "general" | "clientes" | "notificaciones" | "integraciones" | "ia" | "desarrollo";
 
@@ -73,6 +73,10 @@ function ConfiguracionContent() {
   const [appNotif, setAppNotif] = useState(true);
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
   const [loginBanner, setLoginBanner] = useState<string | null>(null);
+  const [vincularOpen, setVincularOpen] = useState(false);
+  const [vincularRuc, setVincularRuc] = useState("");
+  const [vincularPassword, setVincularPassword] = useState("");
+  const [vinculando, setVinculando] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
 
   // Estados para subida de certificado
@@ -202,6 +206,29 @@ function ConfiguracionContent() {
   const handleDisconnectRuc = (ruc: string) => {
     setRucToDisconnect(ruc);
     setShowRucDisconnectConfirm(true);
+  };
+
+  const handleVincular = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vincularRuc || !vincularPassword) return;
+    setVinculando(true);
+    try {
+      const res = await sriClient.vincularSri(vincularRuc, vincularPassword);
+      if (res.success) {
+        toast.success("Empresa vinculada correctamente");
+        setVincularOpen(false);
+        setVincularRuc("");
+        setVincularPassword("");
+        await refreshSriStatus();
+        await loadConfig();
+      } else {
+        toast.error(res.error || "Error al vincular");
+      }
+    } catch {
+      toast.error("Error de red al vincular");
+    } finally {
+      setVinculando(false);
+    }
   };
 
   const confirmDisconnectRuc = async () => {
@@ -595,14 +622,78 @@ function ConfiguracionContent() {
                           Administra y conecta las diferentes cuentas del portal SRI.
                         </p>
                       </div>
-                      <Link
-                        href="/configuracion?vincular=true"
-                        className="bg-brand-navy text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-brand-navy-light transition-all cursor-pointer shadow-sm active:scale-[0.98]"
-                      >
-                        Conectar Empresa SRI
-                      </Link>
+                      {!vincularOpen && (
+                        <button
+                          type="button"
+                          onClick={() => setVincularOpen(true)}
+                          className="bg-brand-navy text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-brand-navy-light transition-all cursor-pointer shadow-sm active:scale-[0.98]"
+                        >
+                          + Conectar Empresa SRI
+                        </button>
+                      )}
                     </div>
                     <div className="p-5 flex flex-col gap-3">
+                      {vincularOpen && (
+                        <div className="border border-brand-navy/30 bg-brand-red-pale/50 rounded-xl p-4 mb-1">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-[12px] font-bold text-brand-gray-700">Vincular nueva empresa</h3>
+                            <button
+                              type="button"
+                              onClick={() => { setVincularOpen(false); setVincularRuc(""); setVincularPassword(""); }}
+                              className="text-brand-gray-400 hover:text-brand-gray-600 transition-colors cursor-pointer"
+                            >
+                              <X className="w-4 h-4" strokeWidth={2} />
+                            </button>
+                          </div>
+                          <form onSubmit={handleVincular} className="flex flex-col gap-3">
+                            <div>
+                              <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider mb-1 block">RUC</label>
+                              <input
+                                type="text"
+                                placeholder="1790000000001"
+                                value={vincularRuc}
+                                onChange={(e) => setVincularRuc(e.target.value.replace(/\D/g, "").slice(0, 13))}
+                                className="w-full h-9 px-3 text-sm rounded-lg border border-brand-gray-200 bg-white text-brand-gray-800 placeholder:text-brand-gray-300 outline-none focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/15 transition-colors"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider mb-1 block">Contraseña SRI</label>
+                              <div className="relative">
+                                <input
+                                  type="password"
+                                  placeholder="Contraseña del portal SRI"
+                                  value={vincularPassword}
+                                  onChange={(e) => setVincularPassword(e.target.value)}
+                                  className="w-full h-9 px-3 pr-9 text-sm rounded-lg border border-brand-gray-200 bg-white text-brand-gray-800 placeholder:text-brand-gray-300 outline-none focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/15 transition-colors"
+                                  required
+                                />
+                                <KeyRound className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray-300 pointer-events-none" strokeWidth={1.5} />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => { setVincularOpen(false); setVincularRuc(""); setVincularPassword(""); }}
+                                className="flex-1 h-9 rounded-lg border border-brand-gray-200 text-brand-gray-600 text-xs font-semibold hover:bg-brand-gray-50 transition-colors cursor-pointer"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="submit"
+                                disabled={vinculando}
+                                className="flex-1 h-9 rounded-lg bg-brand-navy text-white text-xs font-semibold hover:bg-brand-navy-light disabled:opacity-50 transition-colors cursor-pointer flex items-center justify-center shadow-sm"
+                              >
+                                {vinculando ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  "Vincular"
+                                )}
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      )}
                       {emisores.length === 0 ? (
                         <p className="text-sm text-brand-gray-500 text-center py-4">No hay empresas vinculadas.</p>
                       ) : (

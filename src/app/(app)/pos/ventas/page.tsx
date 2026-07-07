@@ -69,7 +69,7 @@ export default function PosVentasPage() {
       <>
         <title>Ventas POS - EXA ATI</title>
         <Topbar title="Historial de Ventas POS" />
-        <main className="p-6 max-w-3xl mx-auto text-center text-slate-500">
+        <main className="p-6 w-full text-center text-slate-500">
           Vincula tu RUC del SRI para ver las ventas POS.
         </main>
       </>
@@ -80,7 +80,7 @@ export default function PosVentasPage() {
     <>
       <title>Ventas POS - EXA ATI</title>
       <Topbar title="Historial de Ventas POS" />
-      <main className="p-4 max-w-6xl mx-auto flex flex-col gap-4">
+      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
         <Card className="p-4">
           <form onSubmit={handleSearch} className="flex flex-wrap gap-3 items-end">
             <div className="flex-1 min-w-[200px]">

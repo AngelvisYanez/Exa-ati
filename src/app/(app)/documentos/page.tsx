@@ -673,7 +673,7 @@ export default function Documentos() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.545M12.75 21h7.5V10.75M2.25 21h1.5m18 0h-18M2.25 9l4.5-1.636M18.75 3l-1.5.545m0 6.205l3 1m1.5.5l-1.5-.5M6.75 7.364V3h-3v18m3-13.636l10.5-3.819" />
               </svg>
             </div>
-            <div className="text-center max-w-sm">
+            <div className="text-center max-w-md">
               <p className="text-sm font-bold text-brand-gray-700">Selecciona una empresa</p>
               <p className="text-xs text-brand-gray-400 mt-1">Usa el selector de empresa en la parte superior derecha para elegir un RUC y ver sus comprobantes.</p>
             </div>
@@ -722,7 +722,7 @@ export default function Documentos() {
 
         {/* TOOLBAR */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex-1 bg-white border border-brand-gray-200 rounded-lg px-3 py-2 flex items-center gap-2 max-w-md">
+          <div className="flex-1 bg-white border border-brand-gray-200 rounded-lg px-3 py-2 flex items-center gap-2 max-w-lg">
             <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-brand-gray-400">
               <circle cx="11" cy="11" r="8" />
               <path d="M21 21l-4.35-4.35" />
