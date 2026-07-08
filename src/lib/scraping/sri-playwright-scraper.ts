@@ -115,13 +115,24 @@ export class SriPlaywrightScraper {
       }
 
       // En serverless (Vercel/Lambda) usar @sparticuz/chromium con executablePath
+      let chromiumServerless: any;
       try {
-        const { default: chromiumServerless } = await import('@sparticuz/chromium');
-        contextOptions.executablePath = await chromiumServerless.executablePath();
-        contextOptions.args = [...chromiumServerless.args, ...launchArgs];
-        console.log('[PW] Usando @sparticuz/chromium (serverless)');
-      } catch {
-        // Local: usar Chrome del sistema o el channel configurado
+        const mod = await import('@sparticuz/chromium');
+        chromiumServerless = mod.default || mod;
+        console.log('[PW] @sparticuz/chromium importado OK');
+      } catch (e: any) {
+        console.log('[PW] @sparticuz/chromium no disponible:', e?.message || e);
+      }
+      if (chromiumServerless?.executablePath) {
+        try {
+          contextOptions.executablePath = await chromiumServerless.executablePath();
+          contextOptions.args = [...(chromiumServerless.args || []), ...launchArgs];
+          console.log('[PW] Usando @sparticuz/chromium (serverless)');
+        } catch (e: any) {
+          console.log('[PW] Error usando @sparticuz/chromium:', e?.message || e);
+        }
+      }
+      if (!contextOptions.executablePath) {
         const channel = process.env.PLAYWRIGHT_CHANNEL;
         contextOptions.channel = channel === 'none' ? undefined : (channel || 'chrome');
         console.log('[PW] Usando Chrome local, channel:', contextOptions.channel);
