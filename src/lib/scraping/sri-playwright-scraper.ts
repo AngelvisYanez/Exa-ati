@@ -41,7 +41,7 @@ export class SriPlaywrightScraper {
 
   constructor(opts?: ScrapeOptions) {
     this.headless = opts?.headless ?? process.env.HEADLESS !== 'false';
-    this.diagDir = opts?.diagDir || './downloads/debug';
+    this.diagDir = opts?.diagDir || path.join(os.tmpdir(), 'downloads', 'debug');
     this.proxyUrl = opts?.proxyUrl;
   }
 
@@ -115,7 +115,7 @@ export class SriPlaywrightScraper {
         }
       }
 
-      const userDataDir = path.resolve('./browser_session/sri_user_profile');
+      const userDataDir = path.join(os.tmpdir(), 'browser_session', 'sri_user_profile');
       fs.mkdirSync(userDataDir, { recursive: true });
 
       const chromium = playwright.chromium;
@@ -365,8 +365,8 @@ export class SriPlaywrightScraper {
     const docType = job.tipo_comprobante || '1';
     const typeCodes = docType === 'todos' ? ['1', '2', '3', '4', '6'] : [docType];
 
-    const xmlDir = path.join(process.cwd(), 'downloads', 'XML');
-    const pdfDir = path.join(process.cwd(), 'downloads', 'RIDE');
+    const xmlDir = path.join(os.tmpdir(), 'downloads', 'XML');
+    const pdfDir = path.join(os.tmpdir(), 'downloads', 'RIDE');
     fs.mkdirSync(xmlDir, { recursive: true });
     fs.mkdirSync(pdfDir, { recursive: true });
 
