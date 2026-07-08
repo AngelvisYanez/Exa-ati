@@ -91,7 +91,6 @@ export class SriPlaywrightScraper {
       const contextOptions: any = {
         headless: this.headless,
         args: launchArgs,
-        channel: process.env.PLAYWRIGHT_CHANNEL === 'none' ? undefined : (process.env.PLAYWRIGHT_CHANNEL || 'chrome'),
         viewport: { width: 1366, height: 768 },
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
         locale: 'es-EC',
@@ -113,6 +112,19 @@ export class SriPlaywrightScraper {
         } catch (e: any) {
           console.log(`[PW] Error parsing proxy URL "${this.proxyUrl}": ${e.message}`);
         }
+      }
+
+      // En serverless (Vercel/Lambda) usar @sparticuz/chromium con executablePath
+      try {
+        const { default: chromiumServerless } = await import('@sparticuz/chromium');
+        contextOptions.executablePath = await chromiumServerless.executablePath();
+        contextOptions.args = [...chromiumServerless.args, ...launchArgs];
+        console.log('[PW] Usando @sparticuz/chromium (serverless)');
+      } catch {
+        // Local: usar Chrome del sistema o el channel configurado
+        const channel = process.env.PLAYWRIGHT_CHANNEL;
+        contextOptions.channel = channel === 'none' ? undefined : (channel || 'chrome');
+        console.log('[PW] Usando Chrome local, channel:', contextOptions.channel);
       }
 
       const userDataDir = path.join(os.tmpdir(), 'browser_session', 'sri_user_profile');
