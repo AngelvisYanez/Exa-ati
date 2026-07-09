@@ -10,31 +10,35 @@ Para desplegar este proyecto Next.js en Plesk utilizando la extensión Git y Nod
 ## 2. Configuración de Node.js en Plesk
 1. Ve a **Node.js App** en el panel de tu dominio en Plesk.
 2. Configura las siguientes opciones:
-   - **Node.js Version**: 20.x o superior (la que sea compatible con Next.js 15/16).
+   - **Node.js Version**: 20.x o superior (la que sea compatible con Next.js).
    - **Document Root**: `/httpdocs/public` (Plesk necesita apuntar a una carpeta pública por seguridad, aunque la app corra en la raíz).
    - **Application Root**: `/httpdocs` (o donde se haya clonado el repo).
    - **Application Mode**: `production`.
-   - **Application Startup File**: `app.js` (Este archivo ha sido creado en la raíz del proyecto para compatibilidad con Phusion Passenger de Plesk).
+   - **Application Startup File**: `app.js` (Este archivo ha sido creado en la raíz del proyecto para compatibilidad con Phusion Passenger de Plesk y fuerza el modo producción).
 
 ## 3. Variables de Entorno
 1. En la configuración de **Node.js App** en Plesk, añade las variables de entorno necesarias (las mismas que tienes en tu `.env` o `.env.example`).
    - `DATABASE_URL`
    - Cualquier otra variable que requiera tu aplicación.
 
-## 4. Scripts de Despliegue (Acciones Adicionales)
-Dado que Next.js necesita compilarse, debes configurar Plesk para que ejecute el build después de obtener los cambios de Git.
-1. En Plesk, ve a **Git** > **Repository Settings** (Ajustes del Repositorio).
-2. Marca la opción **Enable additional deploy actions** (Habilitar acciones de despliegue adicionales).
-3. En el recuadro, pega el siguiente script:
-   ```bash
-   npm install
-   npx prisma generate
-   npm run build
-   touch tmp/restart.txt
-   ```
-   *(Nota: `touch tmp/restart.txt` le dice a Passenger que reinicie la aplicación Node.js).*
+## 4. Instalación y Compilación (MUY IMPORTANTE)
+Next.js requiere que la aplicación sea compilada antes de poder ejecutarse. Si omites esto, tu web se quedará colgada mostrando un error **504 Gateway Time-out**.
 
-## 5. Notas Importantes
-- **npm install**: Es importante que no se ejecute con el flag `--production` durante la fase de despliegue, ya que `next build` requiere algunas `devDependencies` (como Typescript y Tailwind) para compilar. El script de arriba usa `npm install` normal.
-- El archivo `app.js` creado en la raíz es el punto de entrada que utilizará Plesk para levantar la aplicación Next.js en modo producción en el puerto asignado dinámicamente por Plesk.
-- **Puppeteer / Chromium**: Este proyecto utiliza `@sparticuz/chromium` y `playwright-extra`/`puppeteer-core`. Plesk (y por debajo CentOS/Ubuntu) debe tener instaladas las dependencias a nivel sistema operativo para que Chromium pueda ejecutarse (ej. `libnss3`, `libatk1.0-0`, `libx11-xcb1`, etc.). Si encuentras errores de Chromium al ejecutar tu aplicación, deberás contactar al administrador del servidor Plesk para que instale estas bibliotecas del sistema.
+Cada vez que hagas un despliegue (Pull de Git), debes realizar lo siguiente en la pantalla de Node.js App:
+1. Haz clic en **NPM install** para instalar nuevas dependencias.
+2. Haz clic en **Run script** y selecciona **`build`**. Esto ejecuta `next build` en segundo plano. Espera pacientemente a que termine (el estado cambiará a `Success`).
+3. Una vez compilado, presiona el botón **Restart App** (Reiniciar Aplicación).
+
+*(Opcional)* Puedes automatizar esto en Plesk yendo a **Git > Repository Settings**, marcando **Enable additional deploy actions** y poniendo:
+```bash
+npm install
+npm run build
+touch tmp/restart.txt
+```
+
+## 5. 🛑 Lo que NUNCA debes hacer en Plesk
+- **NUNCA ejecutes el script `start` o `dev` desde Plesk (Run Script):** Plesk, a través de Passenger y el archivo `app.js`, ya levanta tu servidor automáticamente en el puerto correcto. Si intentas iniciarlo a mano, generará un error `EADDRINUSE` y bloqueará los puertos.
+
+## 6. Notas Adicionales
+- Si el servidor se queda atascado con procesos Node.js huérfanos bloqueando el puerto, puedes ejecutar `npm exec -- kill-port 3000` y `npm exec -- kill-port 3001` desde un terminal SSH, o simplemente darle a **Restart App** en Plesk.
+- **Puppeteer / Chromium**: Este proyecto utiliza `@sparticuz/chromium`. Plesk (y por debajo Ubuntu/CentOS) debe tener instaladas las dependencias a nivel sistema operativo para que Chromium pueda ejecutarse (`libnss3`, `libatk1.0-0`, `libx11-xcb1`, etc.).
