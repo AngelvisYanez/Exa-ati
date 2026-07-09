@@ -14,7 +14,7 @@ Para desplegar este proyecto Next.js en Plesk utilizando la extensión Git y Nod
    - **Document Root**: `/httpdocs/public` (Plesk necesita apuntar a una carpeta pública por seguridad, aunque la app corra en la raíz).
    - **Application Root**: `/httpdocs` (o donde se haya clonado el repo).
    - **Application Mode**: `production`.
-   - **Application Startup File**: `server.js` (Este archivo ha sido creado en la raíz del proyecto para compatibilidad con Phusion Passenger de Plesk).
+   - **Application Startup File**: `app.js` (Este archivo ha sido creado en la raíz del proyecto para compatibilidad con Phusion Passenger de Plesk).
 
 ## 3. Variables de Entorno
 1. En la configuración de **Node.js App** en Plesk, añade las variables de entorno necesarias (las mismas que tienes en tu `.env` o `.env.example`).
@@ -36,5 +36,5 @@ Dado que Next.js necesita compilarse, debes configurar Plesk para que ejecute el
 
 ## 5. Notas Importantes
 - **npm install**: Es importante que no se ejecute con el flag `--production` durante la fase de despliegue, ya que `next build` requiere algunas `devDependencies` (como Typescript y Tailwind) para compilar. El script de arriba usa `npm install` normal.
-- El archivo `server.js` creado en la raíz es el punto de entrada que utilizará Plesk para levantar la aplicación Next.js en modo producción en el puerto asignado dinámicamente por Plesk.
+- El archivo `app.js` creado en la raíz es el punto de entrada que utilizará Plesk para levantar la aplicación Next.js en modo producción en el puerto asignado dinámicamente por Plesk.
 - **Puppeteer / Chromium**: Este proyecto utiliza `@sparticuz/chromium` y `playwright-extra`/`puppeteer-core`. Plesk (y por debajo CentOS/Ubuntu) debe tener instaladas las dependencias a nivel sistema operativo para que Chromium pueda ejecutarse (ej. `libnss3`, `libatk1.0-0`, `libx11-xcb1`, etc.). Si encuentras errores de Chromium al ejecutar tu aplicación, deberás contactar al administrador del servidor Plesk para que instale estas bibliotecas del sistema.
