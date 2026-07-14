@@ -10,7 +10,7 @@ set -e
 
 # ─── Configuracion ─────────────────────────────────────────
 SOURCE_DIR="$(pwd)"
-DEPLOY_DIR="/var/www/vhosts/exa-ati"
+DEPLOY_DIR="/httpdocs/exa-ati"
 APP_PORT=3001
 
 echo "========================================"
