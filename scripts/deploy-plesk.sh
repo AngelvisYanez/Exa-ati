@@ -1,155 +1,134 @@
 #!/bin/bash
 # ===================================================
-# Script de Despliegue — Exa-ATI en Plesk (Docker)
+# Deploy para Plesk UI — Exa-ATI (Docker)
 # ===================================================
-# Ejecutar desde la raíz del servidor o vía SSH:
+# Ejecutar después de hacer pull en Plesk (Git extension):
 #   bash scripts/deploy-plesk.sh
 #
-# Requisitos previos:
-#   - Docker y Docker Compose instalados
-#   - Git instalado
-#   - Archivo .env configurado en la raíz del proyecto
+# O configurar como action en Plesk:
+#   Git → Repository Settings → Additional deploy actions
 # ===================================================
 
 set -euo pipefail
 
-REPO_URL="https://github.com/angelvisyanez/Exa-ati.git"
-DEPLOY_DIR="/var/www/exa-ati"
-BRANCH="main"
-COMPOSE_FILE="docker-compose.plesk.yml"
+# ─── Configuración ─────────────────────────────────────────
+# Directorio donde Plesk clona el repo (ajustar si es necesario)
+SOURCE_DIR="${1:-$(pwd)}"
+# Directorio del stack Docker en Plesk
+STACK_DIR="/opt/psa/var/modules/docker/stacks/exa-ati"
+# Archivo compose
+COMPOSE_FILE="compose.yaml"
+# Puerto de la app
+APP_PORT=3001
 
 echo "========================================"
-echo "  Exa-ATI — Despliegue en Plesk (Docker)"
+echo "  Exa-ATI — Deploy Plesk (Docker)"
 echo "========================================"
 
-# ─── 1. Verificar dependencias ─────────────────────────────
+# ─── Verificar que estamos en el directorio correcto ────────
 echo ""
-echo "[1/6] Verificando dependencias..."
+echo "[1/5] Verificando directorio origen..."
 
-if ! command -v docker &> /dev/null; then
-  echo "ERROR: Docker no está instalado."
-  echo "Instalar: https://docs.docker.com/engine/install/"
+if [ ! -f "$SOURCE_DIR/package.json" ]; then
+  echo "ERROR: No se encontró package.json en $SOURCE_DIR"
+  echo "Ejecuta desde la raíz del proyecto o pasa la ruta como argumento."
   exit 1
 fi
 
-if ! docker compose version &> /dev/null; then
-  echo "ERROR: Docker Compose no está instalado."
-  echo "Instalar: https://docs.docker.com/compose/install/"
+if [ ! -f "$SOURCE_DIR/Dockerfile" ]; then
+  echo "ERROR: No se encontró Dockerfile en $SOURCE_DIR"
   exit 1
 fi
 
-if ! command -v git &> /dev/null; then
-  echo "ERROR: Git no está instalado."
-  echo "Instalar: apt-get install git"
-  exit 1
-fi
-
-echo "  Docker: $(docker --version)"
-echo "  Compose: $(docker compose version --short)"
-echo "  Git: $(git --version)"
+echo "  Origen: $SOURCE_DIR"
 echo "  OK"
 
-# ─── 2. Clonar o actualizar repositorio ────────────────────
+# ─── Crear directorio del stack si no existe ────────────────
 echo ""
-echo "[2/6] Configurando repositorio..."
+echo "[2/5] Preparando directorio del stack Docker..."
 
-if [ -d "$DEPLOY_DIR/.git" ]; then
-  echo "  Repositorio existente. Actualizando..."
-  cd "$DEPLOY_DIR"
-  git fetch origin
-  git checkout $BRANCH
-  git pull origin $BRANCH
-else
-  echo "  Clonando repositorio..."
-  if [ -d "$DEPLOY_DIR" ]; then
-    echo "  Directorio $DEPLOY_DIR existe pero no es un repositorio git."
-    echo "  Eliminando contenido anterior..."
-    rm -rf "$DEPLOY_DIR"
-  fi
-  git clone -b $BRANCH $REPO_URL "$DEPLOY_DIR"
-  cd "$DEPLOY_DIR"
-fi
+mkdir -p "$STACK_DIR"
 
-echo "  Rama: $(git branch --show-current)"
-echo "  Último commit: $(git log -1 --pretty=format:'%h %s (%cr)')"
-echo "  OK"
-
-# ─── 3. Configurar variables de entorno ────────────────────
+# ─── Sincronizar archivos ──────────────────────────────────
 echo ""
-echo "[3/6] Configurando variables de entorno..."
+echo "[3/5] Sincronizando archivos al stack Docker..."
 
-if [ ! -f ".env" ]; then
-  if [ -f ".env.plesk.example" ]; then
-    echo "  No se encontró .env. Copiando desde .env.plesk.example..."
-    cp .env.plesk.example .env
-    echo "  IMPORTANTE: Edita el archivo .env con tus valores reales."
-    echo "  nano $DEPLOY_DIR/.env"
-    echo ""
-    echo "  Presiona Enter cuando hayas editado .env..."
-    read -r
+# Copiar archivos necesarios para el build
+rsync -av --delete \
+  --exclude='node_modules' \
+  --exclude='.next' \
+  --exclude='.git' \
+  --exclude='downloads' \
+  --exclude='browser_session' \
+  --exclude='logs' \
+  --exclude='*.log' \
+  "$SOURCE_DIR/" "$STACK_DIR/"
+
+# ─── Crear .env si no existe ──────────────────────────────
+echo ""
+echo "[4/5] Configurando variables de entorno..."
+
+if [ ! -f "$STACK_DIR/.env" ]; then
+  if [ -f "$SOURCE_DIR/.env.plesk.example" ]; then
+    cp "$SOURCE_DIR/.env.plesk.example" "$STACK_DIR/.env"
+    echo "  AVISO: Se creó .env desde .env.plesk.example"
+    echo "  Edita el archivo: nano $STACK_DIR/.env"
   else
     echo "  ERROR: No se encontró .env ni .env.plesk.example"
-    echo "  Crea el archivo .env en $DEPLOY_DIR"
     exit 1
   fi
+else
+  echo "  .env existente — no se sobrescribe"
 fi
 
-echo "  Variables de entorno: .env encontrado"
-echo "  OK"
-
-# ─── 4. Construir imagen Docker ────────────────────────────
-echo ""
-echo "[4/6] Construyendo imagen Docker (esto puede tardar varios minutos)..."
-
-docker compose -f $COMPOSE_FILE build --no-cache
-
-echo "  Imagen construida exitosamente"
-echo "  OK"
-
-# ─── 5. Detener contenedores anteriores ────────────────────
-echo ""
-echo "[5/6] Deteniendo contenedores anteriores..."
-
-docker compose -f $COMPOSE_FILE down --remove-orphans 2>/dev/null || true
+# Verificar que .env tenga DATABASE_URL
+if ! grep -q "^DATABASE_URL=" "$STACK_DIR/.env" 2>/dev/null; then
+  echo "  AVISO: .env no tiene DATABASE_URL configurado"
+fi
 
 echo "  OK"
 
-# ─── 6. Levantar servicios ────────────────────────────────
+# ─── Build y Run ──────────────────────────────────────────
 echo ""
-echo "[6/6] Levantando servicios..."
+echo "[5/5] Construyendo e iniciando contenedores..."
 
-docker compose -f $COMPOSE_FILE --env-file .env up -d
+cd "$STACK_DIR"
+
+# Verificar si Docker está disponible
+if ! command -v docker &> /dev/null; then
+  echo "  ERROR: Docker no está instalado"
+  exit 1
+fi
+
+# Build
+echo "  Construyendo imagen..."
+docker compose -f "$COMPOSE_FILE" build --no-cache
+
+# Detener contenedores anteriores
+echo "  Deteniendo contenedores anteriores..."
+docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || true
+
+# Levantar
+echo "  Iniciando servicios..."
+docker compose -f "$COMPOSE_FILE" --env-file .env up -d
 
 echo ""
 echo "========================================"
-echo "  Despliegue completado!"
+echo "  Deploy completado!"
 echo "========================================"
 echo ""
-echo "  Servicios:"
-docker compose -f $COMPOSE_FILE ps
+echo "  Stack: $STACK_DIR"
+echo "  Puerto: $APP_PORT"
 echo ""
-echo "  Logs en tiempo real:"
-echo "    docker compose -f $COMPOSE_FILE logs -f"
+
+# Verificar estado
+echo "  Estado de contenedores:"
+docker compose -f "$COMPOSE_FILE" ps 2>/dev/null || docker ps --filter "name=exa-ati" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
 echo ""
-echo "  Logs de la app:"
-echo "    docker compose -f $COMPOSE_FILE logs -f app"
+echo "  Configurar proxy inverso en Plesk:"
+echo "    Dominio → Proxy Settings → http://127.0.0.1:$APP_PORT"
 echo ""
-echo "  La aplicación está disponible en:"
-echo "    http://localhost:3001"
-echo ""
-echo "  Para configurar el proxy inverso en Plesk:"
-echo "    1. Ve a tu dominio > Hosting Settings"
-echo "    2. Configura el proxy inverso a http://localhost:3001"
-echo "    3. O usa la directiva Nginx:"
-echo ""
-echo "    location / {"
-echo "      proxy_pass http://127.0.0.1:3001;"
-echo "      proxy_http_version 1.1;"
-echo "      proxy_set_header Upgrade \$http_upgrade;"
-echo "      proxy_set_header Connection 'upgrade';"
-echo "      proxy_set_header Host \$host;"
-echo "      proxy_set_header X-Real-IP \$remote_addr;"
-echo "      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;"
-echo "      proxy_set_header X-Forwarded-Proto \$scheme;"
-echo "    }"
+echo "  Logs:"
+echo "    docker compose -f $STACK_DIR/$COMPOSE_FILE logs -f"
 echo ""
