@@ -53,26 +53,27 @@ mkdir -p "$STACK_DIR"
 echo ""
 echo "[3/5] Sincronizando archivos al stack Docker..."
 
-# Limpiar directorio destino (preservando .env)
-if [ -d "$STACK_DIR" ]; then
-  for item in "$STACK_DIR"/*; do
-    name=$(basename "$item")
-    if [ "$name" != ".env" ]; then
-      rm -rf "$item"
-    fi
-  done
+# Guardar .env actual si existe
+if [ -f "$STACK_DIR/.env" ]; then
+  cp "$STACK_DIR/.env" /tmp/exa-ati-env-backup
 fi
 
-# Copiar archivos necesarios para el build
+# Limpiar y recrear directorio
+rm -rf "$STACK_DIR"
+mkdir -p "$STACK_DIR"
+
+# Restaurar .env
+if [ -f /tmp/exa-ati-env-backup ]; then
+  cp /tmp/exa-ati-env-backup "$STACK_DIR/.env"
+  rm /tmp/exa-ati-env-backup
+fi
+
+# Copiar archivos uno por uno (excluyendo los que no necesitamos)
 cd "$SOURCE_DIR"
 for item in *; do
-  case "$item" in
-    node_modules|.next|.git|downloads|browser_session|logs|*.log)
-      ;;
-    *)
-      cp -r "$item" "$STACK_DIR/"
-      ;;
-  esac
+  if [ "$item" != "node_modules" ] && [ "$item" != ".next" ] && [ "$item" != ".git" ] && [ "$item" != "downloads" ] && [ "$item" != "browser_session" ] && [ "$item" != "logs" ]; then
+    cp -r "$item" "$STACK_DIR/"
+  fi
 done
 
 # ─── Crear .env si no existe ──────────────────────────────
