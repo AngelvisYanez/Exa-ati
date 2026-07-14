@@ -53,24 +53,27 @@ mkdir -p "$STACK_DIR"
 echo ""
 echo "[3/5] Sincronizando archivos al stack Docker..."
 
-# Limpiar directorio destino (preservando .env y volumes de docker)
+# Limpiar directorio destino (preservando .env)
 if [ -d "$STACK_DIR" ]; then
-  find "$STACK_DIR" -mindepth 1 -maxdepth 1 \
-    ! -name '.env' \
-    ! -name 'postgres_data' \
-    -exec rm -rf {} + 2>/dev/null || true
+  for item in "$STACK_DIR"/*; do
+    name=$(basename "$item")
+    if [ "$name" != ".env" ]; then
+      rm -rf "$item"
+    fi
+  done
 fi
 
 # Copiar archivos necesarios para el build
 cd "$SOURCE_DIR"
-find . -mindepth 1 -maxdepth 1 \
-  ! -name 'node_modules' \
-  ! -name '.next' \
-  ! -name '.git' \
-  ! -name 'downloads' \
-  ! -name 'browser_session' \
-  ! -name 'logs' \
-  -exec cp -r {} "$STACK_DIR/" \;
+for item in *; do
+  case "$item" in
+    node_modules|.next|.git|downloads|browser_session|logs|*.log)
+      ;;
+    *)
+      cp -r "$item" "$STACK_DIR/"
+      ;;
+  esac
+done
 
 # ─── Crear .env si no existe ──────────────────────────────
 echo ""
