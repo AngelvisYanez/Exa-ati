@@ -44,11 +44,27 @@ fi
 
 echo "  OK"
 
+# ─── Buscar npm ───────────────────────────────────────────
+NPM=""
+for p in npm /usr/local/bin/npm /opt/plesk/node/20/bin/npm .npm/npx.sh; do
+  if [ -f "$p" ] || command -v "$p" >/dev/null 2>&1; then
+    NPM="$p"
+    break
+  fi
+done
+
+if [ -z "$NPM" ]; then
+  echo "ERROR: No se encontro npm"
+  exit 1
+fi
+
+echo "  npm: $NPM"
+
 # ─── 3. Instalar dependencias ─────────────────────────────
 echo ""
 echo "[3/5] Instalando dependencias..."
 
-npm install
+$NPM install
 
 echo "  OK"
 
@@ -56,7 +72,7 @@ echo "  OK"
 echo ""
 echo "[4/5] Construyendo aplicacion..."
 
-npm run build
+$NPM run build
 
 echo "  OK"
 
