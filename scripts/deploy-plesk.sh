@@ -53,16 +53,24 @@ mkdir -p "$STACK_DIR"
 echo ""
 echo "[3/5] Sincronizando archivos al stack Docker..."
 
+# Limpiar directorio destino (preservando .env y volumes de docker)
+if [ -d "$STACK_DIR" ]; then
+  find "$STACK_DIR" -mindepth 1 -maxdepth 1 \
+    ! -name '.env' \
+    ! -name 'postgres_data' \
+    -exec rm -rf {} + 2>/dev/null || true
+fi
+
 # Copiar archivos necesarios para el build
-rsync -av --delete \
-  --exclude='node_modules' \
-  --exclude='.next' \
-  --exclude='.git' \
-  --exclude='downloads' \
-  --exclude='browser_session' \
-  --exclude='logs' \
-  --exclude='*.log' \
-  "$SOURCE_DIR/" "$STACK_DIR/"
+cd "$SOURCE_DIR"
+find . -mindepth 1 -maxdepth 1 \
+  ! -name 'node_modules' \
+  ! -name '.next' \
+  ! -name '.git' \
+  ! -name 'downloads' \
+  ! -name 'browser_session' \
+  ! -name 'logs' \
+  -exec cp -r {} "$STACK_DIR/" \;
 
 # ─── Crear .env si no existe ──────────────────────────────
 echo ""
