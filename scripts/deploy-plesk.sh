@@ -1,146 +1,127 @@
-#!/bin/bash
+#!/bin/sh
 # ===================================================
-# Deploy para Plesk UI — Exa-ATI (Docker)
+# Deploy Plesk sin Docker — Exa-ATI
 # ===================================================
-# Ejecutar después de hacer pull en Plesk (Git extension):
-#   bash scripts/deploy-plesk.sh
-#
-# O configurar como action en Plesk:
-#   Git → Repository Settings → Additional deploy actions
+# Ejecutar por SSH desde la raiz del repositorio:
+#   sh scripts/deploy-plesk.sh
 # ===================================================
 
-set -euo pipefail
+set -e
 
-# ─── Configuración ─────────────────────────────────────────
-# Directorio donde Plesk clona el repo (ajustar si es necesario)
-SOURCE_DIR="${1:-$(pwd)}"
-# Directorio del stack Docker en Plesk
-STACK_DIR="/opt/psa/var/modules/docker/stacks/exa-ati"
-# Archivo compose
-COMPOSE_FILE="compose.yaml"
-# Puerto de la app
+# ─── Configuracion ─────────────────────────────────────────
+SOURCE_DIR="$(pwd)"
+DEPLOY_DIR="/var/www/vhosts/exa-ati"
 APP_PORT=3001
 
 echo "========================================"
-echo "  Exa-ATI — Deploy Plesk (Docker)"
+echo "  Exa-ATI — Deploy Plesk (sin Docker)"
 echo "========================================"
 
-# ─── Verificar que estamos en el directorio correcto ────────
+# ─── 1. Verificar archivos ─────────────────────────────────
 echo ""
-echo "[1/5] Verificando directorio origen..."
+echo "[1/7] Verificando archivos..."
 
 if [ ! -f "$SOURCE_DIR/package.json" ]; then
-  echo "ERROR: No se encontró package.json en $SOURCE_DIR"
-  echo "Ejecuta desde la raíz del proyecto o pasa la ruta como argumento."
+  echo "ERROR: No se encontro package.json"
   exit 1
 fi
 
-if [ ! -f "$SOURCE_DIR/Dockerfile" ]; then
-  echo "ERROR: No se encontró Dockerfile en $SOURCE_DIR"
-  exit 1
-fi
-
-echo "  Origen: $SOURCE_DIR"
 echo "  OK"
 
-# ─── Crear directorio del stack si no existe ────────────────
+# ─── 2. Preparar directorio ────────────────────────────────
 echo ""
-echo "[2/5] Preparando directorio del stack Docker..."
+echo "[2/7] Preparando directorio de deploy..."
 
-mkdir -p "$STACK_DIR"
+mkdir -p "$DEPLOY_DIR"
 
-# ─── Sincronizar archivos ──────────────────────────────────
+# ─── 3. Copiar archivos ────────────────────────────────────
 echo ""
-echo "[3/5] Sincronizando archivos al stack Docker..."
+echo "[3/7] Copiando archivos..."
 
-# Guardar .env actual si existe
-if [ -f "$STACK_DIR/.env" ]; then
-  cp "$STACK_DIR/.env" /tmp/exa-ati-env-backup
-fi
-
-# Limpiar y recrear directorio
-rm -rf "$STACK_DIR"
-mkdir -p "$STACK_DIR"
-
-# Restaurar .env
-if [ -f /tmp/exa-ati-env-backup ]; then
-  cp /tmp/exa-ati-env-backup "$STACK_DIR/.env"
-  rm /tmp/exa-ati-env-backup
-fi
-
-# Copiar archivos uno por uno (excluyendo los que no necesitamos)
 cd "$SOURCE_DIR"
 for item in *; do
   if [ "$item" != "node_modules" ] && [ "$item" != ".next" ] && [ "$item" != ".git" ] && [ "$item" != "downloads" ] && [ "$item" != "browser_session" ] && [ "$item" != "logs" ]; then
-    cp -r "$item" "$STACK_DIR/"
+    cp -r "$item" "$DEPLOY_DIR/"
   fi
 done
 
-# ─── Crear .env si no existe ──────────────────────────────
-echo ""
-echo "[4/5] Configurando variables de entorno..."
+echo "  OK"
 
-if [ ! -f "$STACK_DIR/.env" ]; then
+# ─── 4. Variables de entorno ───────────────────────────────
+echo ""
+echo "[4/7] Configurando variables de entorno..."
+
+if [ ! -f "$DEPLOY_DIR/.env" ]; then
   if [ -f "$SOURCE_DIR/.env.plesk.example" ]; then
-    cp "$SOURCE_DIR/.env.plesk.example" "$STACK_DIR/.env"
-    echo "  AVISO: Se creó .env desde .env.plesk.example"
-    echo "  Edita el archivo: nano $STACK_DIR/.env"
-  else
-    echo "  ERROR: No se encontró .env ni .env.plesk.example"
-    exit 1
+    cp "$SOURCE_DIR/.env.plesk.example" "$DEPLOY_DIR/.env"
+    echo "  AVISO: Se creo .env — Edita: nano $DEPLOY_DIR/.env"
   fi
 else
-  echo "  .env existente — no se sobrescribe"
-fi
-
-# Verificar que .env tenga DATABASE_URL
-if ! grep -q "^DATABASE_URL=" "$STACK_DIR/.env" 2>/dev/null; then
-  echo "  AVISO: .env no tiene DATABASE_URL configurado"
+  echo "  .env existente"
 fi
 
 echo "  OK"
 
-# ─── Build y Run ──────────────────────────────────────────
+# ─── 5. Instalar dependencias ─────────────────────────────
 echo ""
-echo "[5/5] Construyendo e iniciando contenedores..."
+echo "[5/7] Instalando dependencias..."
 
-cd "$STACK_DIR"
+cd "$DEPLOY_DIR"
+npm install --production=false
 
-# Verificar si Docker está disponible
-if ! command -v docker &> /dev/null; then
-  echo "  ERROR: Docker no está instalado"
-  exit 1
-fi
+echo "  OK"
 
-# Build
-echo "  Construyendo imagen..."
-docker compose -f "$COMPOSE_FILE" build --no-cache
+# ─── 6. Build ─────────────────────────────────────────────
+echo ""
+echo "[6/7] Construyendo aplicacion..."
 
-# Detener contenedores anteriores
-echo "  Deteniendo contenedores anteriores..."
-docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || true
+npx prisma generate
+npm run build
 
-# Levantar
-echo "  Iniciando servicios..."
-docker compose -f "$COMPOSE_FILE" --env-file .env up -d
+echo "  OK"
 
+# ─── 7. Configurar Nginx ──────────────────────────────────
+echo ""
+echo "[7/7] Configurando Nginx..."
+
+NGINX_CONF="/var/www/vhosts/conf"
+mkdir -p "$NGINX_CONF"
+
+cat > "$NGINX_CONF/vhost_nginx.conf" << 'NGINXEOF'
+location / {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache_bypass $http_upgrade;
+    proxy_read_timeout 300s;
+    proxy_connect_timeout 30s;
+    proxy_send_timeout 300s;
+    client_max_body_size 50M;
+}
+NGINXEOF
+
+echo "  Nginx configurado"
+/usr/local/psa/admin/sbin/httpdmng --reconfigure-all 2>/dev/null || \
+service nginx reload 2>/dev/null || \
+echo "  AVISO: Recarga Nginx desde Plesk UI"
+
+# ─── Resumen ──────────────────────────────────────────────
 echo ""
 echo "========================================"
 echo "  Deploy completado!"
 echo "========================================"
 echo ""
-echo "  Stack: $STACK_DIR"
+echo "  Directorio: $DEPLOY_DIR"
 echo "  Puerto: $APP_PORT"
 echo ""
-
-# Verificar estado
-echo "  Estado de contenedores:"
-docker compose -f "$COMPOSE_FILE" ps 2>/dev/null || docker ps --filter "name=exa-ati" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-
+echo "  Para iniciar la app:"
+echo "    cd $DEPLOY_DIR"
+echo "    node app.js &"
 echo ""
-echo "  Configurar proxy inverso en Plesk:"
-echo "    Dominio → Proxy Settings → http://127.0.0.1:$APP_PORT"
-echo ""
-echo "  Logs:"
-echo "    docker compose -f $STACK_DIR/$COMPOSE_FILE logs -f"
+echo "  O usa el boton 'Restart App' en Plesk UI"
 echo ""
