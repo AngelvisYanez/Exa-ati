@@ -1,6 +1,8 @@
 "use client";
 
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Topbar from "@/components/Topbar";
 import {
   formatDateRangeLabel,
@@ -22,7 +24,9 @@ const TIPO_MAP: Record<string, string> = {
 };
 
 export default function Dashboard() {
+  const router = useRouter();
   const { hasSriLinked, activeRuc } = useAuth();
+  const [chatQuery, setChatQuery] = useState("");
   const {
     loading,
     isConnected,
@@ -33,7 +37,6 @@ export default function Dashboard() {
     monthlyTrend,
     totalVentas,
     totalCompras,
-    ivaAPagar,
     ventasCount,
     comprasCount,
     retencionesCount,
@@ -45,6 +48,13 @@ export default function Dashboard() {
     enProcesoCount,
     pprCount,
   } = useDashboardData(activeRuc);
+
+  const handleChatSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    const q = chatQuery.trim();
+    if (!q) return;
+    router.push(`/chat?q=${encodeURIComponent(q)}`);
+  };
 
   const lastSyncLabel = syncStatus?.lastSyncAt
     ? new Date(syncStatus.lastSyncAt).toLocaleString("es-EC", {
@@ -137,38 +147,9 @@ export default function Dashboard() {
         </div>
 
         {/* ── 4 INTERACTION CARDS FROM DIAGRAM (Section 8) ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
 
-          {/* Card 1: Resumen General – IVA a pagar */}
-          <div className="bg-slate-900 text-white rounded-xl p-5 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Resumen General</span>
-              <div className="w-6 h-6 bg-white/10 rounded-md flex items-center justify-center">
-                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
-                </svg>
-              </div>
-            </div>
-            <div>
-              <p className="text-[12px] text-slate-400 leading-relaxed">
-                Tu IVA a pagar este mes es
-              </p>
-              <p className="text-3xl font-extrabold text-white mt-0.5">
-                {loading ? "—" : `$${ivaAPagar.toFixed(2)}`}
-              </p>
-              <p className="text-[11px] text-amber-400 font-semibold mt-1">
-                📅 Fecha límite: {vencimiento.fecha}
-              </p>
-            </div>
-            <Link
-              href="/declaraciones/presentar"
-              className="mt-auto text-[11px] font-bold bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors text-center"
-            >
-              ¿Deseas que la presente por ti?
-            </Link>
-          </div>
-
-          {/* Card 2: Chat IA */}
+          {/* Card 1: Chat IA */}
           <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Chat IA</span>
@@ -178,24 +159,40 @@ export default function Dashboard() {
                 </svg>
               </div>
             </div>
-            <div className="flex-1">
-              <div className="bg-slate-50 rounded-lg p-3 text-[12px] text-slate-600 italic">
-                "¿Cuánto debo pagar de IVA este mes?"
-              </div>
-              <div className="bg-brand-navy/5 border border-brand-navy/10 rounded-lg p-3 mt-2 text-[12px] text-slate-700">
-                Tu IVA a pagar este mes es{" "}
-                <strong>${ivaAPagar.toFixed(2)}</strong>. Fecha límite: 15/07.
-              </div>
-            </div>
-            <Link
-              href="/chat"
-              className="text-[12px] font-bold text-brand-navy hover:text-brand-navy-light transition-colors flex items-center gap-1"
-            >
-              Abrir asistente →
-            </Link>
+            <p className="text-[12px] text-slate-500">
+              Escribe tu consulta tributaria y abre el asistente.
+            </p>
+            <form onSubmit={handleChatSubmit} className="mt-auto flex flex-col gap-2">
+              <label htmlFor="dashboard-chat-query" className="sr-only">
+                Consulta para Chat IA
+              </label>
+              <textarea
+                id="dashboard-chat-query"
+                value={chatQuery}
+                onChange={(e) => setChatQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (chatQuery.trim()) {
+                      router.push(`/chat?q=${encodeURIComponent(chatQuery.trim())}`);
+                    }
+                  }
+                }}
+                rows={3}
+                placeholder="Ej: ¿Cuánto debo pagar de IVA este mes?"
+                className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-800 placeholder:text-slate-400 focus:border-brand-navy/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-navy/15"
+              />
+              <button
+                type="submit"
+                disabled={!chatQuery.trim()}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-navy px-3 py-2 text-[12px] font-bold text-white transition-colors hover:bg-brand-navy-light disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Consultar
+              </button>
+            </form>
           </div>
 
-          {/* Card 3: Documentos por tipo */}
+          {/* Card 2: Documentos por tipo */}
           <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Documentos</span>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import Topbar from "@/components/Topbar";
 import { sriClient } from "@/lib/sriClient";
 
@@ -34,6 +35,8 @@ interface Conversation {
 }
 
 export default function ChatIA() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [inputText, setInputText] = useState("");
@@ -43,6 +46,8 @@ export default function ChatIA() {
   const [emisorName, setEmisorName] = useState<string | null>(null);
   const [userInitials, setUserInitials] = useState("TU");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pendingUrlQueryRef = useRef<string | null>(null);
+  const urlQueryHandledRef = useRef(false);
 
   const todayLabel = new Date().toLocaleDateString("es-EC", {
     day: "numeric",
@@ -134,6 +139,14 @@ export default function ChatIA() {
       }
     }
   }, [emisorName]);
+
+  // Captura consulta inicial desde el dashboard (/chat?q=...)
+  useEffect(() => {
+    const q = searchParams.get("q")?.trim();
+    if (!q || urlQueryHandledRef.current) return;
+    pendingUrlQueryRef.current = q;
+    router.replace("/chat", { scroll: false });
+  }, [searchParams, router]);
 
   const updateActiveConvMessages = (newMessages: Message[]) => {
     setConversations((prevConvs) => {
@@ -292,6 +305,18 @@ export default function ChatIA() {
       updateActiveConvMessages([...updatedWithUser, errorReply]);
     }
   };
+
+  const handleSendRef = useRef(handleSend);
+  handleSendRef.current = handleSend;
+
+  // Envía automáticamente la consulta llegada desde el dashboard
+  useEffect(() => {
+    const q = pendingUrlQueryRef.current;
+    if (!q || !activeConversationId || urlQueryHandledRef.current || typing) return;
+    urlQueryHandledRef.current = true;
+    pendingUrlQueryRef.current = null;
+    void handleSendRef.current(q);
+  }, [activeConversationId, typing]);
 
   return (
     <>
