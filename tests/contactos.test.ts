@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validarIdentificacion } from '../src/lib/sri-api/contactos';
+import { validarIdentificacion } from '../src/services/sri-api/contactos';
 
 describe('validarIdentificacion', () => {
   describe('validarCedula (tipo 05)', () => {

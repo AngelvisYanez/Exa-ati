@@ -2,13 +2,17 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, Search, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Edit, Trash2, Search, ChevronRight, ChevronDown, BookOpen } from "lucide-react";
 
+import { apiFetch } from "@/lib/apiFetch";
 interface Cuenta {
   id: string;
   codigo: string;
@@ -31,11 +35,11 @@ const TIPO_LABEL: Record<string, string> = {
 };
 
 const TIPO_COLOR: Record<string, string> = {
-  ACTIVO: "bg-blue-50 text-blue-700 border-blue-200",
+  ACTIVO: "bg-sky-50 text-brand-sky border-sky-200",
   PASIVO: "bg-amber-50 text-amber-700 border-amber-200",
-  PATRIMONIO: "bg-purple-50 text-purple-700 border-purple-200",
-  INGRESO: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  GASTO: "bg-red-50 text-red-700 border-red-200",
+  PATRIMONIO: "bg-purple-50 text-purple-700 border-brand-gray-200",
+  INGRESO: "bg-success-pale text-success border-success-light/40",
+  GASTO: "bg-brand-red-subtle text-brand-red border-brand-red-pale",
   COSTO: "bg-orange-50 text-orange-700 border-orange-200",
 };
 
@@ -62,7 +66,7 @@ function CuentaRow({ cuenta, depth = 0 }: { cuenta: Cuenta; depth?: number }) {
     e.stopPropagation();
     if (!confirm(`¿Eliminar la cuenta "${cuenta.nombre}"?`)) return;
     try {
-      const res = await fetch(`/api/contabilidad/plan-cuentas/${cuenta.id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/contabilidad/plan-cuentas/${cuenta.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Error al eliminar");
       toast.success("Cuenta eliminada correctamente");
       window.location.reload();
@@ -73,8 +77,8 @@ function CuentaRow({ cuenta, depth = 0 }: { cuenta: Cuenta; depth?: number }) {
 
   return (
     <>
-      <tr className="hover:bg-brand-gray-50/40 transition-colors border-b border-brand-gray-100">
-        <td className="py-2.5">
+      <TableRow className="hover:bg-brand-gray-50/40 transition-colors border-b border-brand-gray-100">
+        <TableCell className="py-2.5">
           <div className="flex items-center gap-1" style={{ paddingLeft: `${depth * 20}px` }}>
             {hasChildren ? (
               <button onClick={() => setOpen(!open)} className="cursor-pointer text-brand-gray-400 hover:text-brand-gray-600">
@@ -85,36 +89,36 @@ function CuentaRow({ cuenta, depth = 0 }: { cuenta: Cuenta; depth?: number }) {
             )}
             <span className="font-mono text-xs font-semibold text-brand-gray-600">{cuenta.codigo}</span>
           </div>
-        </td>
-        <td className="py-2.5 text-sm font-medium text-brand-gray-800">{cuenta.nombre}</td>
-        <td className="py-2.5 text-xs text-brand-gray-500">{cuenta.nivel}</td>
-        <td className="py-2.5">
+        </TableCell>
+        <TableCell className="py-2.5 text-sm font-medium text-brand-gray-800">{cuenta.nombre}</TableCell>
+        <TableCell className="py-2.5 text-xs text-brand-gray-500">{cuenta.nivel}</TableCell>
+        <TableCell className="py-2.5">
           <Badge variant="outline" className={`text-[10px] ${TIPO_COLOR[cuenta.tipo] || ""}`}>
             {TIPO_LABEL[cuenta.tipo] || cuenta.tipo}
           </Badge>
-        </td>
-        <td className="py-2.5">
+        </TableCell>
+        <TableCell className="py-2.5">
           {cuenta.permiteMovimiento ? (
-            <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">Sí</span>
+            <span className="text-[10px] font-semibold bg-success-pale text-success px-2 py-0.5 rounded-full">Sí</span>
           ) : (
-            <span className="text-[10px] font-semibold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">No</span>
+            <span className="text-[10px] font-semibold bg-brand-gray-100 text-brand-gray-500 px-2 py-0.5 rounded-full">No</span>
           )}
-        </td>
-        <td className="py-2.5 text-right whitespace-nowrap">
+        </TableCell>
+        <TableCell className="py-2.5 text-right whitespace-nowrap">
           <Link
             href={`/contabilidad/plan-cuentas/${cuenta.id}`}
-            className="inline-flex items-center gap-1 text-brand-navy hover:text-brand-navy-light text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1"
+            className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1"
           >
             <Edit className="w-3 h-3" /> Editar
           </Link>
           <button
             onClick={handleDelete}
-            className="inline-flex items-center gap-1 text-red-500 hover:text-red-700 text-xs font-semibold border border-red-100 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer"
           >
             <Trash2 className="w-3 h-3" /> Eliminar
           </button>
-        </td>
-      </tr>
+        </TableCell>
+      </TableRow>
       {open && hasChildren && cuenta.hijos!.map((h) => (
         <CuentaRow key={h.id} cuenta={h} depth={depth + 1} />
       ))}
@@ -131,7 +135,7 @@ export default function PlanCuentasPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/contabilidad/plan-cuentas");
+      const res = await apiFetch("/api/contabilidad/plan-cuentas");
       if (!res.ok) throw new Error("Error al cargar");
       const data = await res.json();
       const list = data.cuentas || data.data || [];
@@ -163,7 +167,7 @@ export default function PlanCuentasPage() {
     <>
       <title>Plan de Cuentas - OFSERCONT IA</title>
       <Topbar title="Plan de Cuentas" backLink={{ href: "/contabilidad", label: "Contabilidad" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Plan de Cuentas</h1>
@@ -180,7 +184,7 @@ export default function PlanCuentasPage() {
               />
             </div>
             <Link href="/contabilidad/plan-cuentas/nueva">
-              <Button size="sm" className="bg-brand-navy hover:bg-brand-navy-light text-white">
+              <Button size="sm" className="bg-brand-red hover:bg-brand-red-bright text-white">
                 <Plus className="w-3.5 h-3.5" /> Crear Cuenta
               </Button>
             </Link>
@@ -189,30 +193,33 @@ export default function PlanCuentasPage() {
 
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
-            <div className="p-10 text-center text-sm text-brand-gray-500 animate-pulse">Cargando cuentas...</div>
+            <TableSkeleton rows={6} columns={5} />
           ) : tree.length === 0 ? (
-            <div className="p-10 text-center text-sm text-brand-gray-400">
-              No hay cuentas registradas. Crea la primera cuenta contable.
-            </div>
+            <EmptyState
+              icon={<BookOpen className="w-5 h-5" />}
+              title="No hay cuentas registradas."
+              description="Crea la primera cuenta contable."
+              compact
+            />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[13px]">
-                <thead>
-                  <tr className="border-b border-brand-gray-100 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider bg-brand-gray-50/50">
-                    <th className="py-3 px-4 font-semibold">Código</th>
-                    <th className="py-3 px-4 font-semibold">Nombre</th>
-                    <th className="py-3 px-4 font-semibold">Nivel</th>
-                    <th className="py-3 px-4 font-semibold">Tipo</th>
-                    <th className="py-3 px-4 font-semibold">Movimiento</th>
-                    <th className="py-3 px-4 font-semibold text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-brand-gray-50">
+              <Table className="w-full text-left border-collapse text-[13px]">
+                <TableHeader>
+                  <TableRow className="border-b border-brand-gray-100 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider bg-brand-gray-50/50">
+                    <TableHead className="py-3 px-4 font-semibold">Código</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Nombre</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Nivel</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Tipo</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Movimiento</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-brand-gray-50">
                   {tree.map((c) => (
                     <CuentaRow key={c.id} cuenta={c} />
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>

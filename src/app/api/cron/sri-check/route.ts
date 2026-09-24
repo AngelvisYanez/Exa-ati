@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { checkPendingAutorizaciones } from '@/lib/sri-api/sri-polling-service';
+import { checkPendingAutorizaciones } from '@/services/sri-api/sri-polling-service';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -8,25 +8,22 @@ const CRON_SECRET = process.env.CRON_SECRET || '';
 
 export async function GET(req: Request) {
   try {
+    if (!CRON_SECRET) {
+      console.error('[CRON] CRON_SECRET no configurado — rechazando');
+      return NextResponse.json(
+        { error: 'CRON_SECRET no configurado en el servidor' },
+        { status: 503 }
+      );
+    }
+
     const authHeader = req.headers.get('authorization') || '';
     const secret = authHeader.replace('Bearer ', '').trim();
 
-    if (CRON_SECRET && secret !== CRON_SECRET) {
+    if (secret !== CRON_SECRET) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    console.log('[CRON] Iniciando verificación de autorizaciones pendientes (PPR)...');
-
     const result = await checkPendingAutorizaciones();
-
-    console.log(
-      `[CRON] Procesados: ${result.procesados} | ` +
-      `Autorizados: ${result.autorizados} | ` +
-      `Rechazados: ${result.rechazados} | ` +
-      `En Proceso: ${result.enProceso} | ` +
-      `Timeouts: ${result.timeouts} | ` +
-      `Errores: ${result.errores}`
-    );
 
     return NextResponse.json({
       success: true,

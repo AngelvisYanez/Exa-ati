@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { generateChatResponse } from '../src/lib/sri-api/llm-client';
+import { generateChatResponse } from '../src/services/sri-api/llm-client';
 
-vi.mock('../src/lib/sri-api/tenant-llm-config', () => ({
+vi.mock('../src/services/sri-api/tenant-llm-config', () => ({
   getTenantLlmConfig: vi.fn().mockResolvedValue({
     provider: 'gemini',
     geminiKey: 'mock-gemini-key',

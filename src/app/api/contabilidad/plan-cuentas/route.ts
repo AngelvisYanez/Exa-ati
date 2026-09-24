@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { embeddings } from '@/services/sri-api/embeddings';
 
 export async function GET(req: Request) {
   try {
@@ -128,6 +129,11 @@ export async function POST(req: Request) {
         { message: 'Error al crear la cuenta' },
         { status: 500 }
       );
+    }
+
+    if (process.env.OLLAMA_ENABLED === 'true') {
+      embeddings.store(tenantId, 'plan_cuenta', result.id, embeddings.buildContent('plan_cuenta', result))
+        .catch(e => console.error('[Embeddings] Error storing plan_cuenta:', e));
     }
 
     return NextResponse.json({

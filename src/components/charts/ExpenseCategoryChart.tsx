@@ -9,8 +9,12 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-
-const COLORS = ["#0F2D5E", "#2256A8", "#0EA5E9", "#1B7A3E", "#2EAA58", "#F59E0B", "#94A3B8"];
+import {
+  CHART_COLORS,
+  CHART_TICK,
+  CHART_TOOLTIP_STYLE,
+  formatCurrency,
+} from "@/lib/chartTheme";
 
 interface CategoryItem {
   name: string;
@@ -25,14 +29,11 @@ export default function ExpenseCategoryChart({ categories }: { categories: Categ
 
   if (data.length === 0) {
     return (
-      <div className="h-48 flex items-center justify-center text-slate-400 text-xs">
+      <div className="h-48 flex items-center justify-center text-brand-gray-400 text-xs">
         Sin categorías con gastos registrados
       </div>
     );
   }
-
-  const formatCurrency = (v: number) =>
-    `$${v.toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <ResponsiveContainer width="100%" height={Math.max(180, data.length * 36)}>
@@ -42,17 +43,17 @@ export default function ExpenseCategoryChart({ categories }: { categories: Categ
           type="category"
           dataKey="name"
           width={110}
-          tick={{ fontSize: 10, fill: "#64748B" }}
+          tick={{ fontSize: 10, fill: CHART_TICK }}
           axisLine={false}
           tickLine={false}
         />
         <Tooltip
           formatter={(value) => [formatCurrency(Number(value ?? 0)), "Gasto"]}
-          contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }}
+          contentStyle={CHART_TOOLTIP_STYLE}
         />
         <Bar dataKey="monto" radius={[0, 4, 4, 0]} barSize={18}>
           {data.map((_, index) => (
-            <Cell key={index} fill={COLORS[index % COLORS.length]} />
+            <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
           ))}
         </Bar>
       </BarChart>

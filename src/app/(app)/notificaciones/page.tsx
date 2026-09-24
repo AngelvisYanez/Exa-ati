@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Bell } from "lucide-react";
 import DateRangeFilter, {
   DateRange,
-  filterByDateRange,
   formatDateRangeLabel,
   getDefaultDateRange,
   toDateRangeParams,
@@ -39,30 +41,30 @@ const typeConfig: Record<NotifType, { icon: React.ReactNode; color: string; bg: 
   },
   presentacion: {
     icon: <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
-    color: "text-emerald-700",
-    bg: "bg-emerald-50",
-    dot: "bg-emerald-500",
+    color: "text-success",
+    bg: "bg-success-pale",
+    dot: "bg-success",
     label: "Presentación",
   },
   alerta: {
     icon: <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>,
-    color: "text-red-700",
-    bg: "bg-red-50",
-    dot: "bg-red-500",
+    color: "text-brand-red",
+    bg: "bg-brand-red-subtle",
+    dot: "bg-brand-red",
     label: "Alerta",
   },
   recordatorio: {
     icon: <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>,
-    color: "text-blue-700",
-    bg: "bg-blue-50",
-    dot: "bg-blue-400",
+    color: "text-brand-sky",
+    bg: "bg-sky-50",
+    dot: "bg-brand-sky",
     label: "Recordatorio",
   },
   sri: {
     icon: <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>,
-    color: "text-slate-700",
-    bg: "bg-slate-50",
-    dot: "bg-slate-500",
+    color: "text-brand-gray-700",
+    bg: "bg-brand-gray-50",
+    dot: "bg-brand-gray-500",
     label: "SRI",
   },
 };
@@ -74,9 +76,9 @@ const channelIcons: Record<Channel, React.ReactNode> = {
 };
 
 const channelColor: Record<Channel, string> = {
-  App: "bg-blue-100 text-blue-700",
+  App: "bg-sky-100 text-brand-sky",
   Email: "bg-purple-100 text-purple-700",
-  WhatsApp: "bg-emerald-100 text-emerald-700",
+  WhatsApp: "bg-success-pale text-success",
 };
 
 export default function NotificacionesPage() {
@@ -87,6 +89,7 @@ export default function NotificacionesPage() {
   const [filterChannel, setFilterChannel] = useState<Channel | "Todos">("Todos");
   const [showOnlyUnread, setShowOnlyUnread] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
+  const [channelsActive, setChannelsActive] = useState(0);
 
   useEffect(() => {
     const load = async () => {
@@ -100,6 +103,7 @@ export default function NotificacionesPage() {
         const res = await sriClient.getNotificaciones(toDateRangeParams(dateRange));
         if (res.success) {
           setNotifications(res.notifications || []);
+          setChannelsActive(typeof res.channelsActive === "number" ? res.channelsActive : 0);
         }
       } catch (err: any) {
         setError(err.message || "Error al cargar notificaciones");
@@ -112,16 +116,7 @@ export default function NotificacionesPage() {
 
   const unreadCount = notifications.filter((n) => n.unread).length;
 
-  const inDateRange = [
-    ...filterByDateRange(
-      notifications.filter((n) => n.id !== "cert-expira"),
-      (n) => n.at,
-      dateRange
-    ),
-    ...notifications.filter((n) => n.id === "cert-expira"),
-  ];
-
-  const filtered = inDateRange.filter((n) => {
+  const filtered = notifications.filter((n) => {
     if (filterType !== "Todos" && n.type !== filterType) return false;
     if (filterChannel !== "Todos" && n.channel !== filterChannel) return false;
     if (showOnlyUnread && !n.unread) return false;
@@ -135,14 +130,26 @@ export default function NotificacionesPage() {
     return acc;
   }, {});
 
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+  const markAllRead = async () => {
+    const prev = notifications;
+    setNotifications((p) => p.map((n) => ({ ...n, unread: false })));
+    try {
+      await sriClient.markNotificacionesRead({ all: true });
+    } catch (err: any) {
+      setNotifications(prev);
+      setError(err.message || "No se pudieron marcar como leídas");
+    }
   };
 
-  const markRead = (id: string) => {
+  const markRead = async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
     );
+    try {
+      await sriClient.markNotificacionesRead({ ids: [id] });
+    } catch {
+      // se revalida en el próximo load
+    }
   };
 
   return (
@@ -152,13 +159,13 @@ export default function NotificacionesPage() {
 
       <Topbar title="Notificaciones" period={formatDateRangeLabel(dateRange)} />
 
-      <main className="p-3 flex-1 flex flex-col gap-6 w-full">
-        <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-slate-200 rounded-xl px-4 py-3" />
+      <main className="ui-page flex-1">
+        <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-brand-gray-200 rounded-xl px-4 py-3" />
         {error && (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3">{error}</div>
         )}
         {loading && (
-          <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-500">
+          <div className="bg-white border border-brand-gray-200 rounded-xl p-10 text-center text-sm text-brand-gray-500">
             Generando notificaciones desde la API...
           </div>
         )}
@@ -166,16 +173,14 @@ export default function NotificacionesPage() {
         <>
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Centro de Notificaciones</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Todos tus avisos de vencimientos, declaraciones, alertas y novedades del SRI.
-            </p>
-          </div>
+          <PageHeader
+            title="Centro de Notificaciones"
+            description="Todos tus avisos de vencimientos, declaraciones, alertas y novedades del SRI."
+          />
           {unreadCount > 0 && (
             <button
               onClick={markAllRead}
-              className="text-[12px] font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
+              className="text-[12px] font-semibold text-brand-sky hover:text-brand-sky border border-sky-200 bg-sky-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
             >
               Marcar todas como leídas ({unreadCount})
             </button>
@@ -185,13 +190,13 @@ export default function NotificacionesPage() {
         {/* Stats Row */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: "No leídas", value: unreadCount, color: "text-red-600", bg: "bg-red-50 border-red-200" },
-            { label: "Total hoy", value: inDateRange.filter(n => n.date === "Hoy").length, color: "text-slate-800", bg: "bg-white border-slate-200" },
-            { label: "Canales activos", value: 3, color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
+            { label: "No leídas", value: unreadCount, color: "text-brand-red", bg: "bg-brand-red-subtle border-brand-red-pale" },
+            { label: "Total hoy", value: notifications.filter(n => n.date === "Hoy").length, color: "text-brand-gray-800", bg: "bg-white border-brand-gray-200" },
+            { label: "Canales activos", value: channelsActive, color: "text-success", bg: "bg-success-pale border-success-light/40" },
           ].map((s) => (
             <div key={s.label} className={`rounded-xl border p-4 ${s.bg}`}>
               <div className={`text-2xl font-extrabold ${s.color}`}>{s.value}</div>
-              <div className="text-[11px] text-slate-500 font-medium mt-0.5">{s.label}</div>
+              <div className="text-[11px] text-brand-gray-500 font-medium mt-0.5">{s.label}</div>
             </div>
           ))}
         </div>
@@ -203,7 +208,7 @@ export default function NotificacionesPage() {
               key={ch}
               onClick={() => setFilterChannel(ch)}
               className={`flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-full border transition-colors cursor-pointer
-                ${filterChannel === ch ? "bg-brand-navy text-white border-brand-navy" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}
+                ${filterChannel === ch ? "bg-brand-red text-white border-brand-red" : "bg-white text-brand-gray-600 border-brand-gray-200 hover:border-brand-gray-400"}
               `}
             >
               {ch !== "Todos" && <span className="opacity-70">{channelIcons[ch as Channel]}</span>}
@@ -211,7 +216,7 @@ export default function NotificacionesPage() {
             </button>
           ))}
           <div className="ml-auto flex items-center gap-2">
-            <label className="flex items-center gap-1.5 text-[12px] font-medium text-slate-600 cursor-pointer select-none">
+            <label className="flex items-center gap-1.5 text-[12px] font-medium text-brand-gray-600 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={showOnlyUnread}
@@ -232,7 +237,7 @@ export default function NotificacionesPage() {
                 key={t}
                 onClick={() => setFilterType(t)}
                 className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors cursor-pointer
-                  ${filterType === t ? "bg-brand-navy text-white border-brand-navy" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"}
+                  ${filterType === t ? "bg-brand-red text-white border-brand-red" : "bg-white text-brand-gray-500 border-brand-gray-200 hover:border-brand-gray-300"}
                 `}
               >
                 {cfg ? cfg.label : "Todos"}
@@ -245,7 +250,7 @@ export default function NotificacionesPage() {
         <div className="flex flex-col gap-6">
           {Object.entries(grouped).map(([date, items]) => (
             <div key={date}>
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">{date}</div>
+              <div className="text-[11px] font-bold text-brand-gray-400 uppercase tracking-widest mb-3">{date}</div>
               <div className="flex flex-col gap-2">
                 {items.map((n) => {
                   const tc = typeConfig[n.type];
@@ -253,7 +258,7 @@ export default function NotificacionesPage() {
                     <div
                       key={n.id}
                       className={`bg-white border rounded-xl p-4 flex items-start gap-4 transition-all
-                        ${n.unread ? "border-blue-200 shadow-sm" : "border-slate-200"}
+                        ${n.unread ? "border-sky-200 shadow-sm" : "border-brand-gray-200"}
                       `}
                     >
                       {/* Unread dot */}
@@ -269,12 +274,12 @@ export default function NotificacionesPage() {
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
-                          <p className={`text-[13px] font-semibold ${n.unread ? "text-slate-900" : "text-slate-600"}`}>
+                          <p className={`text-[13px] font-semibold ${n.unread ? "text-brand-gray-900" : "text-brand-gray-600"}`}>
                             {n.title}
                           </p>
-                          <span className="text-[10px] text-slate-400 shrink-0 whitespace-nowrap">{n.time}</span>
+                          <span className="text-[10px] text-brand-gray-400 shrink-0 whitespace-nowrap">{n.time}</span>
                         </div>
-                        <p className="text-[12px] text-slate-500 mt-0.5 leading-snug">{n.body}</p>
+                        <p className="text-[12px] text-brand-gray-500 mt-0.5 leading-snug">{n.body}</p>
 
                         <div className="flex items-center gap-2 mt-2 flex-wrap">
                           {/* Channel badge */}
@@ -289,7 +294,7 @@ export default function NotificacionesPage() {
                             <a
                               href={n.actionHref}
                               onClick={() => markRead(n.id)}
-                              className="text-[11px] font-bold text-brand-navy hover:text-brand-navy-light transition-colors"
+                              className="text-[11px] font-bold text-brand-red hover:text-brand-red-bright transition-colors"
                             >
                               {n.actionLabel} →
                             </a>
@@ -297,7 +302,7 @@ export default function NotificacionesPage() {
                           {n.unread && (
                             <button
                               onClick={() => markRead(n.id)}
-                              className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors ml-auto cursor-pointer"
+                              className="text-[10px] text-brand-gray-400 hover:text-brand-gray-600 transition-colors ml-auto cursor-pointer"
                             >
                               Marcar leída
                             </button>
@@ -312,32 +317,29 @@ export default function NotificacionesPage() {
           ))}
 
           {Object.keys(grouped).length === 0 && (
-            <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-12 flex flex-col items-center gap-3 text-center">
-              <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center">
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-slate-400">
-                  <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-              </div>
-              <p className="text-[13px] font-semibold text-slate-600">Sin notificaciones</p>
-              <p className="text-[12px] text-slate-400">No hay notificaciones con los filtros seleccionados.</p>
-            </div>
+            <EmptyState
+              icon={<Bell className="w-5 h-5" />}
+              title="Sin notificaciones"
+              description="No hay notificaciones con los filtros seleccionados."
+              className="rounded-xl border border-dashed border-brand-gray-200 bg-brand-gray-50"
+            />
           )}
         </div>
 
         {/* Configuration card */}
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex items-center gap-4">
-          <div className="w-10 h-10 bg-slate-200 rounded-lg flex items-center justify-center shrink-0">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" className="text-slate-600">
+        <div className="bg-brand-gray-50 border border-brand-gray-200 rounded-xl p-5 flex items-center gap-4">
+          <div className="w-10 h-10 bg-brand-gray-200 rounded-lg flex items-center justify-center shrink-0">
+            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" className="text-brand-gray-600">
               <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
           </div>
           <div className="flex-1">
-            <p className="text-[13px] font-semibold text-slate-800">Configurar canales de notificación</p>
-            <p className="text-[12px] text-slate-500">Activa o desactiva notificaciones por App, Email o WhatsApp según tus preferencias.</p>
+            <p className="text-[13px] font-semibold text-brand-gray-800">Configurar canales de notificación</p>
+            <p className="text-[12px] text-brand-gray-500">Activa o desactiva notificaciones por App, Email o WhatsApp según tus preferencias.</p>
           </div>
           <a
             href="/configuracion?tab=notificaciones"
-            className="shrink-0 text-[12px] font-semibold border border-slate-300 bg-white px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors text-slate-700"
+            className="shrink-0 text-[12px] font-semibold border border-brand-gray-300 bg-white px-3 py-1.5 rounded-lg hover:bg-brand-gray-50 transition-colors text-brand-gray-700"
           >
             Configurar
           </a>

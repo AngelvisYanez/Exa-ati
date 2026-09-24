@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Download, ArrowLeft, FileText } from "lucide-react";
 
+import { apiFetch } from "@/lib/apiFetch";
 interface GuiaRemision {
   id: string;
   establecimiento: string;
@@ -37,10 +39,10 @@ interface GuiaRemision {
 }
 
 const ESTADO_BADGE: Record<string, string> = {
-  AUTORIZADO: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  AUTORIZADO: "bg-success-pale text-success border-success-light/40",
   PENDIENTE: "bg-amber-50 text-amber-700 border-amber-200",
-  RECHAZADO: "bg-red-50 text-red-700 border-red-200",
-  EN_PROCESO: "bg-blue-50 text-blue-700 border-blue-200",
+  RECHAZADO: "bg-brand-red-subtle text-brand-red border-brand-red-pale",
+  EN_PROCESO: "bg-sky-50 text-brand-sky border-sky-200",
 };
 
 export default function VerGuiaPage() {
@@ -52,7 +54,7 @@ export default function VerGuiaPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`/api/sri/guia-remision?id=${id}`);
+        const res = await apiFetch(`/api/sri/guia-remision?id=${id}`);
         if (!res.ok) throw new Error("No encontrada");
         const data = await res.json();
         setGuia(data.guia || data.data || data);
@@ -71,7 +73,7 @@ export default function VerGuiaPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/sri/comprobantes/${guia.claveAcceso}/pdf`);
+      const res = await apiFetch(`/api/sri/comprobantes/${guia.claveAcceso}/pdf`);
       if (!res.ok) throw new Error("Error");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -109,7 +111,7 @@ export default function VerGuiaPage() {
     <>
       <title>Guía {secuencial} - OFSERCONT IA</title>
       <Topbar title={`Guía ${secuencial}`} backLink={{ href: "/guias-remision", label: "Guías de Remisión" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Guía de Remisión</h1>
@@ -216,24 +218,24 @@ export default function VerGuiaPage() {
                 {d.detalles.length > 0 && (
                   <div className="bg-brand-gray-50 rounded-lg p-3">
                     <p className="text-[9px] font-bold text-brand-gray-400 uppercase mb-2">Detalles</p>
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="text-[9px] font-bold text-brand-gray-400 uppercase">
-                          <th className="pb-1 pr-2">Código</th>
-                          <th className="pb-1 pr-2">Descripción</th>
-                          <th className="pb-1 text-right">Cantidad</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                    <Table className="w-full text-left text-xs">
+                      <TableHeader>
+                        <TableRow className="text-[9px] font-bold text-brand-gray-400 uppercase">
+                          <TableHead className="pb-1 pr-2">Código</TableHead>
+                          <TableHead className="pb-1 pr-2">Descripción</TableHead>
+                          <TableHead className="pb-1 text-right">Cantidad</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {d.detalles.map((det, ddi) => (
-                          <tr key={ddi} className="border-t border-brand-gray-100">
-                            <td className="py-1 pr-2 font-mono">{det.codigoInterno}</td>
-                            <td className="py-1 pr-2">{det.descripcion}</td>
-                            <td className="py-1 text-right font-semibold">{det.cantidad}</td>
-                          </tr>
+                          <TableRow key={ddi} className="border-t border-brand-gray-100">
+                            <TableCell className="py-1 pr-2 font-mono">{det.codigoInterno}</TableCell>
+                            <TableCell className="py-1 pr-2">{det.descripcion}</TableCell>
+                            <TableCell className="py-1 text-right font-semibold">{det.cantidad}</TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </div>

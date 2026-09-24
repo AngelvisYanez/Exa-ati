@@ -3,17 +3,20 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Download, Trash2 } from "lucide-react";
 
+import { apiFetch } from "@/lib/apiFetch";
 const ESTADO_BADGE: Record<string, string> = {
-  BORRADOR: "bg-slate-100 text-slate-600 border-slate-200",
-  GENERADO: "bg-blue-50 text-blue-700 border-blue-200",
-  PRESENTADO: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  BORRADOR: "bg-brand-gray-100 text-brand-gray-600 border-brand-gray-200",
+  GENERADO: "bg-sky-50 text-brand-sky border-sky-200",
+  PRESENTADO: "bg-success-pale text-success border-success-light/40",
 };
 
 interface Reporte {
@@ -36,10 +39,14 @@ export default function VerReportePage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`/api/declaraciones/reportes?id=${id}`);
+        const res = await apiFetch(`/api/declaraciones/reportes/${id}`);
         if (!res.ok) throw new Error("No encontrado");
         const data = await res.json();
-        setReporte(data.reporte || data.data || data);
+        const r = data.reporte || data.data || data;
+        setReporte({
+          ...r,
+          datos: r.datos ?? r.data ?? {},
+        });
       } catch {
         toast.error("Error al cargar reporte");
       } finally {
@@ -52,7 +59,7 @@ export default function VerReportePage() {
   const updateEstado = async (estado: string) => {
     setUpdating(true);
     try {
-      const res = await fetch(`/api/declaraciones/reportes?id=${id}`, {
+      const res = await apiFetch(`/api/declaraciones/reportes/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ estado }),
@@ -70,7 +77,7 @@ export default function VerReportePage() {
   const handleDelete = async () => {
     if (!confirm("¿Eliminar este reporte?")) return;
     try {
-      const res = await fetch(`/api/declaraciones/reportes?id=${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/declaraciones/reportes/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Error");
       toast.success("Reporte eliminado");
       router.push("/declaraciones/reportes");
@@ -104,7 +111,9 @@ export default function VerReportePage() {
     return (
       <>
         <Topbar title="Reporte" backLink={{ href: "/declaraciones/reportes", label: "Reportes" }} />
-        <main className="p-3 flex-1 flex items-center justify-center text-sm text-brand-gray-400">Reporte no encontrado.</main>
+        <main className="ui-page flex-1 w-full">
+          <EmptyState title="Reporte no encontrado." />
+        </main>
       </>
     );
   }
@@ -113,7 +122,7 @@ export default function VerReportePage() {
     <>
       <title>Reporte {reporte.tipo} - OFSERCONT IA</title>
       <Topbar title={`Reporte Form. ${reporte.tipo}`} backLink={{ href: "/declaraciones/reportes", label: "Reportes" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">
@@ -125,12 +134,12 @@ export default function VerReportePage() {
           </div>
           <div className="flex gap-2">
             {reporte.estado === "BORRADOR" && (
-              <Button size="sm" onClick={() => updateEstado("GENERADO")} disabled={updating} className="bg-brand-navy hover:bg-brand-navy-light text-white">
+              <Button size="sm" onClick={() => updateEstado("GENERADO")} disabled={updating} className="bg-brand-red hover:bg-brand-red-bright text-white">
                 Marcar como Generado
               </Button>
             )}
             {reporte.estado === "GENERADO" && (
-              <Button size="sm" onClick={() => updateEstado("PRESENTADO")} disabled={updating} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Button size="sm" onClick={() => updateEstado("PRESENTADO")} disabled={updating} className="bg-success hover:bg-success text-white">
                 Marcar como Presentado
               </Button>
             )}
@@ -166,19 +175,19 @@ export default function VerReportePage() {
           <h2 className="text-sm font-bold text-brand-gray-800 mb-3">Datos del Reporte</h2>
           {reporte.datos && Object.keys(reporte.datos).length > 0 ? (
             <div className="bg-brand-gray-50 rounded-lg p-4 overflow-auto max-h-[600px]">
-              <table className="w-full text-left text-xs font-mono">
-                <tbody>
+              <Table className="w-full text-left text-xs font-mono">
+                <TableBody>
                   {Object.entries(reporte.datos).map(([key, value]) => (
-                    <tr key={key} className="border-b border-brand-gray-100">
-                      <td className="py-1.5 pr-4 font-semibold text-brand-gray-600 whitespace-nowrap">{key}</td>
-                      <td className="py-1.5 text-brand-gray-800">{typeof value === "object" ? JSON.stringify(value) : String(value)}</td>
-                    </tr>
+                    <TableRow key={key} className="border-b border-brand-gray-100">
+                      <TableCell className="py-1.5 pr-4 font-semibold text-brand-gray-600 whitespace-nowrap">{key}</TableCell>
+                      <TableCell className="py-1.5 text-brand-gray-800">{typeof value === "object" ? JSON.stringify(value) : String(value)}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           ) : (
-            <p className="text-xs text-brand-gray-400">No hay datos disponibles en este reporte.</p>
+            <EmptyState title="No hay datos disponibles en este reporte." compact />
           )}
         </Card>
 

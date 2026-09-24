@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ShieldCheck } from "lucide-react";
 import DateRangeFilter, {
   DateRange,
   formatDateRangeLabel,
@@ -26,10 +29,10 @@ type Alert = {
 
 const riskConfig: Record<RiskLevel, { color: string; bg: string; border: string; dot: string; label: string }> = {
   Alto: {
-    color: "text-red-700",
-    bg: "bg-red-50",
-    border: "border-red-200",
-    dot: "bg-red-500",
+    color: "text-brand-red",
+    bg: "bg-brand-red-subtle",
+    border: "border-brand-red-pale",
+    dot: "bg-brand-red",
     label: "Riesgo Alto",
   },
   Medio: {
@@ -40,10 +43,10 @@ const riskConfig: Record<RiskLevel, { color: string; bg: string; border: string;
     label: "Riesgo Medio",
   },
   Bajo: {
-    color: "text-emerald-700",
-    bg: "bg-emerald-50",
-    border: "border-emerald-200",
-    dot: "bg-emerald-500",
+    color: "text-success",
+    bg: "bg-success-pale",
+    border: "border-success-light/40",
+    dot: "bg-success",
     label: "Riesgo Bajo",
   },
 };
@@ -107,7 +110,13 @@ export default function AuditoriaPage() {
   const [comprobantesRevisados, setComprobantesRevisados] = useState(0);
   const [lastExecutedAt, setLastExecutedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
+  const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setDateRange(getDefaultDateRange());
+    setIsClient(true);
+  }, []);
 
   const loadAuditoria = async () => {
     if (!sriClient.isAuthenticated()) {
@@ -132,8 +141,10 @@ export default function AuditoriaPage() {
   };
 
   useEffect(() => {
-    loadAuditoria();
-  }, [dateRange]);
+    if (isClient) {
+      loadAuditoria();
+    }
+  }, [dateRange, isClient]);
 
   const runAudit = async () => {
     setRunning(true);
@@ -166,20 +177,18 @@ export default function AuditoriaPage() {
 
       <Topbar title="Auditoría IA" period={formatDateRangeLabel(dateRange)} />
 
-      <main className="p-3 flex-1 flex flex-col gap-6 w-full">
-        <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-slate-200 rounded-xl px-4 py-3" />
+      <main className="ui-page flex-1">
+        <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-brand-gray-200 rounded-xl px-4 py-3" />
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Auditoría Inteligente</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Analiza tus comprobantes reales y detecta inconsistencias, riesgos y errores automáticamente.
-            </p>
-          </div>
+          <PageHeader
+            title="Auditoría Inteligente"
+            description="Analiza tus comprobantes reales y detecta inconsistencias, riesgos y errores automáticamente."
+          />
           <button
             id="run-audit-btn"
             onClick={runAudit}
-            disabled={running || !sriClient.isAuthenticated()}
-            className="flex items-center gap-2 bg-brand-navy text-white text-[13px] font-semibold px-4 py-2.5 rounded-lg hover:bg-brand-navy-light transition-colors disabled:opacity-60 cursor-pointer shrink-0"
+            disabled={!isClient || running || !sriClient.isAuthenticated()}
+            className="flex items-center gap-2 bg-brand-red text-white text-[13px] font-semibold px-4 py-2.5 rounded-lg hover:bg-brand-red-bright transition-colors disabled:opacity-60 cursor-pointer shrink-0"
           >
             {running ? (
               <>
@@ -200,11 +209,11 @@ export default function AuditoriaPage() {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>
+          <div className="bg-brand-red-subtle border border-brand-red-pale text-brand-red text-sm rounded-xl px-4 py-3">{error}</div>
         )}
 
         {loading ? (
-          <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-sm text-slate-500">
+          <div className="bg-white border border-brand-gray-200 rounded-xl p-12 text-center text-sm text-brand-gray-500">
             Cargando auditoría desde la base de datos...
           </div>
         ) : (
@@ -218,7 +227,7 @@ export default function AuditoriaPage() {
                   <span className={`text-[11px] font-bold uppercase tracking-widest ${rc.color}`}>Nivel de Riesgo</span>
                   <span className={`text-2xl font-extrabold ${rc.color}`}>{overallRisk}</span>
                 </div>
-                <p className="text-[11px] text-center text-slate-500 mt-1">
+                <p className="text-[11px] text-center text-brand-gray-500 mt-1">
                   {altoCount} crítico{altoCount !== 1 ? "s" : ""} · {medioCount} medio{medioCount !== 1 ? "s" : ""} · {bajoCount} bajo{bajoCount !== 1 ? "s" : ""}
                 </p>
               </div>
@@ -234,31 +243,31 @@ export default function AuditoriaPage() {
                     key={k.level}
                     onClick={() => setFilter(filter === k.level ? "Todos" : k.level)}
                     className={`rounded-xl border p-5 text-left transition-all cursor-pointer
-                      ${filter === k.level ? `${kr.bg} ${kr.border} border-2` : "bg-white border-slate-200 hover:border-slate-300"}
+                      ${filter === k.level ? `${kr.bg} ${kr.border} border-2` : "bg-white border-brand-gray-200 hover:border-brand-gray-300"}
                     `}
                   >
                     <div className={`text-3xl font-extrabold ${kr.color}`}>{k.count}</div>
-                    <div className="text-[12px] font-semibold text-slate-700 mt-1">{k.label}</div>
-                    <div className="text-[11px] text-slate-400">{k.desc}</div>
+                    <div className="text-[12px] font-semibold text-brand-gray-700 mt-1">{k.label}</div>
+                    <div className="text-[11px] text-brand-gray-400">{k.desc}</div>
                   </button>
                 );
               })}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mr-1">Filtrar:</span>
+              <span className="text-[11px] font-bold text-brand-gray-400 uppercase tracking-wide mr-1">Filtrar:</span>
               {(["Todos", "Alto", "Medio", "Bajo"] as (RiskLevel | "Todos")[]).map((f) => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
                   className={`text-[12px] font-semibold px-3 py-1 rounded-full border transition-colors cursor-pointer
-                    ${filter === f ? "bg-brand-navy text-white border-brand-navy" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}
+                    ${filter === f ? "bg-brand-red text-white border-brand-red" : "bg-white text-brand-gray-600 border-brand-gray-200 hover:border-brand-gray-400"}
                   `}
                 >
                   {f}
                 </button>
               ))}
-              <span className="ml-auto text-[11px] text-slate-400">{filtered.length} alertas</span>
+              <span className="ml-auto text-[11px] text-brand-gray-400">{filtered.length} alertas</span>
             </div>
 
             <div className="flex flex-col gap-3">
@@ -268,12 +277,12 @@ export default function AuditoriaPage() {
                 return (
                   <div
                     key={alert.id}
-                    className={`bg-white border rounded-xl overflow-hidden transition-all duration-200 ${isExpanded ? "border-slate-300 shadow-sm" : "border-slate-200"}`}
+                    className={`bg-white border rounded-xl overflow-hidden transition-all duration-200 ${isExpanded ? "border-brand-gray-300 shadow-sm" : "border-brand-gray-200"}`}
                   >
                     <button
                       id={`alert-btn-${alert.id}`}
                       onClick={() => setExpanded(isExpanded ? null : alert.id)}
-                      className="w-full flex items-center gap-4 p-4 text-left cursor-pointer hover:bg-slate-50 transition-colors"
+                      className="w-full flex items-center gap-4 p-4 text-left cursor-pointer hover:bg-brand-gray-50 transition-colors"
                     >
                       <div className={`w-2 h-2 rounded-full shrink-0 ${r.dot}`} />
                       <div className={`w-9 h-9 rounded-lg ${r.bg} ${r.color} flex items-center justify-center shrink-0`}>
@@ -281,21 +290,21 @@ export default function AuditoriaPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[13px] font-semibold text-slate-800">{alert.title}</span>
+                          <span className="text-[13px] font-semibold text-brand-gray-800">{alert.title}</span>
                           {alert.count !== undefined && (
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${r.bg} ${r.color}`}>
                               {alert.count} doc{alert.count !== 1 ? "s" : ""}
                             </span>
                           )}
                         </div>
-                        <p className="text-[12px] text-slate-500 truncate mt-0.5">{alert.description}</p>
+                        <p className="text-[12px] text-brand-gray-500 truncate mt-0.5">{alert.description}</p>
                       </div>
                       <span className={`hidden sm:block text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full ${r.bg} ${r.color} shrink-0`}>
                         {r.label}
                       </span>
                       <svg
                         width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"
-                        className={`shrink-0 text-slate-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                        className={`shrink-0 text-brand-gray-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
                       >
                         <path d="M6 9l6 6 6-6" />
                       </svg>
@@ -307,13 +316,13 @@ export default function AuditoriaPage() {
                           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className={`shrink-0 mt-0.5 ${r.color}`}>
                             <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <p className="text-[12.5px] text-slate-700">{alert.suggestion}</p>
+                          <p className="text-[12.5px] text-brand-gray-700">{alert.suggestion}</p>
                         </div>
                         <div className="flex gap-2 mt-3">
-                          <Link href="/chat" className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-brand-navy text-white hover:bg-brand-navy-light transition-colors">
+                          <Link href="/chat" className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-brand-red text-white hover:bg-brand-red-bright transition-colors">
                             Consultar al Agente IA
                           </Link>
-                          <Link href="/documentos" className="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-white transition-colors">
+                          <Link href="/documentos" className="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-brand-gray-200 text-brand-gray-700 hover:bg-white transition-colors">
                             Ver documentos afectados
                           </Link>
                         </div>
@@ -324,19 +333,16 @@ export default function AuditoriaPage() {
               })}
 
               {filtered.length === 0 && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-8 flex flex-col items-center justify-center gap-2 text-center">
-                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
-                    <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-emerald-600">
-                      <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <p className="text-[13px] font-semibold text-emerald-700">Sin alertas en esta categoría</p>
-                  <p className="text-[12px] text-emerald-600">Todo se ve bien en el nivel seleccionado.</p>
-                </div>
+                <EmptyState
+                  icon={<ShieldCheck className="w-5 h-5" />}
+                  title="Sin alertas en esta categoría"
+                  description="Todo se ve bien en el nivel seleccionado."
+                  className="rounded-xl border border-success-light/40 bg-success-pale"
+                />
               )}
             </div>
 
-            <div className="bg-slate-900 text-white rounded-xl p-5 flex items-center gap-4">
+            <div className="bg-brand-gray-900 text-white rounded-xl p-5 flex items-center gap-4">
               <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center shrink-0">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
                   <path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -344,7 +350,7 @@ export default function AuditoriaPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-bold">Agente Auditor IA</p>
-                <p className="text-[12px] text-slate-400 mt-0.5">
+                <p className="text-[12px] text-brand-gray-400 mt-0.5">
                   {alerts.length} alertas detectadas en {comprobantesRevisados} comprobantes revisados · {formatLastRun(lastExecutedAt)}
                 </p>
               </div>

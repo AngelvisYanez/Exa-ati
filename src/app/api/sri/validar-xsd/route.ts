@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { xsdValidator } from '@/lib/sri-api/xsd-validator';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { xsdValidator } from '@/services/sri-api/xsd-validator';
 
 export async function POST(req: NextRequest) {
   try {

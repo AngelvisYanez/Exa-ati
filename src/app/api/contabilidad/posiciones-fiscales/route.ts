@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { embeddings } from '@/services/sri-api/embeddings';
 
 export async function GET(req: Request) {
   try {
@@ -54,6 +55,11 @@ export async function POST(req: Request) {
        RETURNING *`,
       [tenantId, nombre, tipoContribuyente || null]
     );
+
+    if (process.env.OLLAMA_ENABLED === 'true') {
+      embeddings.store(tenantId, 'posicion_fiscal', result.id, embeddings.buildContent('posicion_fiscal', { ...result, lineas: [] }))
+        .catch(e => console.error('[Embeddings] Error storing posicion_fiscal:', e));
+    }
 
     return NextResponse.json({
       data: {

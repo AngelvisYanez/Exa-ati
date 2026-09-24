@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 
+import { apiFetch } from "@/lib/apiFetch";
 const TIPOS = [
   { value: "IVA", label: "IVA" },
   { value: "ICE", label: "ICE" },
@@ -32,7 +33,7 @@ export default function EditarImpuestoPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`/api/contabilidad/impuestos?id=${id}`);
+        const res = await apiFetch(`/api/contabilidad/impuestos?id=${id}`);
         if (!res.ok) throw new Error("No encontrado");
         const data = await res.json();
         const imp = data.impuesto || data.data || data;
@@ -59,7 +60,7 @@ export default function EditarImpuestoPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/contabilidad/impuestos?id=${id}`, {
+      const res = await apiFetch(`/api/contabilidad/impuestos?id=${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ codigo: codigo.trim(), nombre: nombre.trim(), porcentaje: Number(porcentaje), tarifa: Number(tarifa), tipo, activo }),
@@ -80,7 +81,7 @@ export default function EditarImpuestoPage() {
   const handleDelete = async () => {
     if (!confirm("¿Eliminar este impuesto?")) return;
     try {
-      const res = await fetch(`/api/contabilidad/impuestos?id=${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/contabilidad/impuestos?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Error al eliminar");
       toast.success("Impuesto eliminado");
       router.push("/contabilidad/impuestos");
@@ -102,7 +103,7 @@ export default function EditarImpuestoPage() {
     <>
       <title>Editar Impuesto - OFSERCONT IA</title>
       <Topbar title="Editar Impuesto" backLink={{ href: "/contabilidad/impuestos", label: "Impuestos" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Editar Impuesto</h1>
         <Card className="p-5 border-brand-gray-200">
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -133,11 +134,11 @@ export default function EditarImpuestoPage() {
               </div>
             </div>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-navy focus:ring-brand-navy/30" />
+              <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-red focus:ring-brand-red/30" />
               <span className="text-xs font-medium text-brand-gray-700">Activo</span>
             </label>
             <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={submitting} className="bg-brand-navy hover:bg-brand-navy-light text-white">
+              <Button type="submit" disabled={submitting} className="bg-brand-red hover:bg-brand-red-bright text-white">
                 {submitting ? "Guardando..." : "Guardar Cambios"}
               </Button>
               <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>

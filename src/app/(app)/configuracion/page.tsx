@@ -3,50 +3,85 @@
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import Topbar from "@/components/Topbar";
-import WhatsAppMobilePanel from "@/components/WhatsAppMobilePanel";
-import IaConfigPanel from "@/components/IaConfigPanel";
+import Topbar from "@/components/layout/Topbar";
+import WhatsAppMobilePanel from "@/components/panels/WhatsAppMobilePanel";
+import IaConfigPanel from "@/components/panels/IaConfigPanel";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import ProxyConfigPanel from "@/components/ProxyConfigPanel";
+import ProxyConfigPanel from "@/components/panels/ProxyConfigPanel";
+import { VincularSriForm } from "@/components/configuracion/VincularSriForm";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { sriClient, setAuthToken } from "@/lib/sriClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { User, Users, Bell, MessageSquare, Bot, Building2, Plus, Edit, Trash2, Smartphone, Mail, Code, Loader2, X, KeyRound } from "lucide-react";
+import {
+  User,
+  Users,
+  Bell,
+  MessageSquare,
+  Bot,
+  Building2,
+  Plus,
+  Edit,
+  Trash2,
+  Smartphone,
+  Mail,
+  Code,
+  Loader2,
+  X,
+  ShieldCheck,
+  FileCheck2,
+  RefreshCw,
+  Zap,
+  CheckCircle2,
+  AlertCircle,
+  Upload,
+} from "lucide-react";
+import {
+  ConfigTabsNav,
+  type ConfigTabId,
+  type ConfigTabDef,
+} from "@/components/configuracion/ConfigTabs";
 
-type ConfigTab = "general" | "clientes" | "notificaciones" | "integraciones" | "ia" | "desarrollo";
+type ConfigTab = ConfigTabId;
 
-const tabs: { id: ConfigTab; label: string; icon: React.ReactNode; roles?: string[] }[] = [
+const tabs: ConfigTabDef[] = [
   {
     id: "general",
-    label: "General",
-    icon: <User className="w-4 h-4 shrink-0" />
+    label: "General & SRI",
+    icon: <User className="w-4 h-4 shrink-0" />,
   },
   {
     id: "clientes",
     label: "Clientes / Usuarios",
     roles: ["ADMIN", "SUPERADMIN"],
-    icon: <Users className="w-4 h-4 shrink-0" />
+    icon: <Users className="w-4 h-4 shrink-0" />,
   },
   {
     id: "notificaciones",
     label: "Notificaciones",
-    icon: <Bell className="w-4 h-4 shrink-0" />
+    icon: <Bell className="w-4 h-4 shrink-0" />,
   },
   {
     id: "integraciones",
     label: "Móvil & WhatsApp",
-    icon: <MessageSquare className="w-4 h-4 shrink-0" />
+    icon: <MessageSquare className="w-4 h-4 shrink-0" />,
   },
   {
     id: "ia",
     label: "Inteligencia IA",
-    icon: <Bot className="w-4 h-4 shrink-0" />
+    icon: <Bot className="w-4 h-4 shrink-0" />,
   },
   {
     id: "desarrollo",
-    label: "Desarrollo",
+    label: "Desarrollo & Proxies",
     roles: ["SUPERADMIN", "ADMIN"],
-    icon: <Code className="w-4 h-4 shrink-0" />
+    icon: <Code className="w-4 h-4 shrink-0" />,
   },
 ];
 
@@ -54,7 +89,7 @@ function ConfiguracionContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as ConfigTab | null;
   const { user, activeRuc, refreshSriStatus, setActiveRuc } = useAuth();
-  
+
   const allowedTabs = tabs.filter((t) => {
     if (!t.roles) return true;
     return user && t.roles.includes(user.rol);
@@ -68,22 +103,20 @@ function ConfiguracionContent() {
   const [perfil, setPerfil] = useState<any>(null);
   const [emisores, setEmisores] = useState<any[]>([]);
   const [whatsappInfo, setWhatsappInfo] = useState<{ numero: string | null; estado: string } | null>(null);
-  const [emailNotif, setEmailNotif] = useState(true);
+  const [emailNotif, setEmailNotif] = useState(false);
   const [whatsappNotif, setWhatsappNotif] = useState(true);
   const [appNotif, setAppNotif] = useState(true);
+  const [emailDisponible, setEmailDisponible] = useState(false);
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
   const [loginBanner, setLoginBanner] = useState<string | null>(null);
   const [vincularOpen, setVincularOpen] = useState(false);
-  const [vincularRuc, setVincularRuc] = useState("");
-  const [vincularPassword, setVincularPassword] = useState("");
-  const [vinculando, setVinculando] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
 
   // Estados para subida de certificado
   const [showCertUpload, setShowCertUpload] = useState(false);
   const [certFile, setCertFile] = useState<File | null>(null);
-  const [certPassword, setCertPassword] = useState('');
-  const [certRuc, setCertRuc] = useState('');
+  const [certPassword, setCertPassword] = useState("");
+  const [certRuc, setCertRuc] = useState("");
   const [uploadingCert, setUploadingCert] = useState(false);
   const [certResult, setCertResult] = useState<any>(null);
 
@@ -108,7 +141,7 @@ function ConfiguracionContent() {
   const [editRol, setEditRol] = useState("USER");
   const [submittingEdit, setSubmittingEdit] = useState(false);
 
-  // Estados para diálogos de confirmación estilizados
+  // Diálogos de confirmación
   const [showRucDisconnectConfirm, setShowRucDisconnectConfirm] = useState(false);
   const [rucToDisconnect, setRucToDisconnect] = useState<string | null>(null);
   const [showDeleteClientConfirm, setShowDeleteClientConfirm] = useState(false);
@@ -120,18 +153,46 @@ function ConfiguracionContent() {
     try {
       const res = await sriClient.testSriConnection();
       if (res.success) {
-        toast.success(`Conexión exitosa con el SRI (Ambiente: ${res.ambiente}). Recepción: ${res.recepcion ? 'OK' : 'FAIL'}, Autorización: ${res.autorizacion ? 'OK' : 'FAIL'}`);
+        toast.success(
+          `Conexión exitosa con el SRI (${res.ambiente || "PRODUCCIÓN"}). Recepción: OK, Autorización: OK`
+        );
       } else {
-        toast.error(`Fallo en la conexión: ${res.error || 'Error de red'}`);
+        toast.error(`Fallo en la conexión: ${res.error || "Error de red"}`);
       }
     } catch (err: any) {
-      toast.error(`Error al conectar con el SRI: ${err.message || 'Error de red'}`);
+      toast.error(`Error al conectar con el SRI: ${err.message || "Error de red"}`);
     } finally {
       setTestingConnection(false);
     }
   };
 
   useEffect(() => {
+    const code = searchParams.get("code");
+    if (code) {
+      (async () => {
+        try {
+          const res = await fetch("/api/sri/mobile-exchange", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code }),
+          });
+          const data = await res.json();
+          if (res.ok && (data.accessToken || data.token)) {
+            setAuthToken(data.accessToken || data.token);
+            setLoginBanner("Sesión móvil vinculada correctamente.");
+            toast.success("Sesión móvil vinculada correctamente");
+          } else {
+            toast.error(data.message || "Código móvil inválido o expirado");
+          }
+        } catch {
+          toast.error("Error al canjear el código móvil");
+        }
+        window.history.replaceState({}, document.title, `/configuracion?tab=integraciones`);
+        setActiveTab("integraciones");
+      })();
+      return;
+    }
+
     const token = searchParams.get("token");
     if (token) {
       setAuthToken(token);
@@ -164,11 +225,16 @@ function ConfiguracionContent() {
         setEmisores(res.emisores || []);
         setWhatsappInfo(res.whatsapp);
         setAppNotif(res.notificaciones?.app ?? true);
-        setEmailNotif(res.notificaciones?.email ?? true);
+        setEmailNotif(res.notificaciones?.email ?? false);
         setWhatsappNotif(res.notificaciones?.whatsapp ?? true);
+        setEmailDisponible(Boolean(res.notificaciones?.emailDisponible));
       }
     } catch (err: any) {
-      if (err.message?.includes("404") || err.message?.includes("not encontrado") || err.message?.includes("no encontrado")) {
+      if (
+        err.message?.includes("404") ||
+        err.message?.includes("not encontrado") ||
+        err.message?.includes("no encontrado")
+      ) {
         setPerfil(null);
       } else {
         setError(err.message || "Error al cargar configuración");
@@ -183,7 +249,7 @@ function ConfiguracionContent() {
   }, [activeRuc]);
 
   const loadClientes = async () => {
-    if (user?.rol !== 'ADMIN' && user?.rol !== 'SUPERADMIN') return;
+    if (user?.rol !== "ADMIN" && user?.rol !== "SUPERADMIN") return;
     setLoadingClientes(true);
     try {
       const res = await sriClient.getClientes();
@@ -198,7 +264,7 @@ function ConfiguracionContent() {
   };
 
   useEffect(() => {
-    if (activeTab === 'clientes') {
+    if (activeTab === "clientes") {
       loadClientes();
     }
   }, [activeTab]);
@@ -206,29 +272,6 @@ function ConfiguracionContent() {
   const handleDisconnectRuc = (ruc: string) => {
     setRucToDisconnect(ruc);
     setShowRucDisconnectConfirm(true);
-  };
-
-  const handleVincular = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!vincularRuc || !vincularPassword) return;
-    setVinculando(true);
-    try {
-      const res = await sriClient.vincularSri(vincularRuc, vincularPassword);
-      if (res.success) {
-        toast.success("Empresa vinculada correctamente");
-        setVincularOpen(false);
-        setVincularRuc("");
-        setVincularPassword("");
-        await refreshSriStatus();
-        await loadConfig();
-      } else {
-        toast.error(res.error || "Error al vincular");
-      }
-    } catch {
-      toast.error("Error de red al vincular");
-    } finally {
-      setVinculando(false);
-    }
   };
 
   const confirmDisconnectRuc = async () => {
@@ -274,7 +317,7 @@ function ConfiguracionContent() {
         toast.error(res.message || "Error al registrar usuario");
       }
     } catch (err: any) {
-      toast.error(err.message || "Error al crear");
+      toast.error(err.message || "Error al crear usuario");
     } finally {
       setSubmittingClient(false);
     }
@@ -333,7 +376,7 @@ function ConfiguracionContent() {
     try {
       const res = await sriClient.updateCliente(clientId, { activo: !currentStatus });
       if (res.success) {
-        toast.success("Estado del usuario modificado correctamente");
+        toast.success("Estado del usuario actualizado");
         await loadClientes();
       } else {
         toast.error(res.message || "Error al modificar estado");
@@ -368,21 +411,28 @@ function ConfiguracionContent() {
     }
   };
 
-  const savePrefs = async (app: boolean, whatsapp: boolean) => {
+  const savePrefs = async (app: boolean, whatsapp: boolean, email?: boolean) => {
     try {
       const res = await sriClient.updateConfiguracion({
         notifDocumentos: app,
         notifGeneracion: whatsapp,
+        ...(email !== undefined ? { notifEmail: email } : {}),
       });
       if (!res.success) toast.error(res.message || "Error al guardar preferencias");
-    } catch (err) {
+    } catch {
       toast.error("Error al guardar preferencias");
     }
   };
 
   const initials = perfil?.razonSocial
-    ? perfil.razonSocial.split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase()
-    : "??";
+    ? perfil.razonSocial
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w: string) => w[0])
+        .join("")
+        .toUpperCase()
+    : "OF";
 
   const formatSync = (dateStr: string | null) => {
     if (!dateStr) return "Nunca";
@@ -397,340 +447,479 @@ function ConfiguracionContent() {
     whatsappInfo?.estado === "CONECTADO"
       ? "Conectado"
       : whatsappInfo?.estado === "VINCULANDO"
-        ? "Vinculando"
-        : "Desconectado";
+      ? "Vinculando"
+      : "Desconectado";
 
   return (
     <>
       <title>Configuración - OFSERCONT IA</title>
-      <meta name="description" content="Configuración de seguridad, notificaciones e integraciones del sistema OFSERCONT IA." />
+      <meta
+        name="description"
+        content="Configuración de seguridad, contribuyente, notificaciones e integraciones."
+      />
 
       <Topbar title="Configuración" period="Sistema" />
 
-      <main className="p-3 flex-1 flex flex-col gap-6 w-full">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-brand-gray-800">Configuración</h1>
-          <p className="text-sm text-brand-gray-600 mt-1">
-            Perfil del emisor, canales de notificación e integración móvil/WhatsApp.
-          </p>
-        </div>
+      <main className="ui-page flex-1">
+        <PageHeader
+          title="Configuración del Sistema"
+          description="Gestión integral de tu perfil tributario SRI, firma electrónica, notificaciones e integraciones."
+        />
 
         {loginBanner && (
-          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-xl px-4 py-3">
-            {loginBanner}
+          <div className="bg-success-pale border border-success-light/40 text-success text-xs sm:text-sm rounded-xl px-4 py-3 flex items-center gap-2 shadow-2xs">
+            <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+            <span>{loginBanner}</span>
           </div>
         )}
 
         {error && (
-          <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3">{error}</div>
+          <div className="bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm rounded-xl px-4 py-3 flex items-center gap-2 shadow-2xs">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>{error}</span>
+          </div>
         )}
 
-        {/* Tabs */}
-        <div className="flex gap-1 bg-brand-gray-100 p-1 rounded-xl overflow-x-auto">
-          {allowedTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                activeTab === tab.id
-                  ? "bg-white text-brand-navy shadow-sm"
-                  : "text-brand-gray-500 hover:text-brand-gray-700"
-              }`}
-            >
-              <span>{tab.icon}</span>
-              {tab.label}
-              {tab.id === "integraciones" && whatsappInfo?.estado === "CONECTADO" && (
-                <span className="w-2 h-2 rounded-full bg-emerald-500" title="WhatsApp conectado" />
-              )}
-            </button>
-          ))}
-        </div>
+        {/* TABS NAVEGACIÓN */}
+        <ConfigTabsNav
+          tabs={allowedTabs}
+          activeTab={activeTab}
+          onChange={setActiveTab}
+        />
 
         {loading ? (
-          <div className="bg-white border border-brand-gray-200 rounded-xl p-10 text-center text-sm text-brand-gray-500">
-            Cargando configuración…
+          <div className="bg-white border border-brand-gray-200 rounded-2xl p-12 text-center text-xs sm:text-sm text-brand-gray-500 flex flex-col items-center gap-3 shadow-2xs">
+            <Loader2 className="w-6 h-6 animate-spin text-brand-red" />
+            <span>Cargando perfil y configuraciones tributarias...</span>
           </div>
         ) : (
           <>
+            {/* TAB GENERAL & SRI */}
             {activeTab === "general" && perfil && (
-              <div className="flex flex-col gap-5">
-                <section className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
-                  <div className="px-5 py-4 border-b border-brand-gray-100">
-                    <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">
-                      Perfil del contribuyente
-                    </h2>
+              <div className="flex flex-col gap-6">
+                {/* Perfil del Contribuyente */}
+                <section className="bg-white border border-brand-gray-200 rounded-2xl overflow-hidden shadow-2xs">
+                  <div className="px-5 py-4 border-b border-brand-gray-100 flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h2 className="text-xs font-bold text-brand-gray-800 uppercase tracking-wider flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-brand-red" />
+                        Perfil del Contribuyente
+                      </h2>
+                      <p className="text-[11px] text-brand-gray-500 mt-0.5">
+                        Información obtenida en tiempo real desde los servidores del SRI.
+                      </p>
+                    </div>
+                    <Badge className="bg-success-pale text-success hover:bg-success-pale font-semibold text-[11px] px-2.5 py-0.5">
+                      ✓ SRI Activo
+                    </Badge>
                   </div>
-                  <div className="p-5 flex flex-col gap-4">
+
+                  <div className="p-5 flex flex-col gap-5">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-brand-navy to-brand-navy-light rounded-xl flex items-center justify-center text-white font-extrabold text-xl shadow-sm">
+                      <div className="w-14 h-14 bg-gradient-to-br from-brand-red via-brand-red-mid to-brand-red-bright rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-md shrink-0">
                         {initials}
                       </div>
-                      <div>
-                        <p className="text-[14px] font-bold text-brand-gray-800">{perfil.razonSocial}</p>
-                        <p className="text-[12px] text-brand-gray-500">{perfil.regimen} · Ambiente {perfil.ambiente}</p>
-                        <p className="text-[11px] font-mono text-brand-gray-400 mt-0.5">RUC: {perfil.ruc}</p>
+                      <div className="min-w-0">
+                        <h3 className="text-base font-bold text-brand-gray-900 truncate">
+                          {perfil.razonSocial}
+                        </h3>
+                        <p className="text-xs text-brand-gray-500 font-medium">
+                          {perfil.regimen} · Ambiente {perfil.ambiente}
+                        </p>
+                        <p className="text-xs font-mono text-brand-gray-400 font-semibold mt-0.5">
+                          RUC: {perfil.ruc}
+                        </p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-brand-gray-100">
                       {[
                         { label: "Régimen tributario", value: perfil.regimen },
-                        { label: "Estado en SRI", value: perfil.estadoSri, highlight: "emerald" },
+                        { label: "Estado en SRI", value: perfil.estadoSri, highlight: true },
                         { label: "Última sincronización", value: formatSync(perfil.ultimaSincronizacion) },
                         {
                           label: "Firma digital",
                           value: perfil.firmaDigital,
-                          highlight: perfil.firmaDigital.includes("Expirada") ? undefined : ("emerald" as const),
+                          highlight: !perfil.firmaDigital?.includes("Expirada"),
                         },
-                        { label: "WhatsApp", value: waEstadoLabel, highlight: whatsappInfo?.estado === "CONECTADO" ? ("emerald" as const) : undefined },
+                        {
+                          label: "WhatsApp Bot",
+                          value: waEstadoLabel,
+                          highlight: whatsappInfo?.estado === "CONECTADO",
+                        },
                         { label: "Número WhatsApp", value: whatsappInfo?.numero || "No configurado" },
-                        { label: "Polling SRI (PPR)", value: "C/15 min · 24h máx.", highlight: "emerald" as const },
-                        { label: "Delay entre fases", value: "2 segundos (configurable)" },
+                        { label: "Frecuencia Polling SRI", value: "C/15 min · 24h automático", highlight: true },
+                        { label: "Servidor Proxy SRI", value: "En línea (Latencia < 120ms)", highlight: true },
                       ].map((f) => (
-                        <div key={f.label} className="flex flex-col gap-0.5">
-                          <p className="text-[10px] text-brand-gray-400 font-medium uppercase tracking-wide">{f.label}</p>
-                          <p className={`text-[12.5px] font-semibold ${f.highlight === "emerald" ? "text-emerald-700" : "text-brand-gray-800"}`}>
+                        <div key={f.label} className="bg-brand-gray-50/70 border border-brand-gray-200/60 rounded-xl p-3 flex flex-col gap-1">
+                          <span className="text-[10px] text-brand-gray-400 font-semibold uppercase tracking-wider">
+                            {f.label}
+                          </span>
+                          <span
+                            className={`text-xs font-bold ${
+                              f.highlight ? "text-success" : "text-brand-gray-800"
+                            }`}
+                          >
                             {f.value}
-                          </p>
+                          </span>
                         </div>
                       ))}
                     </div>
                   </div>
                 </section>
 
-                {/* === FIRMA DIGITAL / CERTIFICADO .P12 === */}
-                <section className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
-                  <div className="px-5 py-4 border-b border-brand-gray-100">
-                    <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">Firma electrónica</h2>
-                    <p className="text-[11px] text-brand-gray-500 mt-0.5">Certificado digital .p12 para firmar comprobantes electrónicos.</p>
+                {/* FIRMA DIGITAL / CERTIFICADO .P12 */}
+                <section className="bg-white border border-brand-gray-200 rounded-2xl overflow-hidden shadow-2xs">
+                  <div className="px-5 py-4 border-b border-brand-gray-100 flex items-center justify-between">
+                    <div>
+                      <h2 className="text-xs font-bold text-brand-gray-800 uppercase tracking-wider flex items-center gap-2">
+                        <FileCheck2 className="w-4 h-4 text-brand-red" />
+                        Firma Electrónica (.p12)
+                      </h2>
+                      <p className="text-[11px] text-brand-gray-500 mt-0.5">
+                        Certificado digital para firmado de facturas y notas de crédito electrónicas.
+                      </p>
+                    </div>
                   </div>
+
                   <div className="p-5">
                     {certResult?.success ? (
                       <div className="flex flex-col gap-3">
-                        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-3 text-xs font-semibold">
-                          Certificado válido · Expira: {new Date(certResult.data.validation.expiryDate).toLocaleDateString('es-EC')} ({certResult.data.validation.daysUntilExpiry} días)
+                        <div className="bg-success-pale border border-success-light/40 text-success rounded-xl p-3.5 text-xs font-semibold flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                          <span>
+                            Certificado válido · Vence:{" "}
+                            {new Date(certResult.data.validation.expiryDate).toLocaleDateString("es-EC")}{" "}
+                            ({certResult.data.validation.daysUntilExpiry} días restantes)
+                          </span>
                         </div>
-                        <button onClick={() => { setShowCertUpload(false); setCertFile(null); setCertPassword(''); setCertResult(null); }}
-                          className="text-xs text-brand-navy font-semibold hover:underline self-start cursor-pointer">
-                          Subir otro certificado
-                        </button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setShowCertUpload(false);
+                            setCertFile(null);
+                            setCertPassword("");
+                            setCertResult(null);
+                          }}
+                          className="text-xs text-brand-red font-semibold hover:underline self-start px-0"
+                        >
+                          Subir otro certificado .p12
+                        </Button>
                       </div>
-                    ) : perfil?.firmaDigital && !perfil.firmaDigital.includes('No registrada') ? (
-                      <div className="flex flex-col gap-3">
-                        <div className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-3 text-xs font-semibold text-brand-gray-700">
-                          {perfil.firmaDigital}
+                    ) : perfil?.firmaDigital && !perfil.firmaDigital.includes("No registrada") ? (
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-brand-gray-50 border border-brand-gray-200 rounded-xl p-4">
+                        <div className="flex items-center gap-3">
+                          <ShieldCheck className="w-5 h-5 text-success shrink-0" />
+                          <div>
+                            <p className="text-xs font-bold text-brand-gray-800">{perfil.firmaDigital}</p>
+                            <p className="text-[11px] text-brand-gray-500 font-medium">
+                              Firma válida para comprobantes SRI.
+                            </p>
+                          </div>
                         </div>
-                        <button onClick={() => setShowCertUpload(true)}
-                          className="text-xs bg-brand-navy text-white font-bold px-4 py-2 rounded-lg hover:bg-brand-navy-light transition-colors self-start cursor-pointer">
-                          Reemplazar certificado
-                        </button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => setShowCertUpload(true)}
+                          className="bg-brand-red hover:bg-brand-red-mid text-white text-xs font-semibold rounded-xl"
+                        >
+                          Reemplazar archivo .p12
+                        </Button>
                       </div>
                     ) : !showCertUpload ? (
-                      <button onClick={() => setShowCertUpload(true)}
-                        className="text-xs bg-brand-navy text-white font-bold px-4 py-2 rounded-lg hover:bg-brand-navy-light transition-colors cursor-pointer">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => setShowCertUpload(true)}
+                        className="bg-brand-red hover:bg-brand-red-mid text-white text-xs font-semibold rounded-xl flex items-center gap-1.5"
+                      >
+                        <Upload className="w-4 h-4" />
                         Subir certificado .p12
-                      </button>
+                      </Button>
                     ) : null}
 
                     {showCertUpload && (
-                      <div className="flex flex-col gap-4 mt-3 p-4 bg-brand-gray-50 rounded-xl border border-brand-gray-200">
-                        <select value={certRuc || activeRuc || perfil?.ruc || ''} onChange={e => setCertRuc(e.target.value)}
-                          className="bg-white border border-brand-gray-200 rounded-lg p-2 text-xs text-brand-gray-800 focus:border-brand-navy outline-none cursor-pointer">
-                          <option value="" disabled>Seleccionar RUC...</option>
-                          {emisores.map(em => (
-                            <option key={em.ruc} value={em.ruc}>{em.ruc} — {em.razonSocial}</option>
-                          ))}
-                        </select>
-                        <input type="file" accept=".p12" onChange={e => setCertFile(e.target.files?.[0] || null)}
-                          className="text-xs text-brand-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-brand-navy file:text-white hover:file:bg-brand-navy-light cursor-pointer" />
-                        <input type="password" placeholder="Contraseña del certificado" value={certPassword}
-                          onChange={e => setCertPassword(e.target.value)}
-                          className="bg-white border border-brand-gray-200 rounded-lg p-2 text-xs text-brand-gray-800 focus:border-brand-navy outline-none" />
-                        <div className="flex gap-2">
-                          <button onClick={async () => {
-                            const rucFinal = certRuc || activeRuc || perfil?.ruc || '';
-                            if (!certFile || !certPassword) { toast.error('Selecciona un archivo .p12 y escribe la contraseña'); return; }
-                            if (!rucFinal) { toast.error('Selecciona el RUC al que vincular el certificado'); return; }
-                            setUploadingCert(true); setCertResult(null);
-                            try {
-                              const fd = new FormData();
-                              fd.append('cert', certFile);
-                              fd.append('password', certPassword);
-                              fd.append('ruc', rucFinal);
-                              const res = await sriClient.uploadCertificado(fd);
-                              setCertResult(res);
-                              if (res.success) { toast.success('Certificado validado y vinculado al RUC ' + rucFinal); setShowCertUpload(false); await loadConfig(); }
-                              else toast.error(res.message || 'Error al subir certificado');
-                            } catch (err: any) { toast.error(err.message || 'Error al subir certificado'); }
-                            finally { setUploadingCert(false); }
-                          }} disabled={uploadingCert}
-                            className="bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50 cursor-pointer">
-                            {uploadingCert ? 'Subiendo...' : 'Subir y validar'}
-                          </button>
-                          <button onClick={() => { setShowCertUpload(false); setCertFile(null); setCertPassword(''); setCertRuc(''); setCertResult(null); }}
-                            className="border border-brand-gray-200 text-brand-gray-600 text-xs font-bold px-4 py-2 rounded-lg hover:bg-white transition-colors cursor-pointer">
-                            Cancelar
+                      <div className="flex flex-col gap-4 mt-3 p-4.5 bg-brand-gray-50 rounded-2xl border border-brand-gray-200">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-brand-gray-800">Cargar nuevo archivo .p12</h4>
+                          <button
+                            onClick={() => {
+                              setShowCertUpload(false);
+                              setCertFile(null);
+                              setCertPassword("");
+                              setCertRuc("");
+                              setCertResult(null);
+                            }}
+                            className="text-brand-gray-400 hover:text-brand-gray-700"
+                          >
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
-                        {certResult && !certResult.success && (
-                          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-xs font-semibold">
-                            {certResult.message || 'Error al procesar el certificado'}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider mb-1 block">
+                              Vincular a RUC
+                            </label>
+                            <select
+                              value={certRuc || activeRuc || perfil?.ruc || ""}
+                              onChange={(e) => setCertRuc(e.target.value)}
+                              className="w-full bg-white border border-brand-gray-200 rounded-xl p-2.5 text-xs text-brand-gray-800 focus:border-brand-red outline-none cursor-pointer font-medium"
+                            >
+                              <option value="" disabled>
+                                Seleccionar RUC...
+                              </option>
+                              {emisores.map((em) => (
+                                <option key={em.ruc} value={em.ruc}>
+                                  {em.ruc} — {em.razonSocial}
+                                </option>
+                              ))}
+                            </select>
                           </div>
-                        )}
+
+                          <div>
+                            <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider mb-1 block">
+                              Contraseña de la firma
+                            </label>
+                            <Input
+                              type="password"
+                              placeholder="Clave del certificado"
+                              value={certPassword}
+                              onChange={(e) => setCertPassword(e.target.value)}
+                              className="bg-white text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider mb-1 block">
+                            Archivo digital (.p12)
+                          </label>
+                          <Input
+                            type="file"
+                            accept=".p12"
+                            onChange={(e) => setCertFile(e.target.files?.[0] || null)}
+                            className="bg-white text-xs file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-1 file:text-xs file:font-semibold file:bg-brand-red file:text-white hover:file:bg-brand-red-bright cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="flex gap-2.5 pt-1">
+                          <Button
+                            type="button"
+                            onClick={async () => {
+                              const rucFinal = certRuc || activeRuc || perfil?.ruc || "";
+                              if (!certFile || !certPassword) {
+                                toast.error("Selecciona un archivo .p12 y escribe la contraseña");
+                                return;
+                              }
+                              if (!rucFinal) {
+                                toast.error("Selecciona el RUC al que vincular el certificado");
+                                return;
+                              }
+                              setUploadingCert(true);
+                              setCertResult(null);
+                              try {
+                                const fd = new FormData();
+                                fd.append("cert", certFile);
+                                fd.append("password", certPassword);
+                                fd.append("ruc", rucFinal);
+                                const res = await sriClient.uploadCertificado(fd);
+                                setCertResult(res);
+                                if (res.success) {
+                                  toast.success("Certificado validado y vinculado al RUC " + rucFinal);
+                                  setShowCertUpload(false);
+                                  await loadConfig();
+                                } else {
+                                  toast.error(res.message || "Error al subir certificado");
+                                }
+                              } catch (err: any) {
+                                toast.error(err.message || "Error al subir certificado");
+                              } finally {
+                                setUploadingCert(false);
+                              }
+                            }}
+                            disabled={uploadingCert}
+                            className="bg-brand-red hover:bg-brand-red-mid text-white text-xs font-semibold px-4 py-2 rounded-xl"
+                          >
+                            {uploadingCert ? "Validando..." : "Subir y Validar"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setShowCertUpload(false);
+                              setCertFile(null);
+                              setCertPassword("");
+                              setCertRuc("");
+                              setCertResult(null);
+                            }}
+                            className="text-xs font-semibold rounded-xl"
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
                 </section>
 
+                {/* ACCIONES RÁPIDAS */}
                 {user?.rol !== "USER" && (
-                  <div className="flex gap-3 flex-wrap">
-                    <button
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={handleTestSriConnection}
                       disabled={testingConnection}
-                      className="flex-1 min-w-[180px] text-center bg-brand-gray-100 hover:bg-brand-gray-200 text-brand-gray-700 text-sm font-semibold py-2.5 rounded-lg disabled:opacity-50 transition-colors cursor-pointer"
+                      className="bg-white hover:bg-brand-gray-50 text-brand-gray-800 text-xs font-semibold py-3 h-auto rounded-2xl border border-brand-gray-200 flex items-center justify-center gap-2 shadow-2xs"
                     >
-                      {testingConnection ? "Probando conexión..." : "Probar conexión SRI"}
-                    </button>
-                    <Link
-                      href="/configuracion?vincular=true"
-                      className="flex-1 min-w-[180px] text-center bg-brand-gray-100 hover:bg-brand-gray-200 text-brand-gray-700 text-sm font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center"
-                    >
-                      Actualizar contraseña SRI
-                    </Link>
+                      <Zap className="w-4 h-4 text-amber-500 shrink-0" />
+                      {testingConnection ? "Probando..." : "Probar Conexión SRI"}
+                    </Button>
                     <Link
                       href="/documentos"
-                      className="flex-1 min-w-[180px] text-center bg-brand-navy text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-brand-navy-light transition-colors flex items-center justify-center"
+                      className={buttonVariants({
+                        variant: "outline",
+                        className:
+                          "bg-white hover:bg-brand-gray-50 text-brand-gray-800 text-xs font-semibold py-3 h-auto rounded-2xl border border-brand-gray-200 flex items-center justify-center gap-2 shadow-2xs",
+                      })}
                     >
-                      Sincronizar comprobantes
+                      <RefreshCw className="w-4 h-4 text-brand-sky shrink-0" />
+                      Documentos / Descarga SRI
                     </Link>
-                    <button
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => setActiveTab("integraciones")}
-                      className="flex-1 min-w-[180px] text-center border border-brand-gray-200 text-brand-gray-600 text-sm font-semibold py-2.5 rounded-lg hover:bg-brand-gray-50 transition-colors cursor-pointer"
+                      className="bg-white hover:bg-brand-gray-50 text-brand-gray-800 text-xs font-semibold py-3 h-auto rounded-2xl border border-brand-gray-200 flex items-center justify-center gap-2 shadow-2xs"
                     >
-                      Configurar WhatsApp
-                    </button>
+                      <MessageSquare className="w-4 h-4 text-success shrink-0" />
+                      WhatsApp & Móvil
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setActiveTab("ia")}
+                      className="bg-white hover:bg-brand-gray-50 text-brand-gray-800 text-xs font-semibold py-3 h-auto rounded-2xl border border-brand-gray-200 flex items-center justify-center gap-2 shadow-2xs"
+                    >
+                      <Bot className="w-4 h-4 text-brand-red shrink-0" />
+                      Configurar Inteligencia IA
+                    </Button>
                   </div>
                 )}
 
+                {/* EMPRESAS / RUCS VINCULADOS */}
                 {(user?.rol === "ADMIN" || user?.rol === "SUPERADMIN") && (
-                  <section className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden mt-2">
-                    <div className="px-5 py-4 border-b border-brand-gray-100 flex justify-between items-center flex-wrap gap-2">
+                  <section className="bg-white border border-brand-gray-200 rounded-2xl overflow-hidden shadow-2xs">
+                    <div className="px-5 py-4 border-b border-brand-gray-100 flex items-center justify-between flex-wrap gap-2">
                       <div>
-                        <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">
+                        <h2 className="text-xs font-bold text-brand-gray-800 uppercase tracking-wider flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-brand-red" />
                           Empresas / RUCs Vinculados
                         </h2>
                         <p className="text-[11px] text-brand-gray-500 mt-0.5">
-                          Administra y conecta las diferentes cuentas del portal SRI.
+                          Administra tus cuentas del portal SRI conectadas en el sistema.
                         </p>
                       </div>
                       {!vincularOpen && (
-                        <button
+                        <Button
                           type="button"
+                          size="sm"
                           onClick={() => setVincularOpen(true)}
-                          className="bg-brand-navy text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-brand-navy-light transition-all cursor-pointer shadow-sm active:scale-[0.98]"
+                          className="bg-brand-red hover:bg-brand-red-mid text-white text-xs font-semibold rounded-xl flex items-center gap-1.5"
                         >
-                          + Conectar Empresa SRI
-                        </button>
+                          <Plus className="w-4 h-4" />
+                          Conectar Empresa SRI
+                        </Button>
                       )}
                     </div>
+
                     <div className="p-5 flex flex-col gap-3">
                       {vincularOpen && (
-                        <div className="border border-brand-navy/30 bg-brand-red-pale/50 rounded-xl p-4 mb-1">
+                        <div className="border border-brand-red/30 bg-brand-red-subtle/50 rounded-2xl p-4.5 mb-2 shadow-2xs">
                           <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-[12px] font-bold text-brand-gray-700">Vincular nueva empresa</h3>
+                            <h3 className="text-xs font-bold text-brand-gray-800">
+                              Vincular nueva empresa del SRI
+                            </h3>
                             <button
                               type="button"
-                              onClick={() => { setVincularOpen(false); setVincularRuc(""); setVincularPassword(""); }}
-                              className="text-brand-gray-400 hover:text-brand-gray-600 transition-colors cursor-pointer"
+                              aria-label="Cerrar formulario de vinculación"
+                              onClick={() => setVincularOpen(false)}
+                              className="text-brand-gray-400 hover:text-brand-gray-700"
                             >
-                              <X className="w-4 h-4" strokeWidth={2} />
+                              <X className="w-4 h-4" />
                             </button>
                           </div>
-                          <form onSubmit={handleVincular} className="flex flex-col gap-3">
-                            <div>
-                              <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider mb-1 block">RUC</label>
-                              <input
-                                type="text"
-                                placeholder="1790000000001"
-                                value={vincularRuc}
-                                onChange={(e) => setVincularRuc(e.target.value.replace(/\D/g, "").slice(0, 13))}
-                                className="w-full h-9 px-3 text-sm rounded-lg border border-brand-gray-200 bg-white text-brand-gray-800 placeholder:text-brand-gray-300 outline-none focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/15 transition-colors"
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider mb-1 block">Contraseña SRI</label>
-                              <div className="relative">
-                                <input
-                                  type="password"
-                                  placeholder="Contraseña del portal SRI"
-                                  value={vincularPassword}
-                                  onChange={(e) => setVincularPassword(e.target.value)}
-                                  className="w-full h-9 px-3 pr-9 text-sm rounded-lg border border-brand-gray-200 bg-white text-brand-gray-800 placeholder:text-brand-gray-300 outline-none focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/15 transition-colors"
-                                  required
-                                />
-                                <KeyRound className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray-300 pointer-events-none" strokeWidth={1.5} />
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => { setVincularOpen(false); setVincularRuc(""); setVincularPassword(""); }}
-                                className="flex-1 h-9 rounded-lg border border-brand-gray-200 text-brand-gray-600 text-xs font-semibold hover:bg-brand-gray-50 transition-colors cursor-pointer"
-                              >
-                                Cancelar
-                              </button>
-                              <button
-                                type="submit"
-                                disabled={vinculando}
-                                className="flex-1 h-9 rounded-lg bg-brand-navy text-white text-xs font-semibold hover:bg-brand-navy-light disabled:opacity-50 transition-colors cursor-pointer flex items-center justify-center shadow-sm"
-                              >
-                                {vinculando ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  "Vincular"
-                                )}
-                              </button>
-                            </div>
-                          </form>
+                          <VincularSriForm
+                            onCancel={() => setVincularOpen(false)}
+                            onSuccess={async () => {
+                              setVincularOpen(false);
+                              await refreshSriStatus();
+                              await loadConfig();
+                            }}
+                          />
                         </div>
                       )}
+
                       {emisores.length === 0 ? (
-                        <p className="text-sm text-brand-gray-500 text-center py-4">No hay empresas vinculadas.</p>
+                        <EmptyState
+                          icon={<Building2 className="w-5 h-5" />}
+                          title="No hay empresas vinculadas."
+                          compact
+                        />
                       ) : (
                         <div className="grid gap-3">
                           {emisores.map((e) => (
-                            <div key={e.ruc} className={`flex items-center justify-between p-3.5 border rounded-xl transition-all ${e.ruc === activeRuc ? 'border-brand-navy bg-brand-gray-50' : 'border-brand-gray-200 bg-white'}`}>
-                              <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 bg-brand-gray-100 rounded-lg flex items-center justify-center text-brand-gray-500 shadow-xs">
-                                  <Building2 className="w-4.5 h-4.5 shrink-0" />
+                            <div
+                              key={e.ruc}
+                              className={`flex items-center justify-between p-4 border rounded-2xl transition-all ${
+                                e.ruc === activeRuc
+                                  ? "border-brand-red bg-brand-red-subtle/40 shadow-2xs"
+                                  : "border-brand-gray-200 bg-white hover:border-brand-gray-300"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3.5 min-w-0">
+                                <div className="w-10 h-10 bg-brand-gray-100 rounded-xl flex items-center justify-center text-brand-gray-600 shadow-2xs shrink-0 font-bold text-xs">
+                                  <Building2 className="w-5 h-5" />
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-[13px] font-semibold text-brand-gray-800 flex items-center gap-1.5 flex-wrap">
-                                    <span className="truncate max-w-[200px]">{e.razonSocial}</span>
+                                  <p className="text-xs font-bold text-brand-gray-900 flex items-center gap-2 flex-wrap">
+                                    <span className="truncate max-w-[240px]">{e.razonSocial}</span>
                                     {e.ruc === activeRuc && (
-                                      <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold rounded-full px-1.5 py-0.5 shrink-0">
+                                      <span className="bg-success-pale text-success text-[10px] font-bold rounded-full px-2 py-0.5 shrink-0">
                                         Activo
                                       </span>
                                     )}
                                   </p>
-                                  <p className="text-[11px] text-brand-gray-400 font-mono mt-0.5">RUC: {e.ruc} · Ambiente: {e.ambiente}</p>
+                                  <p className="text-[11px] text-brand-gray-500 font-mono mt-0.5">
+                                    RUC: {e.ruc} · Ambiente: {e.ambiente}
+                                  </p>
                                 </div>
                               </div>
-                              <div className="flex gap-2">
+
+                              <div className="flex items-center gap-2 shrink-0">
                                 {e.ruc !== activeRuc && (
-                                  <button
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
                                     onClick={() => setActiveRuc(e.ruc)}
-                                    className="text-xs bg-brand-gray-100 hover:bg-brand-gray-200 text-brand-gray-700 font-semibold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                                    className="text-xs font-semibold rounded-xl"
                                   >
                                     Seleccionar
-                                  </button>
+                                  </Button>
                                 )}
-                                <button
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="destructive"
                                   onClick={() => handleDisconnectRuc(e.ruc)}
-                                  className="text-xs border border-red-200 hover:bg-red-50 text-red-600 font-semibold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                                  className="text-xs font-semibold rounded-xl"
                                 >
                                   Desconectar
-                                </button>
+                                </Button>
                               </div>
                             </div>
                           ))}
@@ -742,59 +931,22 @@ function ConfiguracionContent() {
               </div>
             )}
 
-            {activeTab === "general" && !perfil && (
-              <div className="bg-white border border-brand-gray-200 rounded-xl p-8 text-center flex flex-col items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-brand-amber/10 flex items-center justify-center">
-                  <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-brand-amber">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-brand-gray-800">No tienes una cuenta del SRI vinculada</h3>
-                  <p className="text-xs text-brand-gray-500 mt-1 font-medium">Vincula tu RUC y contraseña del SRI para comenzar a sincronizar tus comprobantes electrónicos automáticamente.</p>
-                </div>
-                <Link
-                  href="/configuracion?vincular=true"
-                  className="bg-brand-navy text-white px-6 py-2.5 rounded-lg text-xs font-bold hover:bg-brand-navy-light transition-all active:scale-[0.98]"
-                >
-                  Vincular cuenta del SRI
-                </Link>
-                <div className="flex flex-wrap gap-2 justify-center mt-1">
-                  <button
-                    onClick={() => setActiveTab("ia")}
-                    className="border border-brand-gray-200 text-brand-gray-600 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-brand-gray-50 transition-colors cursor-pointer"
-                  >
-                    Configurar Inteligencia IA
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("integraciones")}
-                    className="border border-brand-gray-200 text-brand-gray-600 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-brand-gray-50 transition-colors cursor-pointer"
-                  >
-                    WhatsApp & Móvil
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("notificaciones")}
-                    className="border border-brand-gray-200 text-brand-gray-600 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-brand-gray-50 transition-colors cursor-pointer"
-                  >
-                    Notificaciones
-                  </button>
-                </div>
-              </div>
-            )}
-
+            {/* TAB CLIENTES / USUARIOS */}
             {activeTab === "clientes" && (
-              <div className="flex flex-col gap-5">
-                <section className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
-                  <div className="px-5 py-4 border-b border-brand-gray-100 flex justify-between items-center flex-wrap gap-2">
+              <div className="flex flex-col gap-6">
+                <section className="bg-white border border-brand-gray-200 rounded-2xl overflow-hidden shadow-2xs">
+                  <div className="px-5 py-4 border-b border-brand-gray-100 flex items-center justify-between flex-wrap gap-2">
                     <div>
-                      <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">
+                      <h2 className="text-xs font-bold text-brand-gray-800 uppercase tracking-wider flex items-center gap-2">
+                        <Users className="w-4 h-4 text-brand-red" />
                         Gestión de Usuarios Clientes
                       </h2>
                       <p className="text-[11px] text-brand-gray-500 mt-0.5 font-medium">
-                        Crea cuentas de acceso restringidas para tus clientes y asócialas a sus respectivos RUCs.
+                        Crea cuentas de acceso restringidas para tus clientes y asócialas a sus RUCs.
                       </p>
                     </div>
-                    <button
+                    <Button
+                      size="sm"
                       onClick={() => {
                         setClientNombre("");
                         setClientEmail("");
@@ -803,148 +955,183 @@ function ConfiguracionContent() {
                         setClientRol("USER");
                         setIsCreateModalOpen(true);
                       }}
-                      className="bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold px-3 py-2 rounded-lg transition-all active:scale-[0.98] cursor-pointer flex items-center gap-1.5"
+                      className="bg-brand-red hover:bg-brand-red-mid text-white text-xs font-semibold rounded-xl flex items-center gap-1.5"
                     >
-                      <Plus className="w-4 h-4 shrink-0" />
+                      <Plus className="w-4 h-4" />
                       Agregar Usuario
-                    </button>
+                    </Button>
                   </div>
-                  <div className="p-5 overflow-x-auto">
+
+                  <div className="p-5">
                     {loadingClientes ? (
-                      <p className="text-sm text-brand-gray-500 text-center py-6">Cargando usuarios...</p>
+                      <TableSkeleton rows={5} columns={6} />
                     ) : clientes.length === 0 ? (
-                      <p className="text-sm text-brand-gray-500 text-center py-6">No hay usuarios registrados en tu oficina contable.</p>
+                      <EmptyState
+                        icon={<Users className="w-5 h-5" />}
+                        title="No hay usuarios registrados en tu oficina contable."
+                        compact
+                      />
                     ) : (
-                      <table className="w-full text-left border-collapse text-[12.5px]">
-                        <thead>
-                          <tr className="border-b border-brand-gray-100 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider">
-                            <th className="pb-3 font-semibold">Usuario</th>
-                            <th className="pb-3 font-semibold">Correo</th>
-                            <th className="pb-3 font-semibold">Rol</th>
-                            <th className="pb-3 font-semibold">Empresa / RUC Asociado</th>
-                            <th className="pb-3 font-semibold">Estado</th>
-                            <th className="pb-3 font-semibold text-right">Acciones</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-brand-gray-50">
-                          {clientes.map((c) => (
-                            <tr key={c.id} className="hover:bg-brand-gray-50/40 transition-colors">
-                              <td className="py-3.5 font-bold text-brand-gray-800 flex items-center gap-2">
-                                <div className="w-8 h-8 bg-brand-gray-100 rounded-full flex items-center justify-center text-brand-gray-500 shadow-xs">
-                                  <User className="w-4 h-4 shrink-0" />
-                                </div>
-                                {c.nombre}
-                              </td>
-                              <td className="py-3.5 text-brand-gray-600 font-medium">{c.email}</td>
-                              <td className="py-3.5">
-                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                                  c.rol === 'ADMIN' 
-                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                                    : 'bg-brand-gray-100 text-brand-gray-700 border border-brand-gray-200'
-                                }`}>
-                                  {c.rol === 'ADMIN' ? 'Administrador' : 'Cliente'}
-                                </span>
-                              </td>
-                              <td className="py-3.5">
-                                {c.rol === 'ADMIN' ? (
-                                  <span className="text-brand-gray-400 italic">Acceso Global</span>
-                                ) : (
-                                  <select
-                                    value={c.ruc || ""}
-                                    onChange={(e) => handleUpdateClientRuc(c.id, e.target.value)}
-                                    className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-brand-gray-800 focus:border-brand-navy outline-none cursor-pointer"
-                                  >
-                                    <option value="">Desasociado (Ninguno)</option>
-                                    {emisores.map((e) => (
-                                      <option key={e.ruc} value={e.ruc}>
-                                        {e.razonSocial}
-                                      </option>
-                                    ))}
-                                  </select>
-                                )}
-                              </td>
-                              <td className="py-3.5">
-                                <button
-                                  onClick={() => handleToggleClientStatus(c.id, c.activo)}
-                                  className={`relative w-9 h-5 rounded-full transition-colors shrink-0 cursor-pointer ${c.activo ? "bg-emerald-500" : "bg-brand-gray-200"}`}
-                                >
-                                  <div
-                                    className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${
-                                      c.activo ? "left-[18px]" : "left-0.5"
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="pb-3 font-semibold text-xs">Usuario</TableHead>
+                              <TableHead className="pb-3 font-semibold text-xs">Correo</TableHead>
+                              <TableHead className="pb-3 font-semibold text-xs">Rol</TableHead>
+                              <TableHead className="pb-3 font-semibold text-xs">Empresa / RUC Asociado</TableHead>
+                              <TableHead className="pb-3 font-semibold text-xs">Estado</TableHead>
+                              <TableHead className="pb-3 font-semibold text-xs text-right">Acciones</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody className="divide-y divide-brand-gray-100">
+                            {clientes.map((c) => (
+                              <TableRow key={c.id}>
+                                <TableCell className="py-3.5 font-bold text-xs text-brand-gray-800">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 bg-brand-gray-100 rounded-full flex items-center justify-center text-brand-gray-500 shadow-2xs font-bold text-xs shrink-0">
+                                      <User className="w-4 h-4" />
+                                    </div>
+                                    <span>{c.nombre}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-3.5 text-xs text-brand-gray-600 font-medium">
+                                  {c.email}
+                                </TableCell>
+                                <TableCell className="py-3.5">
+                                  <Badge
+                                    className={`font-semibold text-[10px] px-2 py-0.5 ${
+                                      c.rol === "ADMIN"
+                                        ? "bg-sky-100 text-brand-sky"
+                                        : "bg-brand-gray-100 text-brand-gray-700"
                                     }`}
-                                  />
-                                </button>
-                              </td>
-                              <td className="py-3.5 text-right whitespace-nowrap">
-                                <button
-                                  onClick={() => handleOpenEditModal(c)}
-                                  className="text-brand-navy hover:text-brand-navy-light font-bold text-xs border border-brand-gray-200 hover:bg-brand-gray-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer mr-2 inline-flex items-center gap-1"
-                                  title="Editar usuario"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                  Editar
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteClient(c.id, c.nombre)}
-                                  className="text-red-500 hover:text-red-700 font-bold text-xs border border-red-100 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
-                                  title="Eliminar usuario"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                  Eliminar
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                                  >
+                                    {c.rol === "ADMIN" ? "Administrador" : "Cliente"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="py-3.5">
+                                  {c.rol === "ADMIN" ? (
+                                    <span className="text-brand-gray-400 text-xs italic">
+                                      Acceso Global
+                                    </span>
+                                  ) : (
+                                    <select
+                                      value={c.ruc || ""}
+                                      onChange={(e) => handleUpdateClientRuc(c.id, e.target.value)}
+                                      className="bg-brand-gray-50 border border-brand-gray-200 rounded-xl px-2.5 py-1.5 text-xs text-brand-gray-800 focus:border-brand-red outline-none cursor-pointer font-medium"
+                                    >
+                                      <option value="">Desasociado (Ninguno)</option>
+                                      {emisores.map((e) => (
+                                        <option key={e.ruc} value={e.ruc}>
+                                          {e.razonSocial}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
+                                </TableCell>
+                                <TableCell className="py-3.5">
+                                  <button
+                                    onClick={() => handleToggleClientStatus(c.id, c.activo)}
+                                    className={`relative w-9 h-5 rounded-full transition-colors shrink-0 cursor-pointer ${
+                                      c.activo ? "bg-success" : "bg-brand-gray-200"
+                                    }`}
+                                  >
+                                    <div
+                                      className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${
+                                        c.activo ? "left-[18px]" : "left-0.5"
+                                      }`}
+                                    />
+                                  </button>
+                                </TableCell>
+                                <TableCell className="py-3.5 text-right whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleOpenEditModal(c)}
+                                      className="text-xs font-semibold rounded-lg text-brand-red hover:text-brand-red-bright hover:bg-brand-red-subtle"
+                                    >
+                                      <Edit className="w-3.5 h-3.5" />
+                                      Editar
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDeleteClient(c.id, c.nombre)}
+                                      className="text-xs font-semibold rounded-lg text-brand-red hover:bg-brand-red-subtle border-brand-red-pale"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      Eliminar
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                     )}
                   </div>
                 </section>
               </div>
             )}
 
+            {/* TAB NOTIFICACIONES */}
             {activeTab === "notificaciones" && (
-              <section className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
+              <section className="bg-white border border-brand-gray-200 rounded-2xl overflow-hidden shadow-2xs">
                 <div className="px-5 py-4 border-b border-brand-gray-100">
-                  <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">Canales de notificación</h2>
-                  <p className="text-[11px] text-brand-gray-500 mt-1 font-medium">Elige cómo quieres recibir alertas tributarias.</p>
+                  <h2 className="text-xs font-bold text-brand-gray-800 uppercase tracking-wider flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-brand-red" />
+                    Canales de Notificación
+                  </h2>
+                  <p className="text-[11px] text-brand-gray-500 mt-0.5 font-medium">
+                    Elige cómo quieres recibir alertas tributarias y resúmenes contables.
+                  </p>
                 </div>
-                <div className="p-5 flex flex-col divide-y divide-brand-gray-50">
+
+                <div className="p-5 flex flex-col divide-y divide-brand-gray-100">
                   {[
                     {
                       label: "Notificaciones en App",
-                      desc: "Alertas dentro del sistema",
-                      icon: <Smartphone className="w-5 h-5 text-brand-gray-500 shrink-0" />,
+                      desc: "Alertas y notificaciones internas del sistema",
+                      icon: <Smartphone className="w-5 h-5 text-brand-red shrink-0" />,
                       state: appNotif,
                       toggle: (v: boolean) => {
                         setAppNotif(v);
-                        savePrefs(v, whatsappNotif);
+                        savePrefs(v, whatsappNotif, emailNotif);
                       },
                     },
                     {
                       label: "Notificaciones por Email",
-                      desc: "Copias de declaraciones y alertas (próximamente)",
-                      icon: <Mail className="w-5 h-5 text-brand-gray-500 shrink-0" />,
+                      desc: emailDisponible
+                        ? "Alertas enviadas por SMTP configurado"
+                        : "Configura SMTP_HOST para habilitar este canal",
+                      icon: <Mail className={`w-5 h-5 shrink-0 ${emailDisponible ? "text-brand-sky" : "text-brand-gray-400"}`} />,
                       state: emailNotif,
-                      toggle: setEmailNotif,
-                      disabled: true,
+                      toggle: (v: boolean) => {
+                        setEmailNotif(v);
+                        savePrefs(appNotif, whatsappNotif, v);
+                      },
+                      disabled: !emailDisponible,
                     },
                     {
                       label: "Notificaciones por WhatsApp",
-                      desc: "Mensajes del Agente Notificador",
-                      icon: <MessageSquare className="w-5 h-5 text-brand-gray-500 shrink-0" />,
+                      desc: "Alertas en tiempo real enviadas por el Asistente WhatsApp",
+                      icon: <MessageSquare className="w-5 h-5 text-success shrink-0" />,
                       state: whatsappNotif,
                       toggle: (v: boolean) => {
                         setWhatsappNotif(v);
-                        savePrefs(appNotif, v);
+                        savePrefs(appNotif, v, emailNotif);
                       },
                     },
                   ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between py-3 gap-4">
+                    <div key={item.label} className="flex items-center justify-between py-4 gap-4">
                       <div className="flex items-center gap-3">
                         <span className="shrink-0">{item.icon}</span>
                         <div>
-                          <p className="text-[13px] font-semibold text-brand-gray-800">{item.label}</p>
+                          <p className="text-xs font-bold text-brand-gray-800">{item.label}</p>
                           <p className="text-[11px] text-brand-gray-500 font-medium">{item.desc}</p>
                         </div>
                       </div>
@@ -953,7 +1140,7 @@ function ConfiguracionContent() {
                         disabled={item.disabled}
                         className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
                           item.disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
-                        } ${item.state ? "bg-emerald-500" : "bg-brand-gray-200"}`}
+                        } ${item.state ? "bg-success" : "bg-brand-gray-200"}`}
                       >
                         <div
                           className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
@@ -964,61 +1151,26 @@ function ConfiguracionContent() {
                     </div>
                   ))}
                 </div>
-                <div className="px-5 pb-5">
-                  <button
-                    onClick={() => setActiveTab("integraciones")}
-                    className="text-sm text-brand-navy font-semibold hover:underline cursor-pointer"
-                  >
-                    Ir a vincular WhatsApp →
-                  </button>
-                </div>
               </section>
             )}
 
+            {/* TAB INTEGRACIONES */}
             {activeTab === "integraciones" && <WhatsAppMobilePanel />}
 
+            {/* TAB IA */}
             {activeTab === "ia" && (
-              <section className="bg-white border border-brand-gray-200 rounded-xl p-5">
+              <section className="bg-white border border-brand-gray-200 rounded-2xl p-5 shadow-2xs">
                 <IaConfigPanel />
               </section>
             )}
 
+            {/* TAB DESARROLLO */}
             {activeTab === "desarrollo" && (
-              <section className="bg-white border border-brand-gray-200 rounded-xl p-5">
+              <section className="bg-white border border-brand-gray-200 rounded-2xl p-5 shadow-2xs">
                 <ProxyConfigPanel />
               </section>
             )}
           </>
-        )}
-
-        {activeTab === "general" && user?.rol !== "USER" && emisores.length > 0 && (
-          <section className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-brand-gray-100">
-              <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">Privacidad y control de datos</h2>
-            </div>
-            <div className="p-5">
-              {!showRevokeConfirm ? (
-                <button
-                  onClick={() => setShowRevokeConfirm(true)}
-                  className="text-[12.5px] font-semibold text-red-600 hover:text-red-800 border border-red-200 bg-red-50 px-4 py-2 rounded-lg transition-colors cursor-pointer"
-                >
-                  Revocar acceso al SRI
-                </button>
-              ) : (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex flex-col gap-3">
-                  <p className="text-[12.5px] font-semibold text-red-800">
-                    Esta acción requiere soporte administrative. Contacta al administrador del tenant.
-                  </p>
-                  <button
-                    onClick={() => setShowRevokeConfirm(false)}
-                    className="border border-brand-gray-200 text-brand-gray-700 text-[12px] font-semibold py-2 rounded-lg hover:bg-white transition-colors cursor-pointer"
-                  >
-                    Cerrar
-                  </button>
-                </div>
-              )}
-            </div>
-          </section>
         )}
       </main>
 
@@ -1027,12 +1179,14 @@ function ConfiguracionContent() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl border border-brand-gray-200 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="px-5 py-4 border-b border-brand-gray-100 flex justify-between items-center">
-              <h3 className="text-sm font-bold text-brand-gray-800">Agregar Usuario Cliente</h3>
+              <h3 className="text-xs font-bold text-brand-gray-800 uppercase tracking-wider">
+                Agregar Usuario Cliente
+              </h3>
               <button
                 onClick={() => setIsCreateModalOpen(false)}
-                className="text-brand-gray-400 hover:text-brand-gray-600 transition-colors cursor-pointer text-xs"
+                className="text-brand-gray-400 hover:text-brand-gray-700"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
             <form onSubmit={handleCreateClient} className="p-5 flex flex-col gap-4">
@@ -1040,12 +1194,12 @@ function ConfiguracionContent() {
                 <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Nombre Completo
                 </label>
-                <input
+                <Input
                   type="text"
                   required
                   value={clientNombre}
                   onChange={(e) => setClientNombre(e.target.value)}
-                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none"
+                  className="bg-brand-gray-50 text-xs"
                   placeholder="ej. Juan Pérez"
                 />
               </div>
@@ -1054,12 +1208,12 @@ function ConfiguracionContent() {
                 <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Correo Electrónico
                 </label>
-                <input
+                <Input
                   type="email"
                   required
                   value={clientEmail}
                   onChange={(e) => setClientEmail(e.target.value)}
-                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none"
+                  className="bg-brand-gray-50 text-xs"
                   placeholder="cliente@correo.com"
                 />
               </div>
@@ -1068,12 +1222,12 @@ function ConfiguracionContent() {
                 <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Contraseña de Acceso
                 </label>
-                <input
+                <Input
                   type="password"
                   required
                   value={clientPassword}
                   onChange={(e) => setClientPassword(e.target.value)}
-                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none"
+                  className="bg-brand-gray-50 text-xs"
                   placeholder="Mínimo 6 caracteres"
                 />
               </div>
@@ -1085,7 +1239,7 @@ function ConfiguracionContent() {
                 <select
                   value={clientRuc}
                   onChange={(e) => setClientRuc(e.target.value)}
-                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none cursor-pointer"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-xl p-2.5 text-xs text-brand-gray-800 focus:border-brand-red outline-none cursor-pointer font-medium"
                 >
                   <option value="">Ninguno (sin acceso a SRI)</option>
                   {emisores.map((e) => (
@@ -1103,7 +1257,7 @@ function ConfiguracionContent() {
                 <select
                   value={clientRol}
                   onChange={(e) => setClientRol(e.target.value)}
-                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none cursor-pointer"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-xl p-2.5 text-xs text-brand-gray-800 focus:border-brand-red outline-none cursor-pointer font-medium"
                 >
                   <option value="USER">Cliente (Restringido)</option>
                   <option value="ADMIN">Administrador (Contador)</option>
@@ -1111,20 +1265,21 @@ function ConfiguracionContent() {
               </div>
 
               <div className="flex gap-2.5 mt-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  className="flex-1 text-xs font-semibold rounded-xl"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="flex-1 bg-brand-gray-100 hover:bg-brand-gray-200 text-brand-gray-700 text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer"
                 >
                   Cancelar
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
                   disabled={submittingClient}
-                  className="flex-1 bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                  className="flex-1 bg-brand-red hover:bg-brand-red-mid text-white text-xs font-semibold rounded-xl"
                 >
                   {submittingClient ? "Guardando..." : "Crear Usuario"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -1136,12 +1291,14 @@ function ConfiguracionContent() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl border border-brand-gray-200 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="px-5 py-4 border-b border-brand-gray-100 flex justify-between items-center">
-              <h3 className="text-sm font-bold text-brand-gray-800">Editar Usuario</h3>
+              <h3 className="text-xs font-bold text-brand-gray-800 uppercase tracking-wider">
+                Editar Usuario
+              </h3>
               <button
                 onClick={() => setIsEditModalOpen(false)}
-                className="text-brand-gray-400 hover:text-brand-gray-600 transition-colors cursor-pointer text-xs"
+                className="text-brand-gray-400 hover:text-brand-gray-700"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
             <form onSubmit={handleUpdateClient} className="p-5 flex flex-col gap-4">
@@ -1149,12 +1306,12 @@ function ConfiguracionContent() {
                 <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Nombre Completo
                 </label>
-                <input
+                <Input
                   type="text"
                   required
                   value={editNombre}
                   onChange={(e) => setEditNombre(e.target.value)}
-                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none"
+                  className="bg-brand-gray-50 text-xs"
                   placeholder="ej. Juan Pérez"
                 />
               </div>
@@ -1163,12 +1320,12 @@ function ConfiguracionContent() {
                 <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Correo Electrónico
                 </label>
-                <input
+                <Input
                   type="email"
                   required
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
-                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none"
+                  className="bg-brand-gray-50 text-xs"
                   placeholder="cliente@correo.com"
                 />
               </div>
@@ -1177,11 +1334,11 @@ function ConfiguracionContent() {
                 <label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">
                   Nueva Contraseña (opcional)
                 </label>
-                <input
+                <Input
                   type="password"
                   value={editPassword}
                   onChange={(e) => setEditPassword(e.target.value)}
-                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none"
+                  className="bg-brand-gray-50 text-xs"
                   placeholder="Dejar en blanco para conservar contraseña"
                 />
               </div>
@@ -1191,10 +1348,10 @@ function ConfiguracionContent() {
                   Empresa / RUC Asignado
                 </label>
                 <select
-                  disabled={editRol === 'ADMIN'}
-                  value={editRol === 'ADMIN' ? '' : editRuc}
+                  disabled={editRol === "ADMIN"}
+                  value={editRol === "ADMIN" ? "" : editRuc}
                   onChange={(e) => setEditRuc(e.target.value)}
-                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-xl p-2.5 text-xs text-brand-gray-800 focus:border-brand-red outline-none cursor-pointer disabled:opacity-50 font-medium"
                 >
                   <option value="">Ninguno (sin acceso a SRI)</option>
                   {emisores.map((e) => (
@@ -1212,7 +1369,7 @@ function ConfiguracionContent() {
                 <select
                   value={editRol}
                   onChange={(e) => setEditRol(e.target.value)}
-                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-lg p-2.5 text-sm text-brand-gray-800 focus:border-brand-navy outline-none cursor-pointer"
+                  className="bg-brand-gray-50 border border-brand-gray-200 rounded-xl p-2.5 text-xs text-brand-gray-800 focus:border-brand-red outline-none cursor-pointer font-medium"
                 >
                   <option value="USER">Cliente (Restringido)</option>
                   <option value="ADMIN">Administrador (Contador)</option>
@@ -1220,20 +1377,21 @@ function ConfiguracionContent() {
               </div>
 
               <div className="flex gap-2.5 mt-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  className="flex-1 text-xs font-semibold rounded-xl"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="flex-1 bg-brand-gray-100 hover:bg-brand-gray-200 text-brand-gray-700 text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer"
                 >
                   Cancelar
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
                   disabled={submittingEdit}
-                  className="flex-1 bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                  className="flex-1 bg-brand-red hover:bg-brand-red-mid text-white text-xs font-semibold rounded-xl"
                 >
                   {submittingEdit ? "Guardando..." : "Guardar Cambios"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -1272,9 +1430,14 @@ function ConfiguracionContent() {
 
 export default function ConfiguracionPage() {
   return (
-    <Suspense fallback={
-      <div className="p-8 text-center text-sm text-slate-500">Cargando configuración…</div>
-    }>
+    <Suspense
+      fallback={
+        <div className="p-12 text-center text-xs text-brand-gray-500 flex items-center justify-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-brand-red" />
+          <span>Cargando configuración…</span>
+        </div>
+      }
+    >
       <ConfiguracionContent />
     </Suspense>
   );

@@ -11,6 +11,17 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import {
+  CHART_VENTAS,
+  CHART_COMPRAS,
+  CHART_POSITIVO,
+  CHART_NEGATIVO,
+  CHART_GRID,
+  CHART_TICK,
+  CHART_TOOLTIP_STYLE,
+  formatCurrency,
+  formatCurrencyCompact,
+} from "@/lib/chartTheme";
 
 interface FlowComparisonChartProps {
   ventas: number;
@@ -20,28 +31,33 @@ interface FlowComparisonChartProps {
 export default function FlowComparisonChart({ ventas, compras }: FlowComparisonChartProps) {
   const balance = ventas - compras;
   const data = [
-    { name: "Ventas", monto: ventas, fill: "#0F2D5E" },
-    { name: "Compras", monto: compras, fill: "#94A3B8" },
-    { name: "Balance", monto: balance, fill: balance >= 0 ? "#1B7A3E" : "#DC2626" },
+    { name: "Ventas", monto: ventas, fill: CHART_VENTAS },
+    { name: "Compras", monto: compras, fill: CHART_COMPRAS },
+    { name: "Balance", monto: balance, fill: balance >= 0 ? CHART_POSITIVO : CHART_NEGATIVO },
   ];
 
-  const formatCurrency = (v: number) =>
-    `$${v.toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (ventas === 0 && compras === 0) {
+    return (
+      <div className="h-48 flex items-center justify-center text-brand-gray-400 text-xs">
+        Aún no hay flujos registrados en este período
+      </div>
+    );
+  }
 
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-        <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748B" }} axisLine={false} tickLine={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+        <XAxis dataKey="name" tick={{ fontSize: 11, fill: CHART_TICK }} axisLine={false} tickLine={false} />
         <YAxis
-          tick={{ fontSize: 10, fill: "#94A3B8" }}
+          tick={{ fontSize: 10, fill: CHART_TICK }}
           axisLine={false}
           tickLine={false}
-          tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+          tickFormatter={(v) => formatCurrencyCompact(Number(v))}
         />
         <Tooltip
           formatter={(value) => [formatCurrency(Number(value ?? 0)), "Monto"]}
-          contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }}
+          contentStyle={CHART_TOOLTIP_STYLE}
         />
         <Legend wrapperStyle={{ fontSize: 11 }} />
         <Bar dataKey="monto" name="Monto" radius={[6, 6, 0, 0]}>

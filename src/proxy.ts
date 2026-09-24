@@ -1,27 +1,31 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+﻿import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ['/login', '/register', '/mobile'];
-const TOKEN_COOKIE = 'sri_access_token';
+const PUBLIC_PATHS = ["/login", "/register", "/mobile"];
+const TOKEN_COOKIE = "sri_access_token";
 
+/**
+ * Next.js 16+ network boundary (formerly middleware).
+ * Gates app pages via httpOnly JWT cookie; API routes use verifyAuth().
+ */
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(TOKEN_COOKIE)?.value;
 
   const isPublic =
     PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
-    pathname.startsWith('/api');
+    pathname.startsWith("/api");
 
   if (isPublic) {
-    if (token && (pathname === '/login' || pathname === '/register')) {
-      return NextResponse.redirect(new URL('/', request.url));
+    if (token && (pathname === "/login" || pathname === "/register")) {
+      return NextResponse.redirect(new URL("/", request.url));
     }
     return NextResponse.next();
   }
 
   if (!token) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('redirect', pathname);
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
@@ -29,5 +33,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)'],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { requireModule } from '@/services/sri-api/rbac';
 
 function requireSuperadmin(user: { rol: string }) {
   if (user.rol !== 'SUPERADMIN') {
@@ -12,6 +13,7 @@ export async function GET(req: Request) {
   try {
     const user = await verifyAuth(req);
     requireSuperadmin(user);
+    await requireModule(user, 'admin.empresas');
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('q') || '';
@@ -75,6 +77,7 @@ export async function POST(req: Request) {
   try {
     const user = await verifyAuth(req);
     requireSuperadmin(user);
+    await requireModule(user, 'admin.empresas');
 
     const body = await req.json();
     const { nombre, ruc } = body;

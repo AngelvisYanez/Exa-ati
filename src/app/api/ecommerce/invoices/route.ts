@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { createEcommerceInvoice } from '@/lib/sri-api/ecommerce';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { createEcommerceInvoice, calcularEcommerceTotals } from '@/services/sri-api/ecommerce';
+import { autoCrearCuentaPorCobrarDesdeFactura } from '@/services/sri-api/cuentas';
+import { requireModule } from '@/services/sri-api/rbac';
 
 export async function POST(req: Request) {
   try {
     const user = await verifyAuth(req);
+    await requireModule(user, 'ecommerce');
     const body = await req.json();
 
     if (!body.emisorId || !body.items || body.items.length === 0 || !body.cliente) {
@@ -23,7 +26,7 @@ export async function POST(req: Request) {
     }
 
     const emisor = await db.queryOne(
-      'SELECT id, tenant_id FROM emisores WHERE id = ? AND activo = true',
+      'SELECT id, tenant_id, ruc FROM emisores WHERE id = ? AND activo = true',
       [body.emisorId]
     );
 
@@ -54,6 +57,23 @@ export async function POST(req: Request) {
       importeTotal: body.importeTotal,
     });
 
+    // Facturas a crédito (plazo > 0) generan automáticamente cuenta por cobrar
+    if (body.plazo && Number(body.plazo) > 0 && emisor.tenant_id) {
+      const totalesEcom = calcularEcommerceTotals(body.items, body.descuentoGlobal);
+      await autoCrearCuentaPorCobrarDesdeFactura({
+        tenantId: emisor.tenant_id,
+        emisorRuc: emisor.ruc,
+        comprobanteId: result.id || null,
+        claveAcceso: result.claveAcceso,
+        fechaEmision: new Date(),
+        plazo: body.plazo,
+        importeTotal: Number(body.importeTotal ?? totalesEcom.total),
+        cliente: body.cliente,
+      }).catch((err: any) => {
+        console.error('[Auto CxC ecommerce]', err?.message);
+      });
+    }
+
     return NextResponse.json({
       success: true,
       claveAcceso: result.claveAcceso,
@@ -71,6 +91,7 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   try {
     const user = await verifyAuth(req);
+    await requireModule(user, 'ecommerce');
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200);
     const page = parseInt(searchParams.get('page') || '1', 10);

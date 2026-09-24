@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import bcrypt from 'bcrypt';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import bcrypt from 'bcryptjs';
+import { isValidActiveRol, requireModule, forbiddenResponse } from '@/services/sri-api/rbac';
 
 export async function GET(req: Request) {
   try {
     const user = await verifyAuth(req);
+    await requireModule(user, 'admin');
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('q') || '';
     const rol = searchParams.get('rol') || '';
@@ -78,6 +80,7 @@ export async function GET(req: Request) {
     });
   } catch (error: any) {
     console.error('[Admin Usuarios GET]', error);
+    if (error.message?.includes('Acceso denegado')) return forbiddenResponse(error.message);
     return NextResponse.json(
       { message: error.message || 'Error interno' },
       { status: error.message?.startsWith('No autorizado') ? 401 : 500 }
@@ -88,6 +91,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await verifyAuth(req);
+    await requireModule(user, 'admin');
     const body = await req.json();
     const { email, nombre, password, rol, tenantId, ruc, activo } = body;
 
@@ -127,8 +131,14 @@ export async function POST(req: Request) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const allowedRoles = ['USER', 'ADMIN', 'SUPERADMIN'];
-    const finalRol = allowedRoles.includes(rol) ? rol : 'USER';
+    const requestedRol = typeof rol === 'string' && rol.trim() ? rol.trim().toUpperCase() : 'USER';
+    if (requestedRol === 'SUPERADMIN' && user.rol !== 'SUPERADMIN') {
+      return NextResponse.json(
+        { message: 'No puedes crear usuarios SUPERADMIN' },
+        { status: 403 }
+      );
+    }
+    const finalRol = (await isValidActiveRol(requestedRol)) ? requestedRol : 'USER';
 
     const result = await db.queryOne<any>(
       `INSERT INTO usuarios (email, password_hash, nombre, rol, tenant_id, ruc, activo, created_at, updated_at)
@@ -151,6 +161,7 @@ export async function POST(req: Request) {
     }, { status: 201 });
   } catch (error: any) {
     console.error('[Admin Usuarios POST]', error);
+    if (error.message?.includes('Acceso denegado')) return forbiddenResponse(error.message);
     return NextResponse.json(
       { message: error.message || 'Error interno' },
       { status: error.message?.startsWith('No autorizado') ? 401 : 500 }

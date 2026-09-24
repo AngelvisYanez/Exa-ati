@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { xmlSigner } from '@/lib/sri-api/xml-signer';
-import { xmlStorage } from '@/lib/sri-api/xml-storage';
-import { sriSoapClient } from '@/lib/sri-api/sri-soap-client';
-import { classifySriError } from '@/lib/sri-api/sri-error-handler';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { sriSoapClient } from '@/services/sri-api/sri-soap-client';
+import { classifySriError } from '@/services/sri-api/sri-error-handler';
+import { saveAutorizadoXml } from '@/services/sri-api/comprobante-importer';
+import { xmlStorage } from '@/services/sri-api/xml-storage';
 
 export async function POST(req: Request, { params }: { params: Promise<{ claveAcceso: string }> }) {
   try {
@@ -49,9 +49,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ claveAc
       return NextResponse.json({ message: 'No hay XML firmado almacenado para reenvío' }, { status: 404 });
     }
 
-    const { readFileSync } = await import('fs');
-    const { join } = await import('path');
-    const xmlFirmado = readFileSync(join(xmlRecord.ruta_archivo), 'utf-8');
+    const xmlFirmado = xmlStorage.readXml(xmlRecord.ruta_archivo);
+    if (!xmlFirmado) {
+      return NextResponse.json({ message: 'No se pudo leer el XML firmado almacenado' }, { status: 404 });
+    }
 
     const result = await sriSoapClient.enviarYAutorizar(xmlFirmado, claveAcceso);
 
@@ -70,7 +71,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ claveAc
     );
 
     if (result.estado === 'AUTORIZADO' && result.xmlAutorizado) {
-      xmlStorage.saveXml(emisor.ruc, claveAcceso, new Date(), 'autorizado', result.xmlAutorizado);
+      await saveAutorizadoXml(
+        comp.id,
+        emisor.ruc,
+        claveAcceso,
+        new Date(),
+        result.xmlAutorizado
+      );
     }
 
     const errorClassified = classifySriError(result.mensajes, result.estado === 'EN_PROCESO' ? 'autorizacion' : 'recepcion');

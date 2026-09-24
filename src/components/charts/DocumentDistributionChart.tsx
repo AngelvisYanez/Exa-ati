@@ -8,8 +8,11 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-
-const COLORS = ["#a02525", "#5c5c5a", "#D4A017", "#7a3a1b", "#c04040"];
+import {
+  CHART_COLORS,
+  CHART_TOOLTIP_STYLE,
+  formatCount,
+} from "@/lib/chartTheme";
 
 interface DocumentDistributionChartProps {
   ventas: number;
@@ -36,17 +39,11 @@ export default function DocumentDistributionChart({
 
   if (data.length === 0) {
     return (
-      <div className="h-48 flex items-center justify-center text-slate-400 text-xs">
+      <div className="h-48 flex items-center justify-center text-brand-gray-400 text-xs">
         Sin datos de distribución
       </div>
     );
   }
-
-  const formatCurrency = (v: number) =>
-    `$${v.toLocaleString("es-EC", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
 
   return (
     <ResponsiveContainer width="100%" height={240}>
@@ -61,16 +58,12 @@ export default function DocumentDistributionChart({
           dataKey="value"
         >
           {data.map((_, index) => (
-            <Cell key={index} fill={COLORS[index % COLORS.length]} />
+            <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
           ))}
         </Pie>
         <Tooltip
-          formatter={(value, name) => [value, name]}
-          contentStyle={{
-            borderRadius: 8,
-            border: "1px solid #E2E8F0",
-            fontSize: 12,
-          }}
+          formatter={(value, name) => [formatCount(Number(value ?? 0)), name]}
+          contentStyle={CHART_TOOLTIP_STYLE}
         />
         <Legend
           wrapperStyle={{ fontSize: 10, paddingTop: 8 }}

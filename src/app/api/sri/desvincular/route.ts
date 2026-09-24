@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
 
 export async function POST(req: Request) {
   try {

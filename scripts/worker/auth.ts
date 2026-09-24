@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { realisticClick } from '../../src/lib/scraping/sri-utils';
+import { realisticClick } from '../../src/services/scraping/sri-utils';
 // @ts-ignore
 import ac from '@antiadmin/anticaptchaofficial';
 

@@ -3,8 +3,8 @@ import {
   classifySriError,
   classifyAllSriErrors,
   isSriErrorCode,
-} from '../src/lib/sri-api/sri-error-handler';
-import type { SriMensaje } from '../src/lib/sri-api/sri-soap-client';
+} from '../src/services/sri-api/sri-error-handler';
+import type { SriMensaje } from '../src/services/sri-api/sri-soap-client';
 
 function makeMensaje(identificador: string, mensaje: string, tipo = 'ERROR', informacionAdicional?: string): SriMensaje {
   return { identificador, mensaje, tipo, informacionAdicional };

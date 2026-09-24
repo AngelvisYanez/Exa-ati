@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { forbiddenResponse, requireModule } from '@/services/sri-api/rbac';
 
 export async function GET(req: Request) {
   try {
     const user = await verifyAuth(req);
+    await requireModule(user, 'admin');
 
     const usuariosCount = await db.queryOne<{ count: string }>(
       'SELECT COUNT(*) as count FROM usuarios'
@@ -47,6 +49,7 @@ export async function GET(req: Request) {
       })),
     });
   } catch (error: any) {
+    if (error.message?.includes('Acceso denegado')) return forbiddenResponse(error.message);
     return NextResponse.json(
       { message: error.message || 'Error interno' },
       { status: error.message?.startsWith('No autorizado') ? 401 : 500 }

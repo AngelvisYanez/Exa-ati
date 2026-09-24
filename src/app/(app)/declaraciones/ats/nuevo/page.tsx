@@ -2,12 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Download } from "lucide-react";
+
+import { apiFetch } from "@/lib/apiFetch";
+
+/** input type=month (YYYY-MM) → YYYYMM para la API */
+function toPeriodoApi(monthValue: string): string {
+  return monthValue.replace(/-/g, "");
+}
 
 export default function NuevoAtsPage() {
   const router = useRouter();
@@ -27,16 +34,21 @@ export default function NuevoAtsPage() {
     }
     setGenerando(true);
     setPreview(null);
+    setAtsId(null);
     try {
-      const res = await fetch("/api/declaraciones/ats/generar", {
+      const res = await apiFetch("/api/declaraciones/ats/generar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ periodo }),
+        body: JSON.stringify({ periodo: toPeriodoApi(periodo) }),
       });
-      if (!res.ok) throw new Error("Error al generar");
-      const data = await res.json();
-      setPreview(data);
-      toast.success("ATS generado correctamente");
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.message || "Error al generar");
+      setPreview(payload.data ?? payload);
+      if (payload.validacion && !payload.validacion.valido) {
+        toast.warning(`ATS con observaciones: ${payload.validacion.errores?.join("; ")}`);
+      } else {
+        toast.success("ATS generado correctamente");
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Error al generar ATS");
     } finally {
@@ -48,14 +60,17 @@ export default function NuevoAtsPage() {
     if (!preview) return;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/declaraciones/ats", {
+      const res = await apiFetch("/api/declaraciones/ats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ periodo, datos: preview }),
+        body: JSON.stringify({
+          periodo: toPeriodoApi(periodo),
+          datos: preview,
+        }),
       });
-      if (!res.ok) throw new Error("Error al guardar");
-      const data = await res.json();
-      setAtsId(data.id);
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.message || "Error al guardar");
+      setAtsId(String(payload.data?.id ?? payload.id));
       toast.success("ATS guardado correctamente");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Error al guardar");
@@ -67,13 +82,13 @@ export default function NuevoAtsPage() {
   const handleDownloadXml = async () => {
     if (!atsId) return;
     try {
-      const res = await fetch(`/api/declaraciones/ats/${atsId}/xml`);
+      const res = await apiFetch(`/api/declaraciones/ats/${atsId}/xml`);
       if (!res.ok) throw new Error("Error");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `ats_${periodo}.xml`;
+      a.download = `ats_${toPeriodoApi(periodo)}.xml`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -85,7 +100,7 @@ export default function NuevoAtsPage() {
     <>
       <title>Nuevo ATS - OFSERCONT IA</title>
       <Topbar title="Nuevo ATS" backLink={{ href: "/declaraciones/ats", label: "ATS" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Generar ATS</h1>
 
         <Card className="p-5 border-brand-gray-200">
@@ -104,7 +119,7 @@ export default function NuevoAtsPage() {
               type="button"
               onClick={handleGenerar}
               disabled={generando}
-              className="bg-brand-navy hover:bg-brand-navy-light text-white self-start"
+              className="bg-brand-red hover:bg-brand-red-bright text-white self-start"
             >
               {generando ? "Generando..." : "Generar ATS"}
             </Button>
@@ -117,7 +132,7 @@ export default function NuevoAtsPage() {
               <h2 className="text-sm font-bold text-brand-gray-800">Previsualización ATS</h2>
               <div className="flex gap-2">
                 {!atsId && (
-                  <Button onClick={handleGuardar} disabled={submitting} className="bg-brand-navy hover:bg-brand-navy-light text-white">
+                  <Button onClick={handleGuardar} disabled={submitting} className="bg-brand-red hover:bg-brand-red-bright text-white">
                     {submitting ? "Guardando..." : "Guardar ATS"}
                   </Button>
                 )}
@@ -126,6 +141,20 @@ export default function NuevoAtsPage() {
                     <Download className="w-3.5 h-3.5" /> Descargar XML
                   </Button>
                 )}
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 mb-4 text-sm">
+              <div className="rounded-lg bg-brand-gray-50 p-3">
+                <p className="text-[10px] uppercase text-brand-gray-500 font-bold">Ventas</p>
+                <p className="font-semibold text-brand-gray-800">{preview.ventas?.length ?? 0} · ${Number(preview.totalVentas || 0).toFixed(2)}</p>
+              </div>
+              <div className="rounded-lg bg-brand-gray-50 p-3">
+                <p className="text-[10px] uppercase text-brand-gray-500 font-bold">Compras</p>
+                <p className="font-semibold text-brand-gray-800">{preview.compras?.length ?? 0} · ${Number(preview.totalCompras || 0).toFixed(2)}</p>
+              </div>
+              <div className="rounded-lg bg-brand-gray-50 p-3">
+                <p className="text-[10px] uppercase text-brand-gray-500 font-bold">Retenciones</p>
+                <p className="font-semibold text-brand-gray-800">{preview.retenciones?.length ?? 0} · ${Number(preview.totalRetenciones || 0).toFixed(2)}</p>
               </div>
             </div>
             <div className="bg-brand-gray-50 rounded-lg p-4 overflow-auto max-h-96">

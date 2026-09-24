@@ -13,6 +13,7 @@ export interface SessionUser {
   tenantId: string | null;
   ruc?: string;
   nombre?: string;
+  modulos?: string[];
 }
 
 export interface Comprobante {
@@ -69,8 +70,7 @@ export const setSession = (data: {
   localStorage.setItem(TOKEN_KEY, data.accessToken);
   if (data.refreshToken) localStorage.setItem(REFRESH_KEY, data.refreshToken);
   localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-  const maxAge = 60 * 60 * 24;
-  document.cookie = `${TOKEN_KEY}=${data.accessToken}; path=/; max-age=${maxAge}; SameSite=Lax`;
+  // httpOnly cookie is set by the login/refresh API response — do not mirror in JS
 };
 
 export const getSession = (): { user: SessionUser } | null => {
@@ -90,7 +90,11 @@ export const clearSession = () => {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USER_KEY);
-  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0; SameSite=Lax`;
+  // Clear httpOnly cookies via API (fire-and-forget)
+  void fetch(`${API_URL}/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  }).catch(() => {});
 };
 
 async function request(endpoint: string, options: RequestInit = {}) {
@@ -182,6 +186,7 @@ async function attemptTokenRefresh(): Promise<boolean> {
 }
 
 export const sriClient = {
+  request: request,
   isAuthenticated(): boolean {
     return !!getAuthToken();
   },
@@ -388,10 +393,18 @@ export const sriClient = {
     return request('/sri/mobile-qr');
   },
 
-  async chat(message: string, history: { role: 'user' | 'assistant'; content: string }[] = []) {
+  async chat(
+    message: string,
+    history: { role: 'user' | 'assistant'; content: string }[] = [],
+    opts?: { confirmTool?: string; toolArgs?: Record<string, unknown> }
+  ) {
     return request('/chat', {
       method: 'POST',
-      body: JSON.stringify({ message, history }),
+      body: JSON.stringify({
+        message,
+        history,
+        ...(opts?.confirmTool ? { confirmTool: opts.confirmTool, toolArgs: opts.toolArgs || {} } : {}),
+      }),
     });
   },
 
@@ -453,6 +466,13 @@ export const sriClient = {
     return request(`/notificaciones${qs}`);
   },
 
+  async markNotificacionesRead(data: { ids?: string[]; all?: boolean }) {
+    return request('/notificaciones', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
   async getDeclaraciones(params: { fechaDesde?: string; fechaHasta?: string } = {}) {
     const query = new URLSearchParams();
     if (params.fechaDesde) query.append('fechaDesde', params.fechaDesde);
@@ -463,7 +483,9 @@ export const sriClient = {
 
   async presentarDeclaracion(data: {
     periodo?: string;
+    modo?: 'ASISTIDO' | 'OTP';
     otpVerificado?: boolean;
+    otp?: string;
     fechaDesde?: string;
     fechaHasta?: string;
   } = {}) {
@@ -480,6 +502,7 @@ export const sriClient = {
   async updateConfiguracion(data: {
     notifDocumentos?: boolean;
     notifGeneracion?: boolean;
+    notifEmail?: boolean;
   }) {
     return request('/configuracion', {
       method: 'PUT',

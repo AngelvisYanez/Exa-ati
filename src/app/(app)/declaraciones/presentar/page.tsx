@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
+import { EmptyState } from "@/components/ui/EmptyState";
 import DateRangeFilter, {
   DateRange,
   formatDateRangeLabel,
@@ -14,6 +15,7 @@ import { sriClient, Comprobante } from "@/lib/sriClient";
 import { useAuth } from "@/contexts/AuthContext";
 
 type Step = "formulario" | "revision" | "presentar" | "exito";
+type ModoPresentacion = "ASISTIDO" | "OTP";
 
 export default function PresentarDeclaracionPage() {
   const { activeRuc } = useAuth();
@@ -33,6 +35,11 @@ export default function PresentarDeclaracionPage() {
   const [retenciones, setRetenciones] = useState(0);
   const [docsCount, setDocsCount] = useState(0);
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
+  const [modoPresentacion, setModoPresentacion] = useState<ModoPresentacion>("ASISTIDO");
+  const [otp, setOtp] = useState("");
+  const [exitoAsistido, setExitoAsistido] = useState(false);
+  const [declaracionRes, setDeclaracionRes] = useState<any>(null);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const ivaAPagar = ventasIva - comprasIva - retenciones;
 
@@ -84,20 +91,76 @@ export default function PresentarDeclaracionPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await sriClient.presentarDeclaracion({
+      const payload: Parameters<typeof sriClient.presentarDeclaracion>[0] = {
         periodo,
-        otpVerificado: true,
+        modo: modoPresentacion,
         ...toDateRangeParams(dateRange),
-      });
+      };
+
+      if (modoPresentacion === "ASISTIDO") {
+        payload.otpVerificado = false;
+      } else {
+        if (otp.replace(/\D/g, "").length < 6) {
+          setError("Ingresa el código OTP de al menos 6 dígitos del portal SRI.");
+          setLoading(false);
+          return;
+        }
+        payload.otpVerificado = true;
+        payload.otp = otp.replace(/\D/g, "");
+      }
+
+      const res = await sriClient.presentarDeclaracion(payload);
       if (res.success) {
         setTramiteNum(res.declaracion?.numeroTramite || "");
+        setDeclaracionRes(res.declaracion || null);
+        setSuccessMessage(res.message || "");
+        setExitoAsistido(modoPresentacion === "ASISTIDO" || res.declaracion?.asistido === true);
         setStep("exito");
+      } else {
+        setError(res.message || "Error al presentar la declaración al SRI");
       }
     } catch (err: any) {
-      setError(err.message || "Error al registrar la declaración");
+      setError(err.message || "Error al presentar la declaración");
     } finally {
       setLoading(false);
     }
+  };
+
+  const descargarResumenAsistido = () => {
+    const resumen = {
+      referencia: tramiteNum,
+      periodo,
+      ruc: activeRuc,
+      contribuyente,
+      ivaAPagar: Math.max(0, ivaAPagar),
+      ventasSub,
+      ventasIva,
+      comprasSub,
+      comprasIva,
+      retenciones,
+      casilleros: declaracionRes?.casilleros || {
+        "401": ventasSub,
+        "411": ventasIva,
+        "500": comprasSub,
+        "553": comprasIva,
+        "604": retenciones,
+        "699": Math.max(0, ivaAPagar),
+      },
+      instrucciones: [
+        "1. Ingresa a SRI En Línea con tu RUC y clave.",
+        "2. Abre Declaraciones → Formulario 104 del período indicado.",
+        "3. Transcribe los casilleros del resumen adjunto.",
+        "4. Revisa, firma y presenta manualmente en el portal.",
+        "5. Guarda el número de trámite oficial que entregue el SRI.",
+      ],
+    };
+    const blob = new Blob([JSON.stringify(resumen, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `declaracion-asistida-${tramiteNum || "resumen"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -112,27 +175,20 @@ export default function PresentarDeclaracionPage() {
       />
 
       {!activeRuc ? (
-        <main className="p-3 flex-1 flex flex-col gap-6 w-full">
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="w-14 h-14 rounded-full bg-brand-amber/10 flex items-center justify-center">
-              <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-brand-amber">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.545M12.75 21h7.5V10.75M2.25 21h1.5m18 0h-18M2.25 9l4.5-1.636M18.75 3l-1.5.545m0 6.205l3 1m1.5.5l-1.5-.5M6.75 7.364V3h-3v18m3-13.636l10.5-3.819" />
-              </svg>
-            </div>
-            <div className="text-center max-w-md">
-              <p className="text-sm font-bold text-brand-gray-700">Selecciona una empresa</p>
-              <p className="text-xs text-brand-gray-400 mt-1">Usa el selector de empresa en la parte superior derecha para elegir un RUC y presentar su declaración.</p>
-            </div>
-          </div>
+        <main className="ui-page flex-1">
+          <EmptyState
+            title="Selecciona una empresa"
+            description="Usa el selector de empresa en la parte superior derecha para elegir un RUC y presentar su declaración."
+          />
         </main>
       ) : (
-      <main className="p-3 flex-1 flex flex-col gap-6 w-full">
-        <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-slate-200 rounded-xl px-4 py-3" />
+      <main className="ui-page flex-1">
+        <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-brand-gray-200 rounded-xl px-4 py-3" />
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>
+          <div className="bg-brand-red-subtle border border-brand-red-pale text-brand-red text-sm rounded-xl px-4 py-3">{error}</div>
         )}
         {loadingData ? (
-          <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-sm text-slate-500">
+          <div className="bg-white border border-brand-gray-200 rounded-xl p-12 text-center text-sm text-brand-gray-500">
             Calculando formulario 104A con comprobantes reales...
           </div>
         ) : (
@@ -150,19 +206,19 @@ export default function PresentarDeclaracionPage() {
                 <div key={s} className="flex items-center flex-1">
                   <div className="flex flex-col items-center gap-1 flex-1">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold transition-colors
-                      ${isActive ? "bg-brand-navy text-white" : isDone ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"}`}>
+                      ${isActive ? "bg-brand-red text-white" : isDone ? "bg-success text-white" : "bg-brand-gray-100 text-brand-gray-400"}`}>
                       {isDone ? (
                         <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                           <path d="M5 13l4 4L19 7" />
                         </svg>
                       ) : idx + 1}
                     </div>
-                    <span className={`text-[10px] font-semibold ${isActive ? "text-brand-navy" : isDone ? "text-emerald-600" : "text-slate-400"}`}>
+                    <span className={`text-[10px] font-semibold ${isActive ? "text-brand-red" : isDone ? "text-success" : "text-brand-gray-400"}`}>
                       {labels[s]}
                     </span>
                   </div>
                   {idx < 2 && (
-                    <div className={`flex-1 h-0.5 mb-5 ${isDone ? "bg-emerald-400" : "bg-slate-200"}`} />
+                    <div className={`flex-1 h-0.5 mb-5 ${isDone ? "bg-success-light" : "bg-brand-gray-200"}`} />
                   )}
                 </div>
               );
@@ -174,80 +230,80 @@ export default function PresentarDeclaracionPage() {
         {step === "formulario" && (
           <div className="flex flex-col gap-5">
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Formulario 104 – Declaración de IVA</h1>
-              <p className="text-sm text-slate-500 mt-1">Período: <strong>{periodo}</strong> · {docsCount} comprobantes analizados</p>
+              <h1 className="text-xl font-bold text-brand-gray-900">Formulario 104 – Declaración de IVA</h1>
+              <p className="text-sm text-brand-gray-500 mt-1">Período: <strong>{periodo}</strong> · {docsCount} comprobantes analizados</p>
             </div>
 
             {/* Datos del contribuyente */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-3">
-              <h2 className="text-[13px] font-bold text-slate-700 uppercase tracking-wide">
+            <div className="bg-white border border-brand-gray-200 rounded-xl p-5 flex flex-col gap-3">
+              <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">
                 Datos de {contribuyente || "Contribuyente"}
               </h2>
               <div className="grid grid-cols-2 gap-3 text-[13px]">
                 <div>
-                  <p className="text-slate-400 text-[11px] font-medium">Nombre / Razón Social</p>
-                  <p className="font-semibold text-slate-900">{contribuyente}</p>
+                  <p className="text-brand-gray-400 text-[11px] font-medium">Nombre / Razón Social</p>
+                  <p className="font-semibold text-brand-gray-900">{contribuyente}</p>
                 </div>
                 <div>
-                  <p className="text-slate-400 text-[11px] font-medium">RUC</p>
-                  <p className="font-mono font-bold text-slate-900">{activeRuc || "—"}</p>
+                  <p className="text-brand-gray-400 text-[11px] font-medium">RUC</p>
+                  <p className="font-mono font-bold text-brand-gray-900">{activeRuc || "—"}</p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-slate-400 text-[11px] font-medium">Régimen</p>
-                  <p className="font-semibold text-slate-900">{regimen || "—"}</p>
+                  <p className="text-brand-gray-400 text-[11px] font-medium">Régimen</p>
+                  <p className="font-semibold text-brand-gray-900">{regimen || "—"}</p>
                 </div>
               </div>
             </div>
 
             {/* Ventas */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-3">
-              <h2 className="text-[13px] font-bold text-slate-700 uppercase tracking-wide">Ventas del Período</h2>
+            <div className="bg-white border border-brand-gray-200 rounded-xl p-5 flex flex-col gap-3">
+              <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">Ventas del Período</h2>
               <div className="flex flex-col gap-2">
                 {[
                   { label: "Ventas gravadas tarifa 15%", value: ventasSub },
                   { label: "IVA en ventas calculado", value: ventasIva },
                 ].map((row) => (
-                  <div key={row.label} className="flex justify-between items-center py-1.5 border-b border-slate-50 last:border-0">
-                    <span className="text-[12.5px] text-slate-600">{row.label}</span>
-                    <span className="text-[13px] font-semibold text-slate-900">${row.value.toFixed(2)}</span>
+                  <div key={row.label} className="flex justify-between items-center py-1.5 border-b border-brand-gray-50 last:border-0">
+                    <span className="text-[12.5px] text-brand-gray-600">{row.label}</span>
+                    <span className="text-[13px] font-semibold text-brand-gray-900">${row.value.toFixed(2)}</span>
                   </div>
                 ))}
                 <div className="flex justify-between items-center pt-1">
-                  <span className="text-[12.5px] font-bold text-slate-900">IVA en Ventas (15%)</span>
-                  <span className="text-[14px] font-extrabold text-slate-900">${ventasIva.toFixed(2)}</span>
+                  <span className="text-[12.5px] font-bold text-brand-gray-900">IVA en Ventas (15%)</span>
+                  <span className="text-[14px] font-extrabold text-brand-gray-900">${ventasIva.toFixed(2)}</span>
                 </div>
               </div>
             </div>
 
             {/* Compras */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-3">
-              <h2 className="text-[13px] font-bold text-slate-700 uppercase tracking-wide">Compras / Crédito Tributario</h2>
+            <div className="bg-white border border-brand-gray-200 rounded-xl p-5 flex flex-col gap-3">
+              <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide">Compras / Crédito Tributario</h2>
               <div className="flex flex-col gap-2">
                 {[
                   { label: "Compras locales gravadas", value: comprasSub },
                   { label: "Retenciones recibidas", value: retenciones },
                 ].map((row) => (
-                  <div key={row.label} className="flex justify-between items-center py-1.5 border-b border-slate-50 last:border-0">
-                    <span className="text-[12.5px] text-slate-600">{row.label}</span>
-                    <span className="text-[13px] font-semibold text-slate-900">${row.value.toFixed(2)}</span>
+                  <div key={row.label} className="flex justify-between items-center py-1.5 border-b border-brand-gray-50 last:border-0">
+                    <span className="text-[12.5px] text-brand-gray-600">{row.label}</span>
+                    <span className="text-[13px] font-semibold text-brand-gray-900">${row.value.toFixed(2)}</span>
                   </div>
                 ))}
                 <div className="flex justify-between items-center pt-1">
-                  <span className="text-[12.5px] font-bold text-slate-900">Crédito Tributario (IVA Compras)</span>
-                  <span className="text-[14px] font-extrabold text-slate-900">${comprasIva.toFixed(2)}</span>
+                  <span className="text-[12.5px] font-bold text-brand-gray-900">Crédito Tributario (IVA Compras)</span>
+                  <span className="text-[14px] font-extrabold text-brand-gray-900">${comprasIva.toFixed(2)}</span>
                 </div>
               </div>
             </div>
 
             {/* Resumen IVA */}
-            <div className={`rounded-xl border-2 p-5 flex items-center justify-between ${ivaAPagar >= 0 ? "bg-amber-50 border-amber-300" : "bg-emerald-50 border-emerald-300"}`}>
+            <div className={`rounded-xl border-2 p-5 flex items-center justify-between ${ivaAPagar >= 0 ? "bg-amber-50 border-amber-300" : "bg-success-pale border-success-light/50"}`}>
               <div>
-                <p className="text-[12px] font-bold uppercase tracking-wide text-slate-600">
+                <p className="text-[12px] font-bold uppercase tracking-wide text-brand-gray-600">
                   {ivaAPagar >= 0 ? "IVA a Pagar" : "Crédito Tributario a Favor"}
                 </p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Resultado del período {periodo}</p>
+                <p className="text-[11px] text-brand-gray-500 mt-0.5">Resultado del período {periodo}</p>
               </div>
-              <div className={`text-3xl font-extrabold ${ivaAPagar >= 0 ? "text-amber-700" : "text-emerald-700"}`}>
+              <div className={`text-3xl font-extrabold ${ivaAPagar >= 0 ? "text-amber-700" : "text-success"}`}>
                 ${Math.abs(ivaAPagar).toFixed(2)}
               </div>
             </div>
@@ -255,7 +311,7 @@ export default function PresentarDeclaracionPage() {
             <button
               id="btn-revisar"
               onClick={() => setStep("revision")}
-              className="w-full bg-brand-navy text-white font-bold text-[14px] py-3 rounded-xl hover:bg-brand-navy-light transition-colors cursor-pointer"
+              className="w-full bg-brand-red text-white font-bold text-[14px] py-3 rounded-xl hover:bg-brand-red-bright transition-colors cursor-pointer"
             >
               Revisar antes de presentar →
             </button>
@@ -266,14 +322,14 @@ export default function PresentarDeclaracionPage() {
         {step === "revision" && (
           <div className="flex flex-col gap-5">
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Revisión Final</h1>
-              <p className="text-sm text-slate-500 mt-1">Verifica los datos antes de presentar al SRI. Este proceso es irreversible.</p>
+              <h1 className="text-xl font-bold text-brand-gray-900">Revisión Final</h1>
+              <p className="text-sm text-brand-gray-500 mt-1">Verifica los datos antes de presentar al SRI. Este proceso es irreversible.</p>
             </div>
 
             {/* Validaciones automáticas */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-3">
-              <h2 className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
-                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-emerald-600">
+            <div className="bg-white border border-brand-gray-200 rounded-xl p-5 flex flex-col gap-3">
+              <h2 className="text-[13px] font-bold text-brand-gray-700 uppercase tracking-wide flex items-center gap-2">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-success">
                   <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 Validaciones Automáticas
@@ -285,8 +341,8 @@ export default function PresentarDeclaracionPage() {
                 "Totales calculados desde la base de datos",
                 "Formulario 104A generado automáticamente",
               ].map((v) => (
-                <div key={v} className="flex items-center gap-2.5 text-[12.5px] text-slate-700">
-                  <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" className="text-emerald-500 shrink-0">
+                <div key={v} className="flex items-center gap-2.5 text-[12.5px] text-brand-gray-700">
+                  <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" className="text-success shrink-0">
                     <path d="M5 13l4 4L19 7" />
                   </svg>
                   {v}
@@ -295,8 +351,8 @@ export default function PresentarDeclaracionPage() {
             </div>
 
             {/* Resumen compacto */}
-            <div className="bg-slate-900 text-white rounded-xl p-5 flex flex-col gap-2.5">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Resumen de la declaración</p>
+            <div className="bg-brand-gray-900 text-white rounded-xl p-5 flex flex-col gap-2.5">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-brand-gray-400">Resumen de la declaración</p>
               {[
                 { label: "Contribuyente", value: contribuyente },
                 { label: "RUC", value: activeRuc || "—" },
@@ -306,7 +362,7 @@ export default function PresentarDeclaracionPage() {
                 { label: "IVA a Pagar", value: `$${Math.max(0, ivaAPagar).toFixed(2)}`, highlight: true },
               ].map((r) => (
                 <div key={r.label} className="flex justify-between text-[13px]">
-                  <span className="text-slate-400">{r.label}</span>
+                  <span className="text-brand-gray-400">{r.label}</span>
                   <span className={`font-semibold ${r.highlight ? "text-amber-400 text-[15px] font-extrabold" : "text-white"}`}>{r.value}</span>
                 </div>
               ))}
@@ -315,14 +371,14 @@ export default function PresentarDeclaracionPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setStep("formulario")}
-                className="flex-1 border border-slate-200 text-slate-700 font-semibold text-[13px] py-2.5 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
+                className="flex-1 border border-brand-gray-200 text-brand-gray-700 font-semibold text-[13px] py-2.5 rounded-xl hover:bg-brand-gray-50 transition-colors cursor-pointer"
               >
                 ← Volver a revisar
               </button>
               <button
                 id="btn-continuar-presentar"
                 onClick={() => setStep("presentar")}
-                className="flex-1 bg-brand-navy text-white font-bold text-[13px] py-2.5 rounded-xl hover:bg-brand-navy-light transition-colors cursor-pointer"
+                className="flex-1 bg-brand-red text-white font-bold text-[13px] py-2.5 rounded-xl hover:bg-brand-red-bright transition-colors cursor-pointer"
               >
                 Sí, continuar →
               </button>
@@ -334,46 +390,75 @@ export default function PresentarDeclaracionPage() {
         {step === "presentar" && (
           <div className="flex flex-col gap-5">
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Presentar al SRI</h1>
-              <p className="text-sm text-slate-500 mt-1">El sistema iniciará sesión de forma segura en el portal SRI y enviará la declaración.</p>
+              <h1 className="text-xl font-bold text-brand-gray-900">Presentar al SRI</h1>
+              <p className="text-sm text-brand-gray-500 mt-1">
+                Elige cómo deseas completar la presentación del Formulario 104.
+              </p>
             </div>
 
-            {/* SRI Login secure info */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-4">
-              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-                <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center shrink-0">
-                  <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="2">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0110 0v4"/>
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-[13px] font-bold text-slate-900">Conexión Segura al Portal SRI</p>
-                  <p className="text-[11px] text-slate-500">Las credenciales están cifradas con AES-256. Nunca se almacenan en texto plano.</p>
-                </div>
-              </div>
+            <div className="flex gap-2 p-1 bg-brand-gray-100 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setModoPresentacion("ASISTIDO")}
+                className={`flex-1 py-2.5 px-3 rounded-lg text-[12px] font-bold transition-colors cursor-pointer ${
+                  modoPresentacion === "ASISTIDO"
+                    ? "bg-white text-brand-red shadow-sm"
+                    : "text-brand-gray-500 hover:text-brand-gray-700"
+                }`}
+              >
+                Asistido
+              </button>
+              <button
+                type="button"
+                onClick={() => setModoPresentacion("OTP")}
+                className={`flex-1 py-2.5 px-3 rounded-lg text-[12px] font-bold transition-colors cursor-pointer ${
+                  modoPresentacion === "OTP"
+                    ? "bg-white text-brand-red shadow-sm"
+                    : "text-brand-gray-500 hover:text-brand-gray-700"
+                }`}
+              >
+                Portal SRI (OTP)
+              </button>
+            </div>
 
-              <div className="flex flex-col gap-3">
-                {[
-                  { icon: "🔐", label: "Login seguro con credenciales delegadas", done: true },
-                  { icon: "📱", label: "Autenticación 2FA (si habilitada en SRI)", done: true },
-                  { icon: "📤", label: "Envío XML de declaración IVA 104", done: false },
-                  { icon: "📩", label: "Recepción de respuesta y No. Trámite", done: false },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 text-[13px]">
-                    <span>{item.icon}</span>
-                    <span className={item.done ? "text-emerald-700 font-medium" : "text-slate-500"}>{item.label}</span>
-                    {item.done && (
-                      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" className="text-emerald-500 ml-auto shrink-0">
-                        <path d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
+            {modoPresentacion === "ASISTIDO" ? (
+              <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 text-[12px] text-brand-sky flex flex-col gap-2">
+                <strong>Modo asistido</strong>
+                <p>Generamos el resumen con casilleros calculados desde tus comprobantes. Tú debes ingresar al portal SRI En Línea y presentar manualmente el Formulario 104.</p>
+                <p>No se simula un trámite oficial del SRI. Recibirás una referencia interna <code className="font-mono">ASISTIDO-…</code> para descargar la guía.</p>
+              </div>
+            ) : (
+              <div className="bg-white border border-brand-gray-200 rounded-xl p-5 flex flex-col gap-4">
+                <div className="flex items-center gap-3 pb-3 border-b border-brand-gray-100">
+                  <div className="w-10 h-10 bg-brand-gray-900 rounded-lg flex items-center justify-center shrink-0">
+                    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="2">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0110 0v4"/>
+                    </svg>
                   </div>
-                ))}
+                  <div>
+                    <p className="text-[13px] font-bold text-brand-gray-900">Presentación con OTP del SRI</p>
+                    <p className="text-[11px] text-brand-gray-500">Ingresa el código OTP de tu autenticador o SMS del portal SRI.</p>
+                  </div>
+                </div>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-brand-gray-600">Código OTP</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={12}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                    placeholder="Mínimo 6 dígitos"
+                    className="border border-brand-gray-200 rounded-lg px-3 py-2.5 text-sm font-mono tracking-widest"
+                  />
+                </label>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-[11px] text-amber-800">
+                  <strong>Nota:</strong> La presentación automática depende de la disponibilidad del portal SRI. Si falla, usa el modo asistido.
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Consent checkbox */}
             <label className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 cursor-pointer">
               <input
                 type="checkbox"
@@ -382,16 +467,24 @@ export default function PresentarDeclaracionPage() {
                 className="mt-0.5 rounded"
               />
               <span className="text-[12.5px] text-amber-800">
-                Confirmo que los datos de la declaración son correctos y autorizo al sistema a presentar el Formulario 104 al SRI en mi nombre. Entiendo que esta acción es <strong>irreversible</strong>.
+                {modoPresentacion === "ASISTIDO"
+                  ? "Confirmo que revisé los datos y autorizo generar el resumen asistido para presentación manual en el SRI."
+                  : "Confirmo que los datos son correctos y autorizo intentar la presentación en el portal SRI con el OTP ingresado."}
               </span>
             </label>
 
             <button
               id="btn-presentar-sri"
               onClick={handlePresentar}
-              disabled={!accepted || loading}
+              disabled={
+                !accepted ||
+                loading ||
+                (modoPresentacion === "OTP" && otp.replace(/\D/g, "").length < 6)
+              }
               className={`w-full font-bold text-[14px] py-3.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2
-                ${accepted ? "bg-brand-navy text-white hover:bg-brand-navy-light" : "bg-slate-100 text-slate-400 cursor-not-allowed"}
+                ${accepted && !(modoPresentacion === "OTP" && otp.replace(/\D/g, "").length < 6)
+                  ? "bg-brand-red text-white hover:bg-brand-red-bright"
+                  : "bg-brand-gray-100 text-brand-gray-400 cursor-not-allowed"}
               `}
             >
               {loading ? (
@@ -399,10 +492,12 @@ export default function PresentarDeclaracionPage() {
                   <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
                   </svg>
-                  Presentando al SRI...
+                  {modoPresentacion === "ASISTIDO" ? "Generando resumen..." : "Presentando al SRI..."}
                 </>
+              ) : modoPresentacion === "ASISTIDO" ? (
+                "Generar resumen asistido"
               ) : (
-                "✅ Presentar Declaración al SRI"
+                "Presentar con OTP al SRI"
               )}
             </button>
           </div>
@@ -411,57 +506,94 @@ export default function PresentarDeclaracionPage() {
         {/* ─── SUCCESS ─── */}
         {step === "exito" && (
           <div className="flex flex-col items-center gap-6 py-8 text-center">
-            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center animate-pulse">
-              <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-emerald-600">
+            <div className="w-20 h-20 bg-success-pale rounded-full flex items-center justify-center">
+              <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-success">
                 <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
 
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-900">¡Presentado con éxito!</h1>
-              <p className="text-slate-500 mt-2 text-sm">Tu declaración de IVA {periodo} fue registrada en el sistema.</p>
+              <h1 className="text-2xl font-extrabold text-brand-gray-900">
+                {exitoAsistido ? "Resumen asistido generado" : "¡Presentado con éxito!"}
+              </h1>
+              <p className="text-brand-gray-500 mt-2 text-sm">
+                {exitoAsistido
+                  ? `Tu declaración de IVA ${periodo} está lista para presentación manual en el portal SRI.`
+                  : `Tu declaración de IVA ${periodo} fue presentada al SRI.`}
+              </p>
             </div>
 
-            <div className="bg-slate-900 text-white rounded-2xl p-6 w-full flex flex-col gap-3 text-left">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Comprobante de Presentación</p>
+            <div className="bg-brand-gray-900 text-white rounded-2xl p-6 w-full flex flex-col gap-3 text-left">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-brand-gray-400">
+                {exitoAsistido ? "Referencia interna" : "Comprobante de Presentación"}
+              </p>
               <div className="flex justify-between text-[13px]">
-                <span className="text-slate-400">No. Trámite</span>
-                <span className="font-mono font-extrabold text-white text-[15px]">{tramiteNum}</span>
+                <span className="text-brand-gray-400">{exitoAsistido ? "Referencia" : "No. Trámite SRI"}</span>
+                <span className="font-mono font-extrabold text-white text-[15px]">{tramiteNum || "Pendiente de confirmación"}</span>
               </div>
               <div className="flex justify-between text-[13px]">
-                <span className="text-slate-400">Período</span>
+                <span className="text-brand-gray-400">Período</span>
                 <span className="font-semibold text-white">{periodo}</span>
               </div>
               <div className="flex justify-between text-[13px]">
-                <span className="text-slate-400">Estado</span>
-                <span className="font-bold text-emerald-400">REGISTRADA</span>
+                <span className="text-brand-gray-400">Estado</span>
+                <span className={`font-bold ${exitoAsistido ? "text-brand-sky" : "text-success-light"}`}>
+                  {exitoAsistido ? "BORRADOR / ASISTIDO" : "PRESENTADA AL SRI"}
+                </span>
               </div>
               <div className="flex justify-between text-[13px]">
-                <span className="text-slate-400">Fecha y hora</span>
+                <span className="text-brand-gray-400">Fecha y hora</span>
                 <span className="font-semibold text-white">{new Date().toLocaleDateString("es-EC")} {new Date().toLocaleTimeString("es-EC", { hour: "2-digit", minute: "2-digit" })}</span>
               </div>
               <div className="flex justify-between text-[13px]">
-                <span className="text-slate-400">IVA pagado</span>
+                <span className="text-brand-gray-400">IVA pagado</span>
                 <span className="font-extrabold text-amber-400 text-[15px]">${Math.max(0, ivaAPagar).toFixed(2)}</span>
               </div>
             </div>
 
+            <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 text-[12px] text-brand-sky text-left w-full">
+              {exitoAsistido ? (
+                <>
+                  <strong>Próximos pasos (modo asistido):</strong>
+                  <ol className="list-decimal list-inside mt-2 space-y-1">
+                    <li>Descarga el resumen con casilleros calculados.</li>
+                    <li>Ingresa a SRI En Línea con tu RUC y clave.</li>
+                    <li>Completa el Formulario 104 del período {periodo}.</li>
+                    <li>Presenta manualmente y guarda el trámite oficial del SRI.</li>
+                  </ol>
+                  {successMessage && <p className="mt-2">{successMessage}</p>}
+                </>
+              ) : (
+                <>
+                  <strong>Próximos pasos:</strong> El SRI procesará tu declaración en los próximos minutos.
+                  Puedes verificar el estado en el portal de SRI En Línea con tu número de trámite.
+                </>
+              )}
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-3 w-full">
+              {exitoAsistido && (
+                <button
+                  type="button"
+                  onClick={descargarResumenAsistido}
+                  className="flex-1 border border-brand-gray-200 text-brand-gray-700 font-semibold text-[13px] py-2.5 rounded-xl hover:bg-brand-gray-50 transition-colors cursor-pointer flex items-center justify-center gap-2"
+                >
+                  Descargar resumen
+                </button>
+              )}
               <Link
-                href="/comprobantes"
-                className="flex-1 border border-slate-200 text-slate-700 font-semibold text-[13px] py-2.5 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer flex items-center justify-center gap-2"
+                href="/declaraciones"
+                className="flex-1 border border-brand-gray-200 text-brand-gray-700 font-semibold text-[13px] py-2.5 rounded-xl hover:bg-brand-gray-50 transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
                 Ver historial
               </Link>
               <Link
                 href="/"
-                className="flex-1 bg-brand-navy text-white font-bold text-[13px] py-2.5 rounded-xl hover:bg-brand-navy-light transition-colors cursor-pointer flex items-center justify-center"
+                className="flex-1 bg-brand-red text-white font-bold text-[13px] py-2.5 rounded-xl hover:bg-brand-red-bright transition-colors cursor-pointer flex items-center justify-center"
               >
                 Volver al Dashboard
               </Link>
             </div>
-
-            <p className="text-[11px] text-slate-400">El Agente Notificador enviará un resumen por WhatsApp y Email automáticamente.</p>
           </div>
         )}
         </>

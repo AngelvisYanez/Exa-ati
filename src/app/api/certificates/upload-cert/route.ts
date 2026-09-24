@@ -2,11 +2,11 @@ import { NextResponse } from 'next/server';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import * as forge from 'node-forge';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { config } from '@/lib/sri-api/config';
-import { encryption } from '@/lib/sri-api/encryption';
-import { xmlSigner } from '@/lib/sri-api/xml-signer';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { config } from '@/services/sri-api/config';
+import { encryption } from '@/services/sri-api/encryption';
+import { xmlSigner } from '@/services/sri-api/xml-signer';
 
 export async function POST(req: Request) {
   let tempFilePath: string | null = null;
@@ -135,14 +135,12 @@ export async function POST(req: Request) {
           certificado_p12 = ?,
           password_certificado = ?,
           cert_valido_hasta = ?,
-          cert_valido_desde = ?,
           updated_at = NOW()
         WHERE ruc = ? AND activo = true`,
         [
           buffer,
           passwordEncrypted,
           certInfo.expiryDate.toISOString().split('T')[0],
-          certInfo.startDate.toISOString().split('T')[0],
           ruc,
         ]
       );

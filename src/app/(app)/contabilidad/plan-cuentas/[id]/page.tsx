@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 
+import { apiFetch } from "@/lib/apiFetch";
 interface CuentaRef {
   id: string;
   codigo: string;
@@ -43,8 +44,8 @@ export default function EditarCuentaPage() {
     const load = async () => {
       try {
         const [cuentaRes, padreRes] = await Promise.all([
-          fetch(`/api/contabilidad/plan-cuentas?id=${id}`),
-          fetch("/api/contabilidad/plan-cuentas"),
+          apiFetch(`/api/contabilidad/plan-cuentas?id=${id}`),
+          apiFetch("/api/contabilidad/plan-cuentas"),
         ]);
         if (!cuentaRes.ok) throw new Error("No encontrada");
         const cuentaData = await cuentaRes.json();
@@ -76,7 +77,7 @@ export default function EditarCuentaPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/contabilidad/plan-cuentas?id=${id}`, {
+      const res = await apiFetch(`/api/contabilidad/plan-cuentas?id=${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -105,7 +106,7 @@ export default function EditarCuentaPage() {
   const handleDelete = async () => {
     if (!confirm("¿Eliminar esta cuenta definitivamente?")) return;
     try {
-      const res = await fetch(`/api/contabilidad/plan-cuentas?id=${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/contabilidad/plan-cuentas?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Error al eliminar");
       toast.success("Cuenta eliminada");
       router.push("/contabilidad/plan-cuentas");
@@ -127,7 +128,7 @@ export default function EditarCuentaPage() {
     <>
       <title>Editar Cuenta - OFSERCONT IA</title>
       <Topbar title="Editar Cuenta" backLink={{ href: "/contabilidad/plan-cuentas", label: "Plan de Cuentas" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Editar Cuenta Contable</h1>
 
         <Card className="p-5 border-brand-gray-200">
@@ -167,17 +168,17 @@ export default function EditarCuentaPage() {
 
             <div className="flex gap-6">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={esAuxiliar} onChange={(e) => setEsAuxiliar(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-navy focus:ring-brand-navy/30" />
+                <input type="checkbox" checked={esAuxiliar} onChange={(e) => setEsAuxiliar(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-red focus:ring-brand-red/30" />
                 <span className="text-xs font-medium text-brand-gray-700">Es Auxiliar</span>
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={permiteMovimiento} onChange={(e) => setPermiteMovimiento(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-navy focus:ring-brand-navy/30" />
+                <input type="checkbox" checked={permiteMovimiento} onChange={(e) => setPermiteMovimiento(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-red focus:ring-brand-red/30" />
                 <span className="text-xs font-medium text-brand-gray-700">Permite Movimiento</span>
               </label>
             </div>
 
             <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={submitting} className="bg-brand-navy hover:bg-brand-navy-light text-white">
+              <Button type="submit" disabled={submitting} className="bg-brand-red hover:bg-brand-red-bright text-white">
                 {submitting ? "Guardando..." : "Guardar Cambios"}
               </Button>
               <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>

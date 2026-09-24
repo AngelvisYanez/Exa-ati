@@ -1,33 +1,49 @@
 import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { config } from '@/lib/sri-api/config';
+import { config } from '@/services/sri-api/config';
+import { setAuthCookies, apiError, REFRESH_COOKIE } from '@/lib/auth-cookies';
 
 export async function POST(req: Request) {
   try {
-    const { refreshToken } = await req.json();
-
-    if (!refreshToken) {
-      return NextResponse.json(
-        { message: 'Refresh token es obligatorio' },
-        { status: 400 }
-      );
+    let refreshToken: string | undefined;
+    try {
+      const body = await req.json();
+      refreshToken = body.refreshToken;
+    } catch {
+      refreshToken = undefined;
     }
 
-    let payload: any;
+    if (!refreshToken) {
+      const cookieHeader = req.headers.get('cookie') || '';
+      const match = cookieHeader
+        .split(';')
+        .map((c) => c.trim())
+        .find((c) => c.startsWith(`${REFRESH_COOKIE}=`));
+      if (match) {
+        refreshToken = decodeURIComponent(match.slice(REFRESH_COOKIE.length + 1));
+      }
+    }
+
+    if (!refreshToken) {
+      return apiError('Refresh token es obligatorio', 400);
+    }
+
+    let payload: {
+      sub: string;
+      email: string;
+      rol: string;
+      tenantId: string | null;
+      ruc?: string;
+      type?: string;
+    };
     try {
-      payload = jwt.verify(refreshToken, config.jwt.secret);
+      payload = jwt.verify(refreshToken, config.jwt.secret) as typeof payload;
     } catch {
-      return NextResponse.json(
-        { message: 'Refresh token inválido o expirado' },
-        { status: 401 }
-      );
+      return apiError('Refresh token inválido o expirado', 401);
     }
 
     if (payload.type !== 'refresh') {
-      return NextResponse.json(
-        { message: 'Token no es de tipo refresh' },
-        { status: 401 }
-      );
+      return apiError('Token no es de tipo refresh', 401);
     }
 
     const accessPayload = {
@@ -40,10 +56,10 @@ export async function POST(req: Request) {
     };
 
     const accessToken = jwt.sign(accessPayload, config.jwt.secret, {
-      expiresIn: config.jwt.expiration as any,
+      expiresIn: config.jwt.expiration as jwt.SignOptions['expiresIn'],
     });
 
-    const decoded = jwt.decode(accessToken) as any;
+    const decoded = jwt.decode(accessToken) as { exp?: number } | null;
     const exp = decoded?.exp || Math.floor(Date.now() / 1000) + 28800;
     const expiresIn = Math.max(0, exp - Math.floor(Date.now() / 1000));
     const expiresAt = new Date(exp * 1000).toISOString();
@@ -55,19 +71,16 @@ export async function POST(req: Request) {
       expiresAt,
     });
 
-    response.cookies.set('sri_access_token', accessToken, {
-      path: '/',
-      maxAge: expiresIn > 0 ? expiresIn : 60 * 60 * 24,
-      sameSite: 'lax',
-      httpOnly: false,
+    setAuthCookies(response, {
+      accessToken,
+      refreshToken,
+      maxAgeSec: expiresIn > 0 ? expiresIn : 60 * 60 * 24,
     });
 
     return response;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Refresh Error]', error);
-    return NextResponse.json(
-      { message: `Error en el servidor: ${error.message}` },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : 'Error desconocido';
+    return apiError(`Error en el servidor: ${message}`, 500);
   }
 }

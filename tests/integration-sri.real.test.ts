@@ -22,7 +22,7 @@ const RUN_INTEGRATION = process.env.RUN_SRI_INTEGRATION_TESTS === 'true';
 
 describe.runIf(RUN_INTEGRATION)('SRI Integration — Validación de credenciales', () => {
   it('validateSriPortalCredentials — formato y conectividad al portal', async () => {
-    const { validateSriPortalCredentials } = await import('../src/lib/sri-api/sri-portal-validator');
+    const { validateSriPortalCredentials } = await import('../src/services/sri-api/sri-portal-validator');
     const result = await validateSriPortalCredentials(RUC, PASSWORD);
 
     expect(result.valid).toBe(true);
@@ -32,7 +32,7 @@ describe.runIf(RUN_INTEGRATION)('SRI Integration — Validación de credenciales
 
 describe.runIf(RUN_INTEGRATION)('SRI Integration — Consulta de contribuyente', () => {
   it('buscarEnSri — debe retornar datos reales del SRI', async () => {
-    const { buscarEnSri } = await import('../src/lib/sri-api/contactos');
+    const { buscarEnSri } = await import('../src/services/sri-api/contactos');
     const result = await buscarEnSri(RUC);
 
     expect(result.razonSocial).toBeTruthy();
@@ -46,7 +46,7 @@ describe.runIf(RUN_INTEGRATION)('SRI Integration — Consulta de contribuyente',
 
 describe.runIf(RUN_INTEGRATION)('SRI Integration — Conexión SOAP', () => {
   it('sriSoapClient.testConnection — ambiente pruebas (celcer)', async () => {
-    const { sriSoapClient } = await import('../src/lib/sri-api/sri-soap-client');
+    const { sriSoapClient } = await import('../src/services/sri-api/sri-soap-client');
     const result = await sriSoapClient.testConnection('1');
 
     expect(result.success).toBe(true);
@@ -57,7 +57,7 @@ describe.runIf(RUN_INTEGRATION)('SRI Integration — Conexión SOAP', () => {
 
 describe.runIf(RUN_INTEGRATION)('SRI Integration — Login real con Playwright', () => {
   it('SriPlaywrightScraper.login — debe iniciar sesión en el portal SRI', async () => {
-    const { SriPlaywrightScraper } = await import('../src/lib/scraping/sri-playwright-scraper');
+    const { SriPlaywrightScraper } = await import('../src/services/scraping/sri-playwright-scraper');
 
     const scraper = new SriPlaywrightScraper({ headless: false });
     await scraper.init();

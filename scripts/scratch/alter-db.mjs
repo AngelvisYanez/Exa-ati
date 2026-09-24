@@ -1,4 +1,4 @@
-import { db } from '../../src/lib/sri-api/db.js';
+import { db } from '../../src/services/sri-api/db.js';
 
 async function alterDb() {
   console.log('Starting DB migration/alteration...');

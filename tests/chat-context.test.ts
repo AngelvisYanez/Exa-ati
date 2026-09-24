@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildChatSystemPrompt } from '../src/lib/sri-api/chat-context';
+import { buildChatSystemPrompt } from '../src/services/sri-api/chat-context';
 
 describe('buildChatSystemPrompt', () => {
   const baseContext = {
@@ -49,7 +49,7 @@ describe('buildChatSystemPrompt', () => {
     const ctx = {
       ...baseContext,
       alerts: [
-        { title: 'Alerta 1', risk: 'Alto', description: 'Descripción 1', severity: 'alta' as any, category: 'test' as any, date: '2026-01-01' as any },
+        { id: 'alert-1', type: 'test', title: 'Alerta 1', risk: 'Alto' as const, description: 'Descripción 1', suggestion: 'Revisar' },
       ],
     };
     const prompt = buildChatSystemPrompt(ctx);

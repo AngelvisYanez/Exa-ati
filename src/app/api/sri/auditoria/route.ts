@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { buildAuditAlerts, fetchTenantComprobantes, runAudit } from '@/lib/sri-api/audit-engine';
-import { getUserRuc } from '@/lib/sri-api/user-resolver';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { buildAuditAlerts, fetchTenantComprobantes, runAudit } from '@/services/sri-api/audit-engine';
+import { getUserRuc } from '@/services/sri-api/user-resolver';
 
 function parseDateRange(req: Request) {
   const { searchParams } = new URL(req.url);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcularEcommerceTotals } from '../src/lib/sri-api/ecommerce';
+import { calcularEcommerceTotals } from '../src/services/sri-api/ecommerce';
 
 describe('calcularEcommerceTotals', () => {
   const defaultItem = (overrides: any = {}) => ({

@@ -7,16 +7,17 @@ import path from 'path';
 
 import { ensureSession, solveRecaptchaAntiCaptcha, trySolveRecaptcha } from './auth.js';
 import { downloadReceivedComprobantes } from './modules/comprobantes.js';
-import { sincronizarConSri } from '../../src/lib/sri-api/sync-service';
-import { getConnectedBrowser, releasePage, parseJobOptions } from '../../src/lib/scraping/bridge';
-import type { ConnectionMode } from '../../src/lib/scraping/bridge';
+import { sincronizarConSri } from '../../src/services/sri-api/sync-service';
+import { sendWhatsAppAlert } from '../../src/services/sri-api/whatsapp-service';
+import { getConnectedBrowser, releasePage, parseJobOptions } from '../../src/services/scraping/bridge';
+import type { ConnectionMode } from '../../src/services/scraping/bridge';
 import {
   claimProxy,
   releaseProxy,
   formatProxyUrl,
   countAvailable,
   countInUse,
-} from '../../src/lib/scraping/proxy-assigner';
+} from '../../src/services/scraping/proxy-assigner';
 
 puppeteerExtra.use(StealthPlugin());
 
@@ -94,6 +95,8 @@ async function processJob(pool: any, job: any): Promise<void> {
         // Guardar proxy_id en el job
         await pool.query('UPDATE scraping_jobs SET proxy_id = ? WHERE id = ?', [proxy.id, job.id]);
         await updateProgress(pool, job.id, `Proxy asignado: ${proxy.proxy_host}:${proxy.proxy_port}`);
+      } else {
+        await updateProgress(pool, job.id, 'Sin proxy disponible; navegando en conexión directa');
       }
     } catch (proxyErr: any) {
       console.error(`[Job ${job.id}] Error asignando proxy:`, proxyErr.message);
@@ -179,6 +182,14 @@ async function processJob(pool: any, job: any): Promise<void> {
     }
 
     await updateProgress(pool, job.id, 'Job completado exitosamente', 'COMPLETED');
+    if (job.tenant_id && job.ruc) {
+      await sendWhatsAppAlert(
+        job.tenant_id,
+        job.ruc,
+        `🤖 *Sincronización SRI Completada*\nSe han descargado correctamente tus comprobantes del SRI para el período ${job.mes || '-'}/${job.anio || '-'}.`,
+        'documentos'
+      );
+    }
 
   } catch (error: any) {
     console.error(`[Job ${job?.id || '?'}] Error en el worker:`, error.message);
@@ -193,6 +204,14 @@ async function processJob(pool: any, job: any): Promise<void> {
     }
     if (job) {
       await updateProgress(pool, job.id, `Error crítico: ${error.message}`, 'ERROR');
+      if (job.tenant_id && job.ruc) {
+        await sendWhatsAppAlert(
+          job.tenant_id,
+          job.ruc,
+          `⚠️ *Error en Sincronización SRI*\nOcurrió un problema al descargar los comprobantes del período ${job.mes || '-'}/${job.anio || '-'}. Revisa la plataforma para más detalles.`,
+          'documentos'
+        );
+      }
     }
   } finally {
     if (page) {
@@ -226,42 +245,52 @@ async function runWorker() {
       const available = await countAvailable().catch(() => 0);
       const inUse = await countInUse().catch(() => 0);
 
+      // Sin proxies: procesar 1 job en directo (antes el worker se quedaba bloqueado).
+      const slots = available > 0
+        ? Math.min(available, MAX_CONCURRENT_JOBS)
+        : 1;
+
       if (available === 0) {
-        console.log(`[Worker] Sin proxies disponibles (${inUse} en uso). Esperando ${POLL_INTERVAL_MS / 1000}s...`);
-        await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
-        continue;
+        console.log(`[Worker] Sin proxies (${inUse} en uso). Continuando en conexión directa (1 job)...`);
       }
 
-      const slots = Math.min(available, MAX_CONCURRENT_JOBS);
-
-      // Obtener hasta N jobs PENDING
+      // Claim atómico: evita carrera con job-runner de Next.js
       const [rows] = await pool.query(
-        `SELECT * FROM scraping_jobs
+        `SELECT id FROM scraping_jobs
          WHERE status = 'PENDING'
          ORDER BY created_at ASC
          LIMIT ?`,
         [slots]
       );
-      const jobs = rows as any[];
-
-      if (!jobs || jobs.length === 0) {
+      const candidateIds = (rows as any[]).map((r) => r.id);
+      if (!candidateIds.length) {
         await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
         continue;
       }
 
-      // Marcar todos como PROCESSING
-      const jobIds = jobs.map((j: any) => j.id);
-      await pool.query(
-        `UPDATE scraping_jobs SET status = 'PROCESSING', updated_at = NOW()
-         WHERE id IN (${jobIds.map(() => '?').join(',')})`,
-        jobIds
-      );
+      const claimedJobs: any[] = [];
+      for (const id of candidateIds) {
+        const [result] = await pool.query(
+          `UPDATE scraping_jobs
+           SET status = 'PROCESSING',
+               progress_message = 'Worker: reclamando trabajo...',
+               updated_at = NOW()
+           WHERE id = ? AND status = 'PENDING'`,
+          [id]
+        );
+        if ((result as any).affectedRows > 0) {
+          const [jobRows] = await pool.query('SELECT * FROM scraping_jobs WHERE id = ?', [id]);
+          if ((jobRows as any[])[0]) claimedJobs.push((jobRows as any[])[0]);
+        }
+      }
 
-      console.log(`[Worker] Procesando ${jobs.length} job(s) concurrentemente...`);
+      if (!claimedJobs.length) {
+        await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
+        continue;
+      }
 
-      // Ejecutar en paralelo (uno por proxy disponible)
-      await Promise.allSettled(jobs.map((job: any) => processJob(pool, job)));
-
+      console.log(`[Worker] Procesando ${claimedJobs.length} job(s) concurrentemente...`);
+      await Promise.allSettled(claimedJobs.map((job: any) => processJob(pool, job)));
       console.log(`[Worker] Lote completado. Revisando más trabajos...`);
 
     } catch (error: any) {

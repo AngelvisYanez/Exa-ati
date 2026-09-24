@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { useAuth } from "@/contexts/AuthContext";
 import { sriClient } from "@/lib/sriClient";
 import { toast } from "sonner";
@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { apiFetch } from "@/lib/apiFetch";
 import {
   Plus, Trash2, User, Package, Search,
   Send, CheckCircle, Loader2, X, List
@@ -125,7 +127,7 @@ export default function EcommerceFacturarPage() {
     setLoadingProds(true);
     try {
       const token = localStorage.getItem('sri_access_token');
-      const res = await fetch('/api/ecommerce/productos?activo=true', {
+      const res = await apiFetch('/api/ecommerce/productos?activo=true', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -165,7 +167,7 @@ export default function EcommerceFacturarPage() {
     setResultado(null);
     try {
       const token = localStorage.getItem('sri_access_token');
-      const res = await fetch('/api/ecommerce/invoices', {
+      const res = await apiFetch('/api/ecommerce/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -191,7 +193,7 @@ export default function EcommerceFacturarPage() {
 
       if (enviarEmail && data.claveAcceso) {
         try {
-          await fetch(`/api/ecommerce/invoices/${data.claveAcceso}/send-email`, {
+          await apiFetch(`/api/ecommerce/invoices/${data.claveAcceso}/send-email`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
           });
@@ -212,8 +214,11 @@ export default function EcommerceFacturarPage() {
       <>
         <title>Facturar - eCommerce - EXA ATI</title>
         <Topbar title="Facturación eCommerce" />
-        <main className="p-6 w-full text-center text-slate-500">
-          Vincula tu RUC del SRI en Configuración para facturar.
+        <main className="ui-page flex-1">
+          <EmptyState
+            icon={<Package className="w-5 h-5" />}
+            title="Vincula tu RUC del SRI en Configuración para facturar."
+          />
         </main>
       </>
     );
@@ -224,17 +229,17 @@ export default function EcommerceFacturarPage() {
       <>
         <title>Factura Emitida - EXA ATI</title>
         <Topbar title="Facturación eCommerce" />
-        <main className="p-6 w-full">
+        <main className="ui-page flex-1">
           <Card className="p-6 text-center">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
-                <CheckCircle className="w-8 h-8 text-emerald-600" />
+              <div className="w-14 h-14 rounded-full bg-success-pale flex items-center justify-center">
+                <CheckCircle className="w-8 h-8 text-success" />
               </div>
-              <h2 className="text-lg font-bold text-emerald-800">Factura Emitida</h2>
-              <div className="bg-slate-50 rounded-lg p-4 w-full text-left font-mono text-xs space-y-1">
-                <p><span className="text-slate-500">Clave:</span> <strong>{resultado.claveAcceso}</strong></p>
-                <p><span className="text-slate-500">Total:</span> <strong>${totales.total.toFixed(2)}</strong></p>
-                <p><span className="text-slate-500">Cliente:</span> <strong>{razonSocial}</strong></p>
+              <h2 className="text-lg font-bold text-success">Factura Emitida</h2>
+              <div className="bg-brand-gray-50 rounded-lg p-4 w-full text-left font-mono text-xs space-y-1">
+                <p><span className="text-brand-gray-500">Clave:</span> <strong>{resultado.claveAcceso}</strong></p>
+                <p><span className="text-brand-gray-500">Total:</span> <strong>${totales.total.toFixed(2)}</strong></p>
+                <p><span className="text-brand-gray-500">Cliente:</span> <strong>{razonSocial}</strong></p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => { setResultado(null); setItems([createItem()]); }}>
@@ -255,10 +260,10 @@ export default function EcommerceFacturarPage() {
     <>
       <title>Facturar - eCommerce - EXA ATI</title>
       <Topbar title="Nueva Factura eCommerce" />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <Card className="p-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold uppercase text-slate-500 tracking-wider flex items-center gap-2">
+            <h3 className="text-sm font-bold uppercase text-brand-gray-500 tracking-wider flex items-center gap-2">
               <Package className="w-4 h-4" /> Emisor
             </h3>
             {emisores.length > 0 && (
@@ -289,8 +294,8 @@ export default function EcommerceFacturarPage() {
 
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-4">
-            <User className="w-4 h-4 text-slate-400" />
-            <h3 className="text-sm font-bold uppercase text-slate-500 tracking-wider">Cliente</h3>
+            <User className="w-4 h-4 text-brand-gray-400" />
+            <h3 className="text-sm font-bold uppercase text-brand-gray-500 tracking-wider">Cliente</h3>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div>
@@ -321,7 +326,7 @@ export default function EcommerceFacturarPage() {
 
         <Card className="p-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold uppercase text-slate-500 tracking-wider flex items-center gap-2">
+            <h3 className="text-sm font-bold uppercase text-brand-gray-500 tracking-wider flex items-center gap-2">
               <Package className="w-4 h-4" /> Productos / Servicios
             </h3>
             <Button variant="outline" size="xs" onClick={addItem}>
@@ -329,7 +334,7 @@ export default function EcommerceFacturarPage() {
             </Button>
           </div>
 
-          <div className="hidden md:grid grid-cols-12 gap-2 text-[10px] font-bold uppercase text-slate-400 mb-2 px-2">
+          <div className="hidden md:grid grid-cols-12 gap-2 text-[10px] font-bold uppercase text-brand-gray-400 mb-2 px-2">
             <div className="col-span-2">Código</div>
             <div className="col-span-3">Descripción</div>
             <div className="col-span-1 text-right">Cant.</div>
@@ -343,7 +348,7 @@ export default function EcommerceFacturarPage() {
           {items.map((item) => {
             const totalItem = item.cantidad * item.precioUnitario - (item.descuento || 0);
             return (
-              <div key={item.id} className="grid grid-cols-12 gap-1.5 mb-1.5 items-center bg-slate-50 rounded-lg p-2">
+              <div key={item.id} className="grid grid-cols-12 gap-1.5 mb-1.5 items-center bg-brand-gray-50 rounded-lg p-2">
                 <div className="col-span-3 md:col-span-2 flex gap-1">
                   <Input size={1} value={item.codigo} onChange={e => updateItem(item.id, 'codigo', e.target.value)}
                     placeholder="Código" className="h-7 text-xs flex-1" />
@@ -402,20 +407,20 @@ export default function EcommerceFacturarPage() {
           <Card className="p-4 col-span-2">
             <div className="flex justify-between items-start">
               <div className="space-y-1 text-sm">
-                <div className="flex justify-between gap-8 text-slate-600">
+                <div className="flex justify-between gap-8 text-brand-gray-600">
                   <span>Subtotal</span>
                   <span className="font-mono font-bold">${totales.subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between gap-8 text-slate-600">
+                <div className="flex justify-between gap-8 text-brand-gray-600">
                   <span>Descuentos</span>
                   <span className="font-mono font-bold text-red-500">-${totales.descuentos.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between gap-8 text-slate-600">
+                <div className="flex justify-between gap-8 text-brand-gray-600">
                   <span>IVA</span>
                   <span className="font-mono font-bold">${totales.iva.toFixed(2)}</span>
                 </div>
                 <Separator />
-                <div className="flex justify-between gap-8 text-base font-bold text-slate-900">
+                <div className="flex justify-between gap-8 text-base font-bold text-brand-gray-900">
                   <span>TOTAL</span>
                   <span className="font-mono">${totales.total.toFixed(2)}</span>
                 </div>
@@ -425,13 +430,13 @@ export default function EcommerceFacturarPage() {
         </div>
 
         <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+          <label className="flex items-center gap-2 text-xs text-brand-gray-600 cursor-pointer">
             <input type="checkbox" checked={enviarEmail} onChange={e => setEnviarEmail(e.target.checked)}
-              className="rounded border-slate-300" />
+              className="rounded border-brand-gray-300" />
             <Send className="w-3.5 h-3.5" /> Enviar factura por email al cliente
           </label>
           <Button onClick={handleEmitir} disabled={emitiendo || !emisorId || !clienteEmail}
-            className="bg-brand-navy hover:bg-brand-navy-light text-white px-8">
+            className="bg-brand-red hover:bg-brand-red-bright text-white px-8">
             {emitiendo ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Emitiendo...</> : `Emitir Factura · $${totales.total.toFixed(2)}`}
           </Button>
         </div>
@@ -441,41 +446,45 @@ export default function EcommerceFacturarPage() {
       {showSelector && (
         <div className="fixed inset-0 z-[100] flex items-start justify-center pt-16 bg-black/30">
           <Card className="w-full max-w-lg mx-4 p-0 overflow-hidden max-h-[70vh] flex flex-col">
-            <div className="flex items-center justify-between p-3 border-b border-slate-200">
-              <h3 className="text-sm font-bold text-slate-600">Seleccionar producto</h3>
+            <div className="flex items-center justify-between p-3 border-b border-brand-gray-200">
+              <h3 className="text-sm font-bold text-brand-gray-600">Seleccionar producto</h3>
               <Button variant="ghost" size="xs" onClick={() => { setShowSelector(false); setSelectedItemId(null); }}>
                 <X className="w-3.5 h-3.5" />
               </Button>
             </div>
-            <div className="p-3 border-b border-slate-100">
+            <div className="p-3 border-b border-brand-gray-100">
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray-400" />
                 <Input size={1} value={searchProd} onChange={e => setSearchProd(e.target.value)}
                   placeholder="Buscar producto..." className="h-8 text-xs pl-8" />
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
               {loadingProds ? (
-                <div className="p-6 text-center text-slate-400">Cargando...</div>
+                <div className="p-6 text-center text-brand-gray-400">Cargando...</div>
               ) : filteredProds.length === 0 ? (
-                <div className="p-6 text-center text-slate-400">No hay productos disponibles</div>
+                <EmptyState
+                  icon={<Package className="w-5 h-5" />}
+                  title="No hay productos disponibles"
+                  compact
+                />
               ) : filteredProds.map(prod => (
                 <button key={prod.id} type="button"
                   onClick={() => selectProduct(prod)}
-                  className="w-full text-left px-4 py-2.5 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer">
+                  className="w-full text-left px-4 py-2.5 border-b border-brand-gray-50 hover:bg-brand-gray-50 transition-colors cursor-pointer">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono font-bold text-slate-400">{prod.codigo}</span>
+                        <span className="text-[10px] font-mono font-bold text-brand-gray-400">{prod.codigo}</span>
                         <span className="text-xs font-medium truncate">{prod.nombre}</span>
                       </div>
                       {prod.descripcion && (
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">{prod.descripcion}</p>
+                        <p className="text-[10px] text-brand-gray-400 truncate mt-0.5">{prod.descripcion}</p>
                       )}
                     </div>
                     <div className="text-right shrink-0 ml-3">
                       <p className="text-xs font-mono font-bold">${parseFloat(prod.precio_unitario).toFixed(2)}</p>
-                      <p className="text-[10px] text-slate-400">{prod.iva_porcentaje}% IVA · Stock: {parseFloat(prod.stock).toFixed(0)}</p>
+                      <p className="text-[10px] text-brand-gray-400">{prod.iva_porcentaje}% IVA · Stock: {parseFloat(prod.stock).toFixed(0)}</p>
                     </div>
                   </div>
                 </button>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Search } from "lucide-react";
 
+import { apiFetch } from "@/lib/apiFetch";
 const TIPOS_ID = [
   { value: "04", label: "RUC" },
   { value: "05", label: "Cédula" },
@@ -35,7 +36,7 @@ export default function EditarContactoPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`/api/contactos?id=${id}`);
+        const res = await apiFetch(`/api/contactos?id=${id}`);
         if (!res.ok) throw new Error("No encontrado");
         const data = await res.json();
         const c = data.contacto || data.data || data;
@@ -65,7 +66,7 @@ export default function EditarContactoPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/contactos?id=${id}`, {
+      const res = await apiFetch(`/api/contactos?id=${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -96,7 +97,7 @@ export default function EditarContactoPage() {
   const handleDelete = async () => {
     if (!confirm("¿Eliminar este contacto?")) return;
     try {
-      const res = await fetch(`/api/contactos?id=${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/contactos?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Error");
       toast.success("Contacto eliminado");
       router.push("/contactos");
@@ -111,7 +112,7 @@ export default function EditarContactoPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/sri/contribuyente?ruc=${identificacion}`);
+      const res = await apiFetch(`/api/sri/contribuyente?ruc=${identificacion}`);
       if (!res.ok) throw new Error("No encontrado");
       const data = await res.json();
       setRazonSocial(data.razonSocial || razonSocial);
@@ -136,7 +137,7 @@ export default function EditarContactoPage() {
     <>
       <title>Editar Contacto - OFSERCONT IA</title>
       <Topbar title="Editar Contacto" backLink={{ href: "/contactos", label: "Contactos" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Editar Contacto</h1>
         <Card className="p-5 border-brand-gray-200">
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -181,16 +182,16 @@ export default function EditarContactoPage() {
             </div>
             <div className="flex gap-6">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={esCliente} onChange={(e) => setEsCliente(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-navy focus:ring-brand-navy/30" />
+                <input type="checkbox" checked={esCliente} onChange={(e) => setEsCliente(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-red focus:ring-brand-red/30" />
                 <span className="text-xs font-medium text-brand-gray-700">Es Cliente</span>
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={esProveedor} onChange={(e) => setEsProveedor(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-navy focus:ring-brand-navy/30" />
+                <input type="checkbox" checked={esProveedor} onChange={(e) => setEsProveedor(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-red focus:ring-brand-red/30" />
                 <span className="text-xs font-medium text-brand-gray-700">Es Proveedor</span>
               </label>
             </div>
             <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={submitting} className="bg-brand-navy hover:bg-brand-navy-light text-white">
+              <Button type="submit" disabled={submitting} className="bg-brand-red hover:bg-brand-red-bright text-white">
                 {submitting ? "Guardando..." : "Guardar Cambios"}
               </Button>
               <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>

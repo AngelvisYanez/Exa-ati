@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/sri-api/db';
+import { db } from '@/services/sri-api/db';
 
 export async function GET() {
   try {

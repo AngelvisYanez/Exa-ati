@@ -21,7 +21,7 @@ vi.mock('soap', () => {
   };
 });
 
-vi.mock('../src/lib/sri-api/config', () => ({
+vi.mock('../src/services/sri-api/config', () => ({
   config: { sri: { wsdl: { reception: '', authorization: '' } } },
 }));
 
@@ -32,7 +32,7 @@ beforeEach(() => {
 describe('sriSoapClient', () => {
   describe('autorizarComprobante', () => {
     it('retorna autorización exitosa', async () => {
-      const { sriSoapClient } = await import('../src/lib/sri-api/sri-soap-client');
+      const { sriSoapClient } = await import('../src/services/sri-api/sri-soap-client');
 
       mockClient.autorizacionComprobanteAsync.mockResolvedValue([
         {
@@ -59,7 +59,7 @@ describe('sriSoapClient', () => {
     });
 
     it('retorna respuesta con error si SOAP falla todos los reintentos', { timeout: 15000 }, async () => {
-      const { sriSoapClient } = await import('../src/lib/sri-api/sri-soap-client');
+      const { sriSoapClient } = await import('../src/services/sri-api/sri-soap-client');
 
       mockClient.autorizacionComprobanteAsync.mockRejectedValue(
         new Error('Connection timeout')
@@ -75,7 +75,7 @@ describe('sriSoapClient', () => {
 
   describe('enviarYAutorizar', () => {
     it('flujo completo: recibe XML y autoriza', async () => {
-      const { sriSoapClient } = await import('../src/lib/sri-api/sri-soap-client');
+      const { sriSoapClient } = await import('../src/services/sri-api/sri-soap-client');
 
       mockClient.validarComprobanteAsync.mockResolvedValue([
         {
@@ -110,7 +110,7 @@ describe('sriSoapClient', () => {
     });
 
     it('retorna DUPLICADO si error 43 en recepción', async () => {
-      const { sriSoapClient } = await import('../src/lib/sri-api/sri-soap-client');
+      const { sriSoapClient } = await import('../src/services/sri-api/sri-soap-client');
 
       mockClient.validarComprobanteAsync.mockResolvedValue([
         {
@@ -136,7 +136,7 @@ describe('sriSoapClient', () => {
     });
 
     it('retorna DOCUMENTO_INVALIDO si error 35 en recepción', async () => {
-      const { sriSoapClient } = await import('../src/lib/sri-api/sri-soap-client');
+      const { sriSoapClient } = await import('../src/services/sri-api/sri-soap-client');
 
       mockClient.validarComprobanteAsync.mockResolvedValue([
         {
@@ -162,7 +162,7 @@ describe('sriSoapClient', () => {
     });
 
     it('retorna EN_PROCESO si error 70 en autorización', async () => {
-      const { sriSoapClient } = await import('../src/lib/sri-api/sri-soap-client');
+      const { sriSoapClient } = await import('../src/services/sri-api/sri-soap-client');
 
       mockClient.validarComprobanteAsync.mockResolvedValue([
         {

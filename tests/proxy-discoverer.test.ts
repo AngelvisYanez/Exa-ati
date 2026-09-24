@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSources, extractIpPortPairs, testProxyConnection } from '../src/lib/scraping/proxy-discoverer';
+import { buildSources, extractIpPortPairs, testProxyConnection } from '../src/services/scraping/proxy-discoverer';
 
 describe('buildSources', () => {
   it('construye 3 URLs para Ecuador', () => {

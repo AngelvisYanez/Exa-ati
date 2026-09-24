@@ -1,17 +1,25 @@
 import { NextResponse } from 'next/server';
-import bcrypt from 'bcrypt';
-import { db } from '@/lib/sri-api/db';
+import bcrypt from 'bcryptjs';
+import { db } from '@/services/sri-api/db';
+import { registerApiSchema } from '@/lib/schemas/auth';
+import { parseBody } from '@/lib/schemas/parse-body';
+import { apiError } from '@/lib/auth-cookies';
+import { rateLimit, clientKey } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
-  try {
-    const { email, password, rol, tenantId, nombre } = await req.json();
+  const limited = rateLimit(clientKey(req, 'register'), { limit: 10, windowMs: 60_000 });
+  if (!limited.ok) {
+    return apiError('Demasiados intentos. Intenta más tarde.', 429, {
+      retryAfter: limited.retryAfterSec,
+    });
+  }
 
-    if (!email || !password) {
-      return NextResponse.json(
-        { message: 'Email y contraseña son obligatorios' },
-        { status: 400 }
-      );
-    }
+  try {
+    const parsed = await parseBody(req, registerApiSchema);
+    if ('error' in parsed) return parsed.error;
+    const { email, password, tenantId, nombre } = parsed.data;
+    // Registro público siempre USER (nunca ADMIN)
+    const rol = 'USER';
 
     const existing = await db.queryOne<{ id: string }>(
       'SELECT id FROM usuarios WHERE email = $1',
@@ -19,10 +27,7 @@ export async function POST(req: Request) {
     );
 
     if (existing) {
-      return NextResponse.json(
-        { message: `Ya existe un usuario con el email ${email}` },
-        { status: 409 }
-      );
+      return apiError(`Ya existe un usuario con el email ${email}`, 409);
     }
 
     let assignedTenantId = tenantId || null;
@@ -33,13 +38,10 @@ export async function POST(req: Request) {
         [assignedTenantId]
       );
       if (!tenant) {
-        return NextResponse.json(
-          { message: `Tenant con ID ${assignedTenantId} no encontrado o inactivo` },
-          { status: 404 }
-        );
+        return apiError(`Tenant con ID ${assignedTenantId} no encontrado o inactivo`, 404);
       }
     } else {
-      const tenant = await db.insert<any>('tenants', {
+      const tenant = await db.insert<{ id: string }>('tenants', {
         nombre: nombre || email.split('@')[0],
         activo: true,
       }, 'id');
@@ -48,7 +50,12 @@ export async function POST(req: Request) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const user = await db.insert<any>('usuarios', {
+    const user = await db.insert<{
+      id: string;
+      email: string;
+      rol: string;
+      tenant_id: string | null;
+    }>('usuarios', {
       email,
       password_hash: passwordHash,
       nombre: nombre || null,
@@ -56,6 +63,10 @@ export async function POST(req: Request) {
       tenant_id: assignedTenantId,
       activo: true,
     }, 'id, email, rol, tenant_id');
+
+    if (!user) {
+      return apiError('No se pudo crear el usuario', 500);
+    }
 
     return NextResponse.json({
       success: true,
@@ -66,11 +77,9 @@ export async function POST(req: Request) {
         tenantId: user.tenant_id,
       },
     }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Register Error]', error);
-    return NextResponse.json(
-      { message: `Error en el servidor: ${error.message}` },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : 'Error desconocido';
+    return apiError(`Error en el servidor: ${message}`, 500);
   }
 }

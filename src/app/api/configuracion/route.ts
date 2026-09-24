@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { getUserRuc } from '@/lib/sri-api/user-resolver';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { getUserRuc } from '@/services/sri-api/user-resolver';
 
 export async function GET(req: Request) {
   try {
@@ -16,7 +16,7 @@ export async function GET(req: Request) {
       emisor = await db.queryOne<any>(
         `SELECT ruc, razon_social, nombre_comercial, tipo_contribuyente, ambiente,
                 cert_valido_hasta, certificado_valido_hasta,
-                whatsapp_numero, whatsapp_estado, notif_documentos, notif_generacion,
+                whatsapp_numero, whatsapp_estado, notif_documentos, notif_generacion, notif_email,
                 whatsapp_notif_documentos, whatsapp_notif_generacion
          FROM emisores WHERE ruc = $1 AND activo = true`,
         [userRuc]
@@ -79,8 +79,9 @@ export async function GET(req: Request) {
       })),
       notificaciones: {
         whatsapp: emisor ? !!emisor.notif_generacion : false,
-        email: true,
+        email: emisor ? !!emisor.notif_email && Boolean(process.env.SMTP_HOST) : false,
         app: emisor ? !!emisor.notif_documentos : false,
+        emailDisponible: Boolean(process.env.SMTP_HOST),
       },
       whatsapp: {
         numero: emisor ? emisor.whatsapp_numero : null,
@@ -102,16 +103,22 @@ export async function PUT(req: Request) {
     const userRuc = await getUserRuc(user);
     const body = await req.json();
 
-    if (body.notifDocumentos !== undefined || body.notifGeneracion !== undefined) {
+    if (
+      body.notifDocumentos !== undefined ||
+      body.notifGeneracion !== undefined ||
+      body.notifEmail !== undefined
+    ) {
       await db.query(
         `UPDATE emisores SET
           notif_documentos = COALESCE($1, notif_documentos),
           notif_generacion = COALESCE($2, notif_generacion),
+          notif_email = COALESCE($3, notif_email),
           updated_at = NOW()
-         WHERE ruc = $3 AND activo = true`,
+         WHERE ruc = $4 AND activo = true`,
         [
           body.notifDocumentos !== undefined ? Boolean(body.notifDocumentos) : null,
           body.notifGeneracion !== undefined ? Boolean(body.notifGeneracion) : null,
+          body.notifEmail !== undefined ? Boolean(body.notifEmail) : null,
           userRuc,
         ]
       );

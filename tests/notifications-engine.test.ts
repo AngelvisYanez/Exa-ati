@@ -2,18 +2,26 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockDb = vi.hoisted(() => ({
   queryAll: vi.fn(),
+  queryOne: vi.fn(),
+  query: vi.fn(),
 }));
-vi.mock('../src/lib/sri-api/db', () => ({
+vi.mock('../src/services/sri-api/db', () => ({
   db: mockDb,
+}));
+vi.mock('../src/services/sri-api/whatsapp-service', () => ({
+  sendWhatsAppAlert: vi.fn().mockResolvedValue(false),
 }));
 
 describe('notifications-engine', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDb.queryAll.mockResolvedValue([]);
+    mockDb.queryOne.mockResolvedValue(null);
+    mockDb.query.mockResolvedValue({ rows: [], rowCount: 0 });
   });
 
   it('construye notificaciones con alertas de auditoría', async () => {
-    const { buildNotifications } = await import('../src/lib/sri-api/notifications-engine');
+    const { buildNotifications } = await import('../src/services/sri-api/notifications-engine');
     mockDb.queryAll.mockResolvedValue([]);
 
     const notifs = await buildNotifications('0999000000001', 't1');
@@ -21,7 +29,7 @@ describe('notifications-engine', () => {
   });
 
   it('incluye notificación de IVA pendiente si hay ventas > compras', async () => {
-    const { buildNotifications } = await import('../src/lib/sri-api/notifications-engine');
+    const { buildNotifications } = await import('../src/services/sri-api/notifications-engine');
     mockDb.queryAll.mockResolvedValue([
       {
         clave_acceso: '01',
@@ -45,7 +53,7 @@ describe('notifications-engine', () => {
   });
 
   it('incluye notificación de certificado próximo a vencer si emisor tiene cert cerca', async () => {
-    const { buildNotifications } = await import('../src/lib/sri-api/notifications-engine');
+    const { buildNotifications } = await import('../src/services/sri-api/notifications-engine');
     mockDb.queryAll.mockResolvedValue([]);
 
     const emisor = {
@@ -59,9 +67,10 @@ describe('notifications-engine', () => {
   });
 
   it('incluye notificación de comprobante autorizado automáticamente', async () => {
-    const { buildNotifications } = await import('../src/lib/sri-api/notifications-engine');
-    mockDb.queryAll.mockResolvedValue([]);
+    const { buildNotifications } = await import('../src/services/sri-api/notifications-engine');
+    // 1) comprobantes del tenant (fetchTenantComprobantes)
     mockDb.queryAll.mockResolvedValueOnce([]);
+    // 2) autorizados recientes (cron)
     mockDb.queryAll.mockResolvedValueOnce([
       {
         clave_acceso: '0101202501099000000000110010010000000011234567812',
@@ -70,11 +79,57 @@ describe('notifications-engine', () => {
         updated_at: new Date().toISOString(),
       },
     ]);
+    // 3) timeouts
     mockDb.queryAll.mockResolvedValueOnce([]);
+    // 4) scraping jobs
     mockDb.queryAll.mockResolvedValueOnce([]);
 
     const notifs = await buildNotifications('0999000000001', 't1');
     const autoNotif = notifs.find(n => n.title?.includes('automáticamente'));
     expect(autoNotif).toBeDefined();
+  });
+
+  it('persiste y lista notificaciones desde BD', async () => {
+    const { syncAndListNotifications } = await import('../src/services/sri-api/notifications-engine');
+
+    mockDb.queryAll
+      .mockResolvedValueOnce([]) // fetchTenantComprobantes
+      .mockResolvedValueOnce([]) // autorizados recientes
+      .mockResolvedValueOnce([]) // timeouts
+      .mockResolvedValueOnce([]) // scraping
+      .mockResolvedValueOnce([
+        {
+          id: 'n1',
+          type: 'recordatorio',
+          title: 'Comprobantes pendientes',
+          body: 'Hay pendientes',
+          channel: 'App',
+          unread: true,
+          action_label: 'Ver',
+          action_href: '/documentos',
+          event_at: new Date().toISOString(),
+        },
+      ]);
+
+    mockDb.queryOne.mockResolvedValue(null);
+
+    const result = await syncAndListNotifications('0999000000001', 't1', {
+      notif_documentos: true,
+      notif_generacion: false,
+      notif_email: false,
+    });
+
+    expect(result.notifications).toHaveLength(1);
+    expect(result.notifications[0].id).toBe('n1');
+    expect(result.channelsActive).toBe(1);
+  });
+
+  it('marca notificaciones como leídas en BD', async () => {
+    const { markNotificationsRead } = await import('../src/services/sri-api/notifications-engine');
+    mockDb.query.mockResolvedValue({ rows: [], rowCount: 2 });
+
+    const updated = await markNotificationsRead('t1', { ids: ['a', 'b'] });
+    expect(updated).toBe(2);
+    expect(mockDb.query).toHaveBeenCalled();
   });
 });

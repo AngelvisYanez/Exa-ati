@@ -13,7 +13,7 @@ import {
   extractIva,
   parseLocalIsoDate,
   getDaysInRange,
-} from '../src/lib/scraping/sri-utils';
+} from '../src/services/scraping/sri-utils';
 
 describe('getTipoDocDesc', () => {
   it('retorna descripción para códigos conocidos', () => {

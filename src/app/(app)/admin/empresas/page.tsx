@@ -2,12 +2,17 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Edit, Trash2, Search, ChevronLeft, ChevronRight, ShieldAlert } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
+import { apiFetch } from "@/lib/apiFetch";
 interface Tenant {
   id: string;
   nombre: string;
@@ -19,6 +24,8 @@ interface Tenant {
 }
 
 export default function AdminEmpresasPage() {
+  const { user, hasModule, isLoading: authLoading } = useAuth();
+  const canManage = hasModule("admin.empresas");
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -34,26 +41,36 @@ export default function AdminEmpresasPage() {
       if (search.trim()) params.set("q", search.trim());
       params.set("page", String(page));
       params.set("pageSize", String(pageSize));
-      const res = await fetch(`/api/admin/tenants?${params}`);
-      if (!res.ok) throw new Error("Error");
-      const data = await res.json();
+      const res = await apiFetch(`/api/admin/tenants?${params}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof data.message === "string" ? data.message : "Error al cargar empresas"
+        );
+      }
       setTenants(data.data || []);
       setTotal(data.total || 0);
       setTotalPages(data.totalPages || 1);
-    } catch {
-      toast.error("Error al cargar empresas");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error al cargar empresas");
     } finally {
       setLoading(false);
     }
   }, [search, page]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (authLoading || !canManage) {
+      setLoading(false);
+      return;
+    }
+    load();
+  }, [load, authLoading, canManage]);
   useEffect(() => { setPage(1); }, [search]);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`¿Eliminar la empresa "${name}"?`)) return;
     try {
-      const res = await fetch(`/api/admin/tenants/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/admin/tenants/${id}`, { method: "DELETE" });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || "Error");
@@ -65,18 +82,34 @@ export default function AdminEmpresasPage() {
     }
   };
 
+  if (!authLoading && user && !canManage) {
+    return (
+      <>
+        <title>Empresas - Admin - OFSERCONT IA</title>
+        <Topbar title="Empresas" backLink={{ href: "/admin", label: "Admin" }} />
+        <main className="ui-page flex-1">
+          <EmptyState
+            icon={<ShieldAlert className="w-5 h-5" />}
+            title="Acceso restringido"
+            description="La gestión de empresas requiere rol SUPERADMIN."
+          />
+        </main>
+      </>
+    );
+  }
+
   return (
     <>
       <title>Empresas - Admin - OFSERCONT IA</title>
       <Topbar title="Empresas" backLink={{ href: "/admin", label: "Admin" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Empresas</h1>
             <p className="text-xs text-brand-gray-500 mt-0.5">{total} empresas registradas</p>
           </div>
           <Link href="/admin/empresas/nuevo">
-            <Button size="sm" className="bg-brand-navy hover:bg-brand-navy-light text-white">
+            <Button size="sm" className="bg-brand-red hover:bg-brand-red-bright text-white">
               <Plus className="w-3.5 h-3.5" /> Nueva Empresa
             </Button>
           </Link>
@@ -94,60 +127,60 @@ export default function AdminEmpresasPage() {
 
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
-            <div className="p-10 text-center text-sm text-brand-gray-500 animate-pulse">Cargando empresas...</div>
+            <TableSkeleton rows={6} columns={5} />
           ) : tenants.length === 0 ? (
-            <div className="p-10 text-center text-sm text-brand-gray-400">No se encontraron empresas.</div>
+            <EmptyState title="No se encontraron empresas." compact />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[13px]">
-                <thead>
-                  <tr className="border-b border-brand-gray-100 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider bg-brand-gray-50/50">
-                    <th className="py-3 px-4 font-semibold">Nombre</th>
-                    <th className="py-3 px-4 font-semibold">RUC</th>
-                    <th className="py-3 px-4 font-semibold">Estado</th>
-                    <th className="py-3 px-4 font-semibold">Usuarios</th>
-                    <th className="py-3 px-4 font-semibold">Emisores</th>
-                    <th className="py-3 px-4 font-semibold">Creado</th>
-                    <th className="py-3 px-4 font-semibold text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-brand-gray-50">
+              <Table className="w-full text-left border-collapse text-[13px]">
+                <TableHeader>
+                  <TableRow className="border-b border-brand-gray-100 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider bg-brand-gray-50/50">
+                    <TableHead className="py-3 px-4 font-semibold">Nombre</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">RUC</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Estado</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Usuarios</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Emisores</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Creado</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-brand-gray-50">
                   {tenants.map((t) => (
-                    <tr key={t.id} className="hover:bg-brand-gray-50/40 transition-colors">
-                      <td className="py-3 px-4 font-semibold text-brand-gray-800">{t.nombre}</td>
-                      <td className="py-3 px-4 font-mono text-xs text-brand-gray-600">{t.ruc || "—"}</td>
-                      <td className="py-3 px-4">
+                    <TableRow key={t.id} className="hover:bg-brand-gray-50/40 transition-colors">
+                      <TableCell className="py-3 px-4 font-semibold text-brand-gray-800">{t.nombre}</TableCell>
+                      <TableCell className="py-3 px-4 font-mono text-xs text-brand-gray-600">{t.ruc || "—"}</TableCell>
+                      <TableCell className="py-3 px-4">
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
                           t.activo
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-red-50 text-red-700 border border-red-200"
+                            ? "bg-success-pale text-success border border-success-light/40"
+                            : "bg-brand-red-subtle text-brand-red border border-brand-red-pale"
                         }`}>
                           {t.activo ? "Activo" : "Inactivo"}
                         </span>
-                      </td>
-                      <td className="py-3 px-4 text-xs text-brand-gray-500">{t.usuariosCount}</td>
-                      <td className="py-3 px-4 text-xs text-brand-gray-500">{t.emisoresCount}</td>
-                      <td className="py-3 px-4 text-xs text-brand-gray-400">
+                      </TableCell>
+                      <TableCell className="py-3 px-4 text-xs text-brand-gray-500">{t.usuariosCount}</TableCell>
+                      <TableCell className="py-3 px-4 text-xs text-brand-gray-500">{t.emisoresCount}</TableCell>
+                      <TableCell className="py-3 px-4 text-xs text-brand-gray-400">
                         {t.createdAt ? new Date(t.createdAt).toLocaleDateString("es-EC") : "—"}
-                      </td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="py-3 px-4 text-right whitespace-nowrap">
                         <Link
                           href={`/admin/empresas/${t.id}`}
-                          className="inline-flex items-center gap-1 text-brand-navy hover:text-brand-navy-light text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1"
+                          className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1"
                         >
                           <Edit className="w-3 h-3" /> Editar
                         </Link>
                         <button
                           onClick={() => handleDelete(t.id, t.nombre)}
-                          className="inline-flex items-center gap-1 text-red-500 hover:text-red-700 text-xs font-semibold border border-red-100 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3 h-3" /> Eliminar
                         </button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>

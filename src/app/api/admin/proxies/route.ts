@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
 import {
   listAllProxies,
   countAvailable,
@@ -9,9 +9,9 @@ import {
   toggleProxy,
   releaseProxyById,
   releaseAllProxies,
-} from '@/lib/scraping/proxy-assigner';
-import { discoverProxies } from '@/lib/scraping/proxy-discoverer';
-import { testearProxy, testearTodosLosProxies } from '@/lib/scraping/proxy-assigner';
+} from '@/services/scraping/proxy-assigner';
+import { discoverProxies } from '@/services/scraping/proxy-discoverer';
+import { testearProxy, testearTodosLosProxies } from '@/services/scraping/proxy-assigner';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,7 +102,6 @@ export async function POST(req: Request) {
 
     if (action === 'discover') {
       const country = body.country || 'EC';
-      console.log(`[Proxy Discover] Starting proxy discovery for ${country}...`);
       const result = await discoverProxies(country);
 
       let newCount = 0;
@@ -124,10 +123,6 @@ export async function POST(req: Request) {
           console.error(`[Proxy Discover] Error inserting ${proxy.host}:${proxy.port}:`, err);
         }
       }
-
-      console.log(
-        `[Proxy Discover] ${result.country}: ${result.alive.length} alive, ${newCount} new, ${result.dead} dead`
-      );
 
       return NextResponse.json({
         success: true,

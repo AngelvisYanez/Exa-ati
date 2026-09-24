@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Topbar from "@/components/Topbar";
-import DateRangeFilter, {
+import dynamic from "next/dynamic";
+import { useState, useEffect, useRef } from "react";
+import Topbar from "@/components/layout/Topbar";
+import {
   DateRange,
   filterByDateRange,
   formatDateRangeLabel,
@@ -11,45 +12,85 @@ import DateRangeFilter, {
   toDateRangeParams,
 } from "@/components/DateRangeFilter";
 import { sriClient, Comprobante } from "@/lib/sriClient";
+import { downloadComprobantePng } from "@/lib/documentos-png";
 import TablePaginator, { DEFAULT_PAGE_SIZE } from "@/components/TablePaginator";
 import Dialog from "@/components/ui/Dialog";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import XmlImportZone from "@/components/XmlImportZone";
-import SyncProgressDialog, { type SyncResultSummary } from "@/components/SyncProgressDialog";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import MassDownloadModal from "@/components/MassDownloadModal";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import { X, Download, FileText, ChevronDown, DownloadCloud } from "lucide-react";
+import DocumentosFilters, {
+  type DocumentosViewFilter,
+} from "@/components/documentos/DocumentosFilters";
+import { TIPO_DESC } from "@/components/documentos/constants";
 
-const TIPO_DESC: Record<string, string> = {
-  '01': 'FAC', '04': 'NC', '05': 'ND', '06': 'GR', '07': 'RET'
-};
+import { apiFetch } from "@/lib/apiFetch";
+import { generateExcelReport } from "@/lib/excel-export";
+import { buildScrapePayloadForClave } from "@/lib/sri-scrape-from-clave";
+
+const SyncProgressDialog = dynamic(
+  () => import("@/components/modals/SyncProgressDialog"),
+  { ssr: false }
+);
+const MassDownloadModal = dynamic(
+  () => import("@/components/modals/MassDownloadModal"),
+  { ssr: false }
+);
+
+import type { SyncResultSummary } from "@/components/modals/SyncProgressDialog";
 
 export default function Documentos() {
-  const { hasSriLinked, activeRuc } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { hasSriLinked, activeRuc, refreshSriStatus, isLoading: authLoading } = useAuth();
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("Todos");
-  const [flowTab, setFlowTab] = useState<"todos" | "emitidos" | "recibidos">("todos");
+  const [viewFilter, setViewFilter] = useState<DocumentosViewFilter>("todos");
   const [realDocs, setRealDocs] = useState<Comprobante[]>([]);
   const [isApiConnected, setIsApiConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<Comprobante | null>(null);
   const [certWarning, setCertWarning] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [showSyncConfirm, setShowSyncConfirm] = useState(false);
   const [showSyncResult, setShowSyncResult] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResultSummary | null>(null);
   const [importing, setImporting] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [downloadingClave, setDownloadingClave] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
+  const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
+  const [isClient, setIsClient] = useState(false);
+  const prevActiveJobIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    setDateRange(getDefaultDateRange());
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (searchParams.get("descargas") === "1") {
+      setShowMassDownloadModal(true);
+      router.replace("/documentos", { scroll: false });
+    }
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    void refreshSriStatus();
+  }, [authLoading, refreshSriStatus]);
   const [totalEnPeriodo, setTotalEnPeriodo] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [showMassDownloadModal, setShowMassDownloadModal] = useState(false);
+  const [activeJobs, setActiveJobs] = useState<
+    { id: string; status: string; progress_message?: string; fecha_desde?: string; fecha_hasta?: string }[]
+  >([]);
 
 
   const loadRealDocuments = async (range: DateRange = dateRange) => {
@@ -131,72 +172,8 @@ export default function Documentos() {
     }
   };
 
-  const resolveSyncModo = (): 'completo' | 'emitidos' | 'recibidos' | 'pendientes' => {
-    if (flowTab === 'emitidos') return 'emitidos';
-    if (flowTab === 'recibidos') return 'recibidos';
-    return 'completo';
-  };
-
-  const handleSyncSri = async () => {
-    const rangeParams = toDateRangeParams(dateRange);
-    const periodLabel = formatDateRangeLabel(dateRange);
-    const hasPeriod = Boolean(rangeParams.fechaDesde || rangeParams.fechaHasta);
-
-    if (!hasPeriod) {
-      setShowSyncConfirm(true);
-      return;
-    }
-
-    await executeSync(hasPeriod, periodLabel, rangeParams);
-  };
-
-  const executeSync = async (
-    hasPeriod: boolean,
-    periodLabel: string,
-    rangeParams: ReturnType<typeof toDateRangeParams>,
-    modoOverride?: 'completo' | 'emitidos' | 'recibidos' | 'pendientes'
-  ) => {
-    setSyncing(true);
-    setSyncResult(null);
-    setShowSyncResult(true);
-    let res: Awaited<ReturnType<typeof sriClient.syncSri>> | null = null;
-    try {
-      const modo = modoOverride || resolveSyncModo();
-      res = await sriClient.syncSri(
-        hasPeriod
-          ? { ...rangeParams, modo }
-          : { limite: 500, modo }
-      );
-      setSyncResult(res);
-      if (res.success) {
-        if (res.warning === 'NO_LOCAL_DOCUMENTS') {
-          toast.info(res.message || "No hay documentos locales para sincronizar.");
-        } else if (res.warning === 'SRI_UNAVAILABLE') {
-          toast.error(res.message || "No se pudo conectar con el SRI.");
-        } else if ((res.errores ?? 0) > 0) {
-          toast.warning(res.message || `Sync con ${res.errores} errores`);
-        } else {
-          toast.success(res.message || `Sync: ${res.procesados} consultados`);
-        }
-      }
-    } catch (err: unknown) {
-      toast.error("Error al sincronizar con el SRI: " + (err instanceof Error ? err.message : "Error desconocido"));
-      setShowSyncResult(false);
-    } finally {
-      setSyncing(false);
-      setShowSyncConfirm(false);
-    }
-
-    if (res?.success) {
-      void loadRealDocuments(dateRange);
-    }
-  };
-
-  const handleSyncPendientes = () => {
-    const rangeParams = toDateRangeParams(dateRange);
-    const hasPeriod = Boolean(rangeParams.fechaDesde || rangeParams.fechaHasta);
-    executeSync(hasPeriod, formatDateRangeLabel(dateRange), rangeParams, 'pendientes');
-  };
+  const massDownloadDirection =
+    viewFilter === 'emitidos' ? 'emitidos' : viewFilter === 'recibidos' ? 'recibidos' : 'ambos';
 
   const handleRetryPending = async () => {
     setRetrying(true);
@@ -227,11 +204,41 @@ export default function Documentos() {
     }
   };
 
+  const enqueueScrapeForXml = async (doc: Comprobante): Promise<string | null> => {
+    if (!activeRuc) {
+      throw new Error("No hay RUC activo vinculado al SRI para descargar el XML.");
+    }
+    const esEmitido = doc.emisor?.ruc === activeRuc;
+    const payload = buildScrapePayloadForClave({
+      claveAcceso: doc.claveAcceso,
+      rucPortal: activeRuc,
+      esEmitido,
+    });
+    if (!payload) {
+      throw new Error("No se pudo armar la descarga masiva desde la clave de acceso.");
+    }
+
+    const token = localStorage.getItem("sri_access_token");
+    const res = await apiFetch("/api/sri/scraping", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.jobId) {
+      throw new Error(data.error || data.message || "No se pudo encolar la descarga masiva del SRI");
+    }
+    return String(data.jobId);
+  };
+
   const handleDownloadXml = async (doc: Comprobante) => {
     try {
-      setIsLoading(true);
+      setDownloadingClave(`xml:${doc.claveAcceso}`);
       const token = localStorage.getItem('sri_access_token');
-      const response = await fetch(`/api/sri/comprobantes/${doc.claveAcceso}/xml`, {
+      const response = await apiFetch(`/api/sri/comprobantes/${doc.claveAcceso}/xml`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!response.ok) {
@@ -239,6 +246,15 @@ export default function Documentos() {
         let msg = "No se pudo obtener el XML";
         if (errBody) {
           try { const j = JSON.parse(errBody); if (j.message) msg = j.message; } catch {}
+        }
+        const missingXml = /XML no disponible|No se encontró el XML/i.test(msg);
+        if (missingXml) {
+          const jobId = await enqueueScrapeForXml(doc);
+          toast.info(
+            `XML no local. Se encoló descarga masiva del SRI${jobId ? ` (job ${jobId})` : ""}. Cuando termine, vuelve a descargar.`
+          );
+          setShowMassDownloadModal(true);
+          return;
         }
         throw new Error(msg);
       }
@@ -255,182 +271,73 @@ export default function Documentos() {
     } catch (err: unknown) {
       toast.error("Error al descargar XML: " + (err instanceof Error ? err.message : "Error"));
     } finally {
-      setIsLoading(false);
+      setDownloadingClave(null);
     }
   };
 
   const handleDownloadPdf = async (doc: Comprobante) => {
-    try {
-      setIsLoading(true);
+    const downloadOnce = async () => {
       const token = localStorage.getItem('sri_access_token');
-      const response = await fetch(`/api/sri/comprobantes/${doc.claveAcceso}/pdf`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!response.ok) {
-        const errBody = await response.text().catch(() => null);
-        let msg = "No se pudo obtener el PDF";
-        if (errBody) {
-          try { const j = JSON.parse(errBody); if (j.message) msg = j.message; } catch {}
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 45000);
+      try {
+        const response = await apiFetch(`/api/sri/comprobantes/${doc.claveAcceso}/pdf`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          const errBody = await response.text().catch(() => null);
+          let msg = "No se pudo obtener el PDF";
+          if (errBody) {
+            try { const j = JSON.parse(errBody); if (j.message) msg = j.message; } catch {}
+          }
+          throw new Error(msg);
         }
-        throw new Error(msg);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `ride_${doc.claveAcceso}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } finally {
+        window.clearTimeout(timeoutId);
       }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `ride_${doc.claveAcceso}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+    };
+
+    try {
+      setDownloadingClave(`pdf:${doc.claveAcceso}`);
+      try {
+        await downloadOnce();
+        return;
+      } catch (firstErr: unknown) {
+        const msg = firstErr instanceof Error ? firstErr.message : "";
+        const missingXml = /No se encontró el XML|XML no disponible/i.test(msg);
+        if (!missingXml) throw firstErr;
+
+        const jobId = await enqueueScrapeForXml(doc);
+        toast.info(
+          `Sin XML local para el RIDE. Se encoló descarga masiva del portal SRI${jobId ? ` (job ${jobId})` : ""}. Al terminar, vuelve a pulsar RIDE PDF.`
+        );
+        setShowMassDownloadModal(true);
+      }
     } catch (err: unknown) {
-      toast.error("Error al descargar PDF: " + (err instanceof Error ? err.message : "Error"));
+      if (err instanceof DOMException && err.name === "AbortError") {
+        toast.error("La generación del RIDE tardó demasiado. Verifica que el XML esté disponible.");
+      } else {
+        toast.error("Error al descargar PDF: " + (err instanceof Error ? err.message : "Error"));
+      }
     } finally {
-      setIsLoading(false);
+      setDownloadingClave(null);
     }
   };
 
   const handleDownloadPng = (doc: Comprobante) => {
     try {
-      const canvas = document.createElement("canvas");
-      canvas.width = 800;
-      canvas.height = 1000;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Contexto de Canvas no soportado");
-
-      // Fondo
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(0, 0, 800, 1000);
-
-      // Banner Superior
-      ctx.fillStyle = "#0F172A"; // Navy oscuro
-      ctx.fillRect(20, 20, 760, 100);
-
-      // Texto de Banner
-      ctx.fillStyle = "#FFFFFF";
-      ctx.font = "bold 22px sans-serif";
-      ctx.fillText("COMPROBANTE ELECTRÓNICO - RIDE", 40, 65);
-      
-      ctx.fillStyle = "#94A3B8";
-      ctx.font = "14px monospace";
-      ctx.fillText(`Clave de Acceso: ${doc.claveAcceso}`, 40, 95);
-
-      // Datos Emisor
-      ctx.fillStyle = "#1E293B";
-      ctx.font = "bold 16px sans-serif";
-      ctx.fillText("DATOS DEL EMISOR", 40, 160);
-      
-      ctx.strokeStyle = "#E2E8F0";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(40, 170);
-      ctx.lineTo(760, 170);
-      ctx.stroke();
-
-      const emisorNombre = doc.emisor?.razonSocial || "—";
-      const emisorRucVal = doc.emisor?.ruc || "—";
-      
-      ctx.fillStyle = "#334155";
-      ctx.font = "14px sans-serif";
-      ctx.fillText(`Razón Social: ${emisorNombre}`, 40, 195);
-      ctx.fillText(`RUC: ${emisorRucVal}`, 40, 215);
-      ctx.fillText(`Establecimiento / Secuencial: ${doc.serie || "001-001"} · ${doc.secuencial}`, 40, 235);
-
-      // Datos Receptor
-      ctx.fillStyle = "#1E293B";
-      ctx.font = "bold 16px sans-serif";
-      ctx.fillText("DATOS DEL RECEPTOR", 40, 290);
-      
-      ctx.beginPath();
-      ctx.moveTo(40, 300);
-      ctx.lineTo(760, 300);
-      ctx.stroke();
-
-      ctx.fillStyle = "#334155";
-      ctx.fillText(`Razón Social: ${doc.receptorRazonSocial || "CONSUMIDOR FINAL"}`, 40, 325);
-      ctx.fillText(`Identificación: ${doc.receptorIdentificacion || "9999999999999"}`, 40, 345);
-      ctx.fillText(`Fecha de Emisión: ${doc.fechaEmision ? new Date(doc.fechaEmision).toLocaleDateString('es-EC') : "—"}`, 40, 365);
-      if (doc.receptorEmail) {
-        ctx.fillText(`Email: ${doc.receptorEmail}`, 40, 385);
-      }
-
-      // Detalle/Tabla
-      ctx.fillStyle = "#1E293B";
-      ctx.font = "bold 16px sans-serif";
-      ctx.fillText("DETALLE DEL COMPROBANTE", 40, 440);
-      
-      ctx.fillStyle = "#F8FAFC";
-      ctx.fillRect(40, 455, 720, 35);
-      
-      ctx.fillStyle = "#475569";
-      ctx.font = "bold 14px sans-serif";
-      ctx.fillText("Descripción", 55, 477);
-      ctx.fillText("Total", 680, 477);
-
-      ctx.fillStyle = "#334155";
-      ctx.font = "14px sans-serif";
-      const desc = doc.tipoComprobante === '07' ? 'Servicios de Retención de Impuestos' : 'Consumo / Servicios profesionales de asesoría';
-      ctx.fillText(desc, 55, 520);
-      ctx.fillText(`$${(doc.importeTotal || 0).toFixed(2)}`, 680, 520);
-
-      ctx.strokeStyle = "#E2E8F0";
-      ctx.beginPath();
-      ctx.moveTo(40, 540);
-      ctx.lineTo(760, 540);
-      ctx.stroke();
-
-      // Totales
-      const rightAlignX = 520;
-      const valAlignX = 680;
-      let totalY = 580;
-      
-      ctx.fillStyle = "#475569";
-      ctx.font = "14px sans-serif";
-      ctx.fillText("Subtotal sin Impuestos:", rightAlignX, totalY);
-      ctx.fillText(`$${(doc.subtotal || 0).toFixed(2)}`, valAlignX, totalY);
-
-      totalY += 25;
-      ctx.fillText("Total Descuento:", rightAlignX, totalY);
-      ctx.fillText(`$0.00`, valAlignX, totalY);
-
-      totalY += 25;
-      const ivaVal = doc.tipoComprobante === '07' ? 0 : (doc.importeTotal - (doc.subtotal || 0));
-      ctx.fillText("IVA 15%:", rightAlignX, totalY);
-      ctx.fillText(`$${Math.max(0, ivaVal).toFixed(2)}`, valAlignX, totalY);
-
-      totalY += 35;
-      ctx.fillStyle = "#F8FAFC";
-      ctx.fillRect(480, totalY - 20, 280, 40);
-      ctx.strokeStyle = "#CBD5E1";
-      ctx.strokeRect(480, totalY - 20, 280, 40);
-
-      ctx.fillStyle = "#0F172A";
-      ctx.font = "bold 15px sans-serif";
-      ctx.fillText("VALOR TOTAL:", rightAlignX, totalY + 5);
-      ctx.fillText(`$${(doc.importeTotal || 0).toFixed(2)}`, valAlignX, totalY + 5);
-
-      // Clave de acceso (código de barras real en XML autorizado del SRI)
-      ctx.fillStyle = "#000000";
-      const barcodeX = 40;
-      const barcodeY = 750;
-      ctx.font = "bold 12px sans-serif";
-      ctx.fillText("CLAVE DE ACCESO", barcodeX, barcodeY - 10);
-      ctx.font = "11px monospace";
-      ctx.fillText(doc.claveAcceso || "—", barcodeX, barcodeY + 10);
-
-      // Pie
-      ctx.fillStyle = "#94A3B8";
-      ctx.font = "12px sans-serif";
-      ctx.fillText("Generado automáticamente por OFSERCONT IA - Ecuador", 40, 950);
-
-      const dataUrl = canvas.toDataURL("image/png");
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = `comprobante_${doc.claveAcceso}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch (err: any) {
+      downloadComprobantePng(doc, { activeRuc });
+    } catch (err: unknown) {
       toast.error("Error al generar imagen PNG: " + (err instanceof Error ? err.message : "Error"));
     }
   };
@@ -494,62 +401,57 @@ export default function Documentos() {
     }
   };
 
-  const handleExportAllCsv = () => {
+  const handleExportAllCsv = async () => {
     try {
       if (filteredDocs.length === 0) {
         toast.warning("No hay comprobantes para exportar.");
         return;
       }
 
-      const headers = [
-        "Tipo",
-        "Razon Social Emisor/Receptor",
-        "RUC Emisor/Receptor",
-        "Serie",
-        "Secuencial",
-        "Clave de Acceso",
-        "Fecha Emision",
-        "Subtotal",
-        "Total",
-        "Estado",
-        "Categoria"
-      ];
+      await generateExcelReport({
+        title: "Reporte General de Comprobantes Electrónicos SRI",
+        subtitle: `RUC Emisor: ${activeRuc || "General"} · Registros: ${filteredDocs.length}`,
+        filename: `Reporte_Comprobantes_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        columns: [
+          { header: "Tipo", key: "tipo", width: 12 },
+          { header: "Razon Social Emisor/Receptor", key: "partnerName", width: 35 },
+          { header: "RUC / Identificación", key: "partnerIdent", width: 18 },
+          { header: "Serie", key: "serie", width: 12 },
+          { header: "Secuencial", key: "secuencial", width: 22 },
+          { header: "Fecha Emisión", key: "fecha", width: 15 },
+          { header: "Subtotal", key: "subtotal", width: 15 },
+          { header: "Total ($)", key: "total", width: 15 },
+          { header: "Estado SRI", key: "estado", width: 16 },
+          { header: "Categoría", key: "categoria", width: 18 },
+        ],
+        data: filteredDocs.map((doc) => {
+          const isDocVenta = doc.emisor?.ruc === activeRuc;
+          const partnerName = isDocVenta
+            ? doc.receptorRazonSocial
+            : doc.emisor?.razonSocial || "—";
+          const partnerIdent = isDocVenta
+            ? doc.receptorIdentificacion
+            : doc.emisor?.ruc || "—";
+          const tipoLabel = TIPO_DESC[doc.tipoComprobante] || doc.tipoComprobante;
 
-      const rows = filteredDocs.map(doc => {
-    const isDocVenta = doc.emisor?.ruc === activeRuc;
-        const partnerName = isDocVenta ? doc.receptorRazonSocial : (doc.emisor?.razonSocial || "—");
-        const partnerIdent = isDocVenta ? doc.receptorIdentificacion : (doc.emisor?.ruc || "—");
-        const tipoLabel = TIPO_DESC[doc.tipoComprobante] || doc.tipoComprobante;
-
-        return [
-          tipoLabel,
-          partnerName,
-          `="${partnerIdent}"`,
-          doc.serie || "—",
-          doc.secuencial || "—",
-          `="${doc.claveAcceso}"`,
-          doc.fechaEmision ? new Date(doc.fechaEmision).toLocaleDateString('es-EC') : "—",
-          (doc.subtotal || 0).toFixed(2),
-          (doc.importeTotal || 0).toFixed(2),
-          doc.estado,
-          (doc as any).categoria || "Otros"
-        ];
+          return {
+            tipo: tipoLabel,
+            partnerName,
+            partnerIdent,
+            serie: doc.serie || "—",
+            secuencial: doc.secuencial || "—",
+            fecha: doc.fechaEmision
+              ? new Date(doc.fechaEmision).toLocaleDateString("es-EC")
+              : "—",
+            subtotal: `$${(doc.subtotal || 0).toFixed(2)}`,
+            total: `$${(doc.importeTotal || 0).toFixed(2)}`,
+            estado: doc.estado,
+            categoria: (doc as any).categoria || "Otros",
+          };
+        }),
       });
 
-      const csvContent = "\uFEFF" + [
-        headers.join(";"),
-        ...rows.map(row => row.map(val => `"${val.replace(/"/g, '""')}"`).join(";"))
-      ].join("\n");
-
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `reporte_comprobantes.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      toast.success("Reporte Excel descargado correctamente");
     } catch (err: any) {
       toast.error("Error al exportar reporte: " + (err instanceof Error ? err.message : "Error"));
     }
@@ -563,13 +465,77 @@ export default function Documentos() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Solo listar lo ya sincronizado en BD para el periodo (sin re-sync SOAP ni descarga).
   useEffect(() => {
-    if (hasSriLinked && activeRuc) loadRealDocuments(dateRange);
-  }, [dateRange, hasSriLinked, activeRuc]);
+    if (isClient && hasSriLinked && activeRuc) {
+      void loadRealDocuments(dateRange);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, hasSriLinked, activeRuc, isClient]);
+
+  useEffect(() => {
+    if (!isClient || !hasSriLinked) return;
+
+    const pollJobs = async () => {
+      try {
+        const token = localStorage.getItem("sri_access_token");
+        const res = await apiFetch("/api/sri/scraping", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const jobs = (data.jobs || []).filter(
+          (j: { status?: string }) => j.status === "PENDING" || j.status === "PROCESSING"
+        ) as { id: string; status: string; progress_message?: string; fecha_desde?: string; fecha_hasta?: string }[];
+
+        const nextIds = new Set(jobs.map((j) => j.id));
+        const prevIds = prevActiveJobIdsRef.current;
+        const finishedSomething =
+          prevIds.size > 0 && [...prevIds].some((id) => !nextIds.has(id));
+        prevActiveJobIdsRef.current = nextIds;
+        setActiveJobs(jobs);
+
+        if (finishedSomething) {
+          void loadRealDocuments(dateRange);
+          toast.success("Descarga SRI finalizada: documentos sincronizados en el listado.");
+        }
+      } catch {
+        /* ignore polling errors */
+      }
+    };
+
+    pollJobs();
+    const interval = setInterval(pollJobs, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isClient, hasSriLinked, dateRange.from, dateRange.to]);
+
+  const cancelScrapingJob = async (jobId: string) => {
+    try {
+      const token = localStorage.getItem("sri_access_token");
+      const res = await apiFetch("/api/sri/scraping", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ jobId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || "Trabajo cancelado");
+        setActiveJobs((prev) => prev.filter((j) => j.id !== jobId));
+      } else {
+        toast.error(data.error || "No se pudo cancelar el trabajo");
+      }
+    } catch {
+      toast.error("Error al cancelar el trabajo");
+    }
+  };
 
   useEffect(() => {
     setPage(1);
-  }, [search, typeFilter, flowTab, dateRange, pageSize]);
+  }, [search, viewFilter, dateRange, pageSize]);
 
   // Filter logic — por fecha de emisión del comprobante
   const docsInRange = filterByDateRange(realDocs, (doc) => doc.fechaEmision, dateRange);
@@ -587,20 +553,16 @@ export default function Documentos() {
       num.toLowerCase().includes(search.toLowerCase()) ||
       rucStr.toLowerCase().includes(search.toLowerCase());
 
-    let matchesType = true;
-    const isVenta = doc.emisor?.ruc === activeRuc;
-    const isCompra = doc.emisor?.ruc !== activeRuc && doc.tipoComprobante === "01";
+    const isEmitido = doc.emisor?.ruc === activeRuc;
+    const isRecibido = doc.emisor?.ruc !== activeRuc;
     const isRetencion = doc.tipoComprobante === "07";
 
-    if (typeFilter === "Compras") matchesType = isCompra;
-    else if (typeFilter === "Ventas") matchesType = isVenta;
-    else if (typeFilter === "Retenciones") matchesType = isRetencion;
+    let matchesView = true;
+    if (viewFilter === "emitidos") matchesView = isEmitido;
+    else if (viewFilter === "recibidos") matchesView = isRecibido;
+    else if (viewFilter === "retenciones") matchesView = isRetencion;
 
-    let matchesFlow = true;
-    if (flowTab === "emitidos") matchesFlow = isVenta;
-    else if (flowTab === "recibidos") matchesFlow = isCompra;
-
-    return matchesSearch && matchesType && matchesFlow;
+    return matchesSearch && matchesView;
   });
 
   const totalFiltered = filteredDocs.length;
@@ -626,32 +588,7 @@ export default function Documentos() {
   const getTypePill = (tipo: string) => {
     if (tipo === '01') return "bg-indigo-50 text-indigo-700";
     if (tipo === '07') return "bg-amber-50 text-amber-700";
-    return "bg-emerald-50 text-emerald-700";
-  };
-
-  const getEstadoBadge = (estado: string) => {
-    const map: Record<string, string> = {
-      AUTORIZADO: 'bg-emerald-50 text-emerald-700',
-      EN_PROCESO: 'bg-amber-50 text-amber-700',
-      PPR: 'bg-amber-50 text-amber-700',
-      DUPLICADO: 'bg-purple-50 text-purple-700',
-      DOCUMENTO_INVALIDO: 'bg-red-50 text-red-700',
-      TIMEOUT_SRI: 'bg-orange-50 text-orange-700',
-      RECHAZADO: 'bg-red-50 text-red-700',
-      FIRMADO: 'bg-blue-50 text-blue-700',
-      PENDIENTE: 'bg-slate-100 text-slate-600',
-    };
-    return map[estado] || 'bg-amber-50 text-amber-700';
-  };
-
-  const getEstadoLabel = (estado: string) => {
-    const map: Record<string, string> = {
-      EN_PROCESO: 'EN PROCESO',
-      DOCUMENTO_INVALIDO: 'DOC. INVÁLIDO',
-      TIMEOUT_SRI: 'TIMEOUT SRI',
-      PPR: 'EN PROCESO',
-    };
-    return map[estado] || estado;
+    return "bg-success-pale text-success";
   };
 
   return (
@@ -659,14 +596,56 @@ export default function Documentos() {
       <Topbar title="Documentos" period={formatDateRangeLabel(dateRange)} />
 
       {certWarning && (
-        <div className="mx-7 mt-5 bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs font-semibold text-amber-800 leading-normal flex items-start gap-2.5 shadow-sm animate-fade-in">
+        <div className="px-3 md:px-4 lg:px-5 mt-4 ui-banner-warning flex items-start gap-2.5 shadow-sm animate-fade-in">
           <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
           <div>{certWarning}</div>
         </div>
       )}
 
-      {hasSriLinked && !activeRuc ? (
-        <div className="p-7 flex-1 flex flex-col gap-5 text-brand-gray-800 select-none">
+      {activeJobs.length > 0 && (
+        <div className="px-3 md:px-4 lg:px-5 mt-4 flex flex-col gap-2">
+          {activeJobs.map((job) => (
+            <div
+              key={job.id}
+              className="ui-banner-info flex items-center justify-between gap-3"
+            >
+              <div className="min-w-0">
+                <p className="font-bold text-brand-sky">
+                  Descarga SRI en curso · {job.status === "PENDING" ? "En cola" : "Procesando"}
+                </p>
+                <p className="text-brand-sky truncate mt-0.5">
+                  {job.fecha_desde && job.fecha_hasta
+                    ? `${job.fecha_desde} → ${job.fecha_hasta}`
+                    : "Listando y sincronizando comprobantes"}
+                  {job.progress_message ? ` · ${job.progress_message}` : ""}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0 h-7 text-[11px]"
+                onClick={() => cancelScrapingJob(job.id)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {authLoading || !isClient ? (
+        <div className="ui-page flex-1 text-brand-gray-800 select-none">
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-brand-gray-400">
+            <svg className="animate-spin w-8 h-8" fill="none" viewBox="0 0 24 24" aria-hidden>
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            <span className="text-sm font-medium">Verificando vínculo SRI…</span>
+          </div>
+        </div>
+      ) : hasSriLinked && !activeRuc ? (
+        <div className="ui-page flex-1 text-brand-gray-800 select-none">
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <div className="w-14 h-14 rounded-full bg-brand-amber/10 flex items-center justify-center">
               <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-brand-amber">
@@ -680,237 +659,228 @@ export default function Documentos() {
           </div>
         </div>
       ) : (
-      <div className="p-7 flex-1 flex flex-col gap-5 text-brand-gray-800 select-none">
-        <DateRangeFilter value={dateRange} onChange={setDateRange} className="bg-white border border-brand-gray-200 rounded-xl px-4 py-3" />
+      <div className="ui-page flex-1 text-brand-gray-800 select-none">
+        <DocumentosFilters
+          search={search}
+          onSearchChange={setSearch}
+          viewFilter={viewFilter}
+          onViewFilterChange={setViewFilter}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          primaryActions={
+            hasSriLinked && isApiConnected ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setShowMassDownloadModal(true)}
+                className="min-h-9 gap-1.5"
+              >
+                <DownloadCloud className="w-3.5 h-3.5" />
+                Descarga masiva SRI
+              </Button>
+            ) : (
+              <Link
+                href="/configuracion?vincular=true"
+                className={buttonVariants({
+                  variant: "outline",
+                  size: "sm",
+                  className:
+                    "border-brand-amber/30 bg-brand-amber/10 text-brand-amber hover:bg-brand-amber/20 gap-1.5 min-h-9",
+                })}
+              >
+                <span className="w-2 h-2 bg-brand-amber rounded-full" />
+                Vincular SRI
+              </Link>
+            )
+          }
+          secondaryActions={
+            hasSriLinked && isApiConnected ? (
+              <details className="relative group/more">
+                <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer inline-flex items-center gap-1 min-h-9 px-3 rounded-lg border border-brand-gray-200 bg-white text-xs font-semibold text-brand-gray-700 hover:bg-brand-gray-50">
+                  Más
+                  <ChevronDown className="w-3.5 h-3.5 text-brand-gray-400 group-open/more:rotate-180 transition-transform duration-150" />
+                </summary>
+                <div
+                  className="absolute right-0 z-20 mt-1.5 w-56 rounded-xl border border-brand-gray-200 bg-white p-1.5 shadow-lg flex flex-col gap-0.5"
+                  onClick={(e) => {
+                    const root = (e.currentTarget.parentElement as HTMLDetailsElement | null);
+                    if (root) root.open = false;
+                  }}
+                >
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start font-semibold h-9"
+                    onClick={handleExportAllCsv}
+                  >
+                    Exportar Excel (CSV)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start font-semibold h-9"
+                    onClick={() => setShowImportModal(true)}
+                  >
+                    Importar XMLs
+                  </Button>
+                  {realDocs.some((d) => d.estado === "PENDIENTE") && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start font-semibold h-9"
+                      onClick={handleRetryPending}
+                      disabled={retrying}
+                    >
+                      Reintentar pendientes
+                    </Button>
+                  )}
+                  <div className="mx-1.5 my-1 border-t border-brand-gray-100" />
+                  <div className="px-2.5 py-1.5 text-[11px] font-bold text-success flex items-center gap-1.5">
+                    <span className="size-1.5 bg-success rounded-full animate-pulse" />
+                    SRI vinculado
+                  </div>
+                </div>
+              </details>
+            ) : null
+          }
+        />
 
         {listaTruncada && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-xs font-medium text-blue-800">
+          <div className="ui-banner-info">
             Mostrando {docsInRange.length} de {totalEnPeriodo} documentos del período.
             Reduce el rango de fechas o exporta a CSV para ver el detalle completo.
           </div>
         )}
 
         {/* STATS STRIP */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
-          <div className="bg-white border border-brand-gray-200 rounded-xl p-3.5">
-            <div className="text-2xl font-extrabold leading-none">{totalDocs}</div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          <div className="bg-white border border-brand-gray-200 rounded-xl px-3 py-2.5">
+            <div className="text-xl font-extrabold leading-none tabular-nums">{totalDocs}</div>
             <div className="text-[11px] text-brand-gray-400 font-medium mt-1">
-              {listaTruncada ? `Total en período (${docsInRange.length} cargados)` : "Total documentos"}
+              {listaTruncada ? `En período (${docsInRange.length})` : "Documentos"}
             </div>
           </div>
-          <div className="bg-white border border-brand-gray-200 rounded-xl p-3.5">
-            <div className="text-2xl font-extrabold text-brand-green-light leading-none">
+          <div className="bg-white border border-brand-gray-200 rounded-xl px-3 py-2.5">
+            <div className="text-xl font-extrabold text-brand-green-light leading-none tabular-nums">
               ${totalCompras.toFixed(2)}
             </div>
-            <div className="text-[11px] text-brand-gray-400 font-medium mt-1">Total compras</div>
+            <div className="text-[11px] text-brand-gray-400 font-medium mt-1">Compras</div>
           </div>
-          <div className="bg-white border border-brand-gray-200 rounded-xl p-3.5">
-            <div className="text-2xl font-extrabold text-brand-green-light leading-none">
+          <div className="bg-white border border-brand-gray-200 rounded-xl px-3 py-2.5">
+            <div className="text-xl font-extrabold text-brand-green-light leading-none tabular-nums">
               ${totalVentas.toFixed(2)}
             </div>
-            <div className="text-[11px] text-brand-gray-400 font-medium mt-1">Total ventas</div>
+            <div className="text-[11px] text-brand-gray-400 font-medium mt-1">Ventas</div>
           </div>
-          <div className="bg-white border border-brand-gray-200 rounded-xl p-3.5">
-            <div className="text-2xl font-extrabold text-brand-amber leading-none">{totalRetenciones}</div>
+          <div className="bg-white border border-brand-gray-200 rounded-xl px-3 py-2.5">
+            <div className="text-xl font-extrabold text-brand-amber leading-none tabular-nums">{totalRetenciones}</div>
             <div className="text-[11px] text-brand-gray-400 font-medium mt-1">Retenciones</div>
           </div>
-          <div className="bg-white border border-brand-gray-200 rounded-xl p-3.5">
-            <div className="text-2xl font-extrabold text-brand-red leading-none">{noAutorizados}</div>
+          <div className="bg-white border border-brand-gray-200 rounded-xl px-3 py-2.5 col-span-2 sm:col-span-1">
+            <div className="text-xl font-extrabold text-brand-red leading-none tabular-nums">{noAutorizados}</div>
             <div className="text-[11px] text-brand-gray-400 font-medium mt-1">No autorizados</div>
-          </div>
-        </div>
-
-        {/* TOOLBAR */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex-1 bg-white border border-brand-gray-200 rounded-lg px-3 py-2 flex items-center gap-2 max-w-lg">
-            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-brand-gray-400">
-              <circle cx="11" cy="11" r="8" />
-              <path d="M21 21l-4.35-4.35" />
-            </svg>
-            <input
-              className="border-none outline-none flex-1 text-xs text-brand-gray-800 font-sans"
-              placeholder="Buscar por proveedor, RUC o número de comprobante..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <Tabs value={flowTab} onValueChange={(v) => setFlowTab(v as typeof flowTab)}>
-              <TabsList>
-                <TabsTrigger value="todos">Todos</TabsTrigger>
-                <TabsTrigger value="emitidos">Emitidos</TabsTrigger>
-                <TabsTrigger value="recibidos">Recibidos</TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            <div className="bg-brand-gray-100 rounded-lg p-1 flex gap-1">
-              {["Todos", "Compras", "Ventas", "Retenciones"].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setTypeFilter(tab)}
-                  className={`px-3.5 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
-                    typeFilter === tab
-                      ? "bg-white text-brand-navy shadow-sm"
-                      : "text-brand-gray-600 bg-transparent hover:text-brand-navy"
-                  }`}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-
-            {hasSriLinked && isApiConnected ? (
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={handleExportAllCsv}
-                  className="bg-white hover:bg-brand-gray-50 border border-brand-gray-200 text-brand-gray-700 px-3.5 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-colors"
-                >
-                  Exportar Excel (CSV)
-                </button>
-                <button
-                  onClick={() => setShowImportModal(true)}
-                  className="bg-white hover:bg-brand-gray-50 border border-brand-gray-200 text-brand-gray-700 px-3.5 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-colors"
-                >
-                  Importar XMLs
-                </button>
-                <button
-                  onClick={() => setShowMassDownloadModal(true)}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-colors"
-                >
-                  Descarga Masiva SRI
-                </button>
-                <button
-                  onClick={handleSyncSri}
-                  disabled={syncing}
-                  className="bg-brand-navy hover:bg-brand-navy-mid text-white px-3.5 py-1.5 rounded-md text-xs font-semibold cursor-pointer disabled:opacity-50 transition-colors"
-                >
-                  {syncing
-                    ? "Sincronizando..."
-                    : dateRange.from && dateRange.to
-                      ? `Sincronizar período (${formatDateRangeLabel(dateRange)})`
-                      : "Sincronizar todos (SRI)"}
-                </button>
-                {realDocs.some((d) => ["PENDIENTE", "FIRMADO", "ENVIADO", "DEVUELTA"].includes(d.estado)) && (
-                  <button
-                    onClick={handleSyncPendientes}
-                    disabled={syncing}
-                    className="bg-sky-600 hover:bg-sky-700 text-white px-3.5 py-1.5 rounded-md text-xs font-semibold cursor-pointer disabled:opacity-50 transition-colors"
-                  >
-                    {syncing ? "Sincronizando..." : "Sync pendientes"}
-                  </button>
-                )}
-                {realDocs.some(d => d.estado === 'PENDIENTE') && (
-                  <button
-                    onClick={handleRetryPending}
-                    disabled={retrying}
-                    className="bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-1.5 rounded-md text-xs font-semibold cursor-pointer disabled:opacity-50 transition-colors"
-                  >
-                    {retrying ? "Reintentando..." : "Reintentar Pendientes"}
-                  </button>
-                )}
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs font-bold text-emerald-700 flex items-center gap-1.5">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                  SRI Vinculado
-                </div>
-              </div>
-            ) : (
-              <Link
-                href="/configuracion?vincular=true"
-                className="bg-brand-amber/10 border border-brand-amber/30 hover:bg-brand-amber/20 rounded-lg px-3 py-2 text-xs font-bold text-brand-amber flex items-center gap-1.5 cursor-pointer transition-all"
-              >
-                <span className="w-2 h-2 bg-brand-amber rounded-full"></span>
-                Vincular cuenta SRI
-              </Link>
-            )}
           </div>
         </div>
 
         {/* DOCUMENTS TABLE */}
         <div className="bg-white border border-brand-gray-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="w-full overflow-x-auto">
-            {isLoading ? (
+            {isLoading || authLoading ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3 text-brand-gray-400">
                 <svg className="animate-spin w-8 h-8" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                 </svg>
-                <span className="text-sm font-medium">Cargando comprobantes...</span>
+                <span className="text-sm font-medium">
+                  {authLoading ? "Verificando vínculo SRI…" : "Cargando comprobantes..."}
+                </span>
               </div>
             ) : !hasSriLinked ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-4">
-                <div className="w-12 h-12 rounded-full bg-brand-amber/10 flex items-center justify-center">
-                  <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-brand-amber">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                  </svg>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-bold text-brand-gray-700">Vincula tu cuenta del SRI</p>
-                  <p className="text-xs text-brand-gray-400 mt-1">Configura tu RUC y contraseña del SRI para ver comprobantes</p>
-                </div>
-                <Link
-                  href="/configuracion?vincular=true"
-                  className="bg-brand-navy text-white px-5 py-2 rounded-lg text-xs font-bold cursor-pointer hover:bg-brand-navy-mid transition-colors"
-                >
-                  Vincular SRI
-                </Link>
-              </div>
+              <EmptyState
+                icon={<FileText className="w-5 h-5" />}
+                title="Vincula tu cuenta del SRI"
+                description="Configura tu RUC y contraseña del SRI para ver comprobantes"
+                action={
+                  <Link href="/configuracion?vincular=true" className={buttonVariants({ variant: "default", className: "px-5" })}>
+                    Vincular SRI
+                  </Link>
+                }
+              />
             ) : filteredDocs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3 text-brand-gray-400">
-                <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                </svg>
-                <p className="text-sm font-medium">No se encontraron comprobantes</p>
-                {search && <p className="text-xs">Prueba con otro término de búsqueda</p>}
-              </div>
+              <EmptyState
+                icon={<FileText className="w-5 h-5" />}
+                title="No se encontraron comprobantes"
+                description={
+                  search
+                    ? "Prueba con otro término de búsqueda"
+                    : "No hay documentos sincronizados para este periodo. Si aún no los bajaste del portal, usa Descarga masiva SRI una sola vez."
+                }
+                compact
+                action={
+                  !search && hasSriLinked ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setShowMassDownloadModal(true)}
+                      className="gap-1.5"
+                    >
+                      <DownloadCloud className="w-3.5 h-3.5" />
+                      Descarga masiva SRI
+                    </Button>
+                  ) : undefined
+                }
+              />
             ) : (
-              <table className="w-full min-w-[1500px] border-collapse text-left text-xs text-brand-gray-800">
-                <thead>
-                  <tr className="bg-brand-gray-50 border-b border-brand-gray-200 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider">
-                    <th className="p-3.5 pl-5">RUC y Razón social emisor</th>
-                    <th className="p-3.5">Tipo y serie de comprobante</th>
-                    <th className="p-3.5">Clave de acceso / Nro. Autorización</th>
-                    <th className="p-3.5">Fecha y hora de autorización</th>
-                    <th className="p-3.5">Fecha emisión</th>
-                    <th className="p-3.5 text-center">Estado SRI</th>
-                    <th className="p-3.5 text-right">Valor sin impuestos</th>
-                    <th className="p-3.5 text-right">IVA</th>
-                    <th className="p-3.5 text-right">Importe Total</th>
-                    <th className="p-3.5 text-center w-[60px]">Documento</th>
-                    <th className="p-3.5 text-center w-[60px]">RIDE</th>
-                    <th className="p-3.5">Documentos relacionados</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-brand-gray-100">
+              <Table className="min-w-[1500px]">
+                <TableHeader>
+                  <TableRow className="bg-brand-gray-50 border-b border-brand-gray-200">
+                    <TableHead className="pl-5">RUC y Razón social emisor</TableHead>
+                    <TableHead>Tipo y serie de comprobante</TableHead>
+                    <TableHead>Clave de acceso / Nro. Autorización</TableHead>
+                    <TableHead>Fecha y hora de autorización</TableHead>
+                    <TableHead>Fecha emisión</TableHead>
+                    <TableHead className="text-center">Estado SRI</TableHead>
+                    <TableHead className="text-right">Valor sin impuestos</TableHead>
+                    <TableHead className="text-right">IVA</TableHead>
+                    <TableHead className="text-right">Importe Total</TableHead>
+                    <TableHead className="text-center w-[60px]">Documento</TableHead>
+                    <TableHead className="text-center w-[60px]">RIDE</TableHead>
+                    <TableHead>Documentos relacionados</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-brand-gray-100">
                   {paginatedDocs.map((doc, idx) => {
                     const tipo = doc.tipoComprobante || '01';
                     const tipoLabel = TIPO_DESC[tipo] || tipo;
                     const emisorName = doc.emisor?.razonSocial || "—";
                     const emisorRuc = doc.emisor?.ruc || "";
-                    
+
                     return (
-                      <tr
+                      <TableRow
                         key={doc.claveAcceso || idx}
-                        className="hover:bg-brand-gray-50/70 transition-colors cursor-pointer align-middle"
+                        className="cursor-pointer align-middle"
                         onClick={() => setSelectedDoc(doc)}
                       >
-                        <td className="p-3.5 pl-5 max-w-[280px]">
+                        <TableCell className="pl-5 max-w-[280px]">
                           <div className="font-semibold text-brand-gray-800 truncate" title={emisorName}>
                             {emisorName}
                           </div>
                           <div className="text-[10px] text-brand-gray-400 mt-0.5">
                             RUC: {emisorRuc || "—"}
                           </div>
-                        </td>
-                        <td className="p-3.5">
+                        </TableCell>
+                        <TableCell>
                           <span className={`text-[9px] font-bold rounded px-1.5 py-0.5 inline-block ${getTypePill(tipo)}`}>
                             {tipoLabel}
                           </span>
                           <div className="text-[10px] text-brand-gray-600 mt-1 font-mono">
                             {doc.serie || "—"}
                           </div>
-                        </td>
-                        <td className="p-3.5 max-w-[240px]">
+                        </TableCell>
+                        <TableCell className="max-w-[240px]">
                           <div className="flex items-center gap-1.5">
                             <span className="font-mono text-[10px] text-brand-gray-500 break-all select-all leading-normal">
                               {doc.claveAcceso}
@@ -921,7 +891,7 @@ export default function Documentos() {
                                 navigator.clipboard.writeText(doc.claveAcceso);
                                 toast.success("Clave de acceso copiada");
                               }}
-                              className="text-brand-gray-400 hover:text-brand-navy shrink-0 cursor-pointer"
+                              className="text-brand-gray-400 hover:text-brand-red shrink-0 cursor-pointer"
                               title="Copiar clave de acceso"
                             >
                               <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -929,69 +899,69 @@ export default function Documentos() {
                               </svg>
                             </button>
                           </div>
-                        </td>
-                        <td className="p-3.5 text-brand-gray-600 whitespace-nowrap">
+                        </TableCell>
+                        <TableCell className="text-brand-gray-600 whitespace-nowrap">
                           {doc.fechaAutorizacion
                             ? new Date(doc.fechaAutorizacion).toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' })
                             : "—"}
-                        </td>
-                        <td className="p-3.5 text-brand-gray-600 whitespace-nowrap">
+                        </TableCell>
+                        <TableCell className="text-brand-gray-600 whitespace-nowrap">
                           {doc.fechaEmision
                             ? new Date(doc.fechaEmision).toLocaleDateString('es-EC')
                             : "—"}
-                        </td>
-                        <td className="p-3.5 text-center">
-                          <span className={`text-[9px] font-bold rounded-full px-2 py-0.5 inline-block ${getEstadoBadge(doc.estado || '')}`}>
-                            {getEstadoLabel(doc.estado || 'PENDIENTE')}
-                          </span>
-                        </td>
-                        <td className="p-3.5 text-right font-medium text-brand-gray-700">
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <StatusBadge estado={doc.estado || 'PENDIENTE'} />
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-brand-gray-700">
                           ${(doc.subtotal || 0).toFixed(2)}
-                        </td>
-                        <td className="p-3.5 text-right font-medium text-brand-gray-700">
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-brand-gray-700">
                           ${(doc.totalIva || 0).toFixed(2)}
-                        </td>
-                        <td className="p-3.5 text-right font-bold text-brand-gray-900">
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-brand-gray-900">
                           ${(doc.importeTotal || 0).toFixed(2)}
-                        </td>
-                        <td className="p-3.5 text-center">
-                          <button
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            type="button"
+                            size="icon-xs"
+                            disabled={downloadingClave === `xml:${doc.claveAcceso}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDownloadXml(doc);
                             }}
-                            className="p-1.5 rounded bg-brand-navy/5 text-brand-navy hover:bg-brand-navy/15 hover:text-brand-navy-mid shrink-0 cursor-pointer inline-flex items-center justify-center transition-colors"
+                            className="bg-brand-red/5 text-brand-red hover:bg-brand-red/15 hover:text-brand-red-mid"
                             title="Descargar XML (Documento)"
+                            aria-label="Descargar XML (Documento)"
                           >
-                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 4v12m0 0l-3-3m3 3l3-3" />
-                            </svg>
-                          </button>
-                        </td>
-                        <td className="p-3.5 text-center">
-                          <button
+                            <Download />
+                          </Button>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            type="button"
+                            size="icon-xs"
+                            disabled={downloadingClave === `pdf:${doc.claveAcceso}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDownloadPdf(doc);
                             }}
-                            className="p-1.5 rounded bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 shrink-0 cursor-pointer inline-flex items-center justify-center transition-colors"
+                            className="bg-brand-red-subtle text-brand-red hover:bg-red-100 hover:text-brand-red"
                             title="Descargar PDF (RIDE)"
+                            aria-label="Descargar PDF (RIDE)"
                           >
-                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2h6a2 2 0 002-2V10z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M14 14a2 2 0 012-2h4a2 2 0 012 2v6a2 2 0 01-2 2h-4a2 2 0 01-2-2v-6z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 4v12m0 0l-3-3m3 3l3-3" />
-                            </svg>
-                          </button>
-                        </td>
-                        <td className="p-3.5 max-w-[220px] truncate text-brand-gray-500 font-medium" title={doc.documentosRelacionados}>
+                            <Download />
+                          </Button>
+                        </TableCell>
+                        <TableCell className="max-w-[220px] truncate text-brand-gray-500 font-medium" title={doc.documentosRelacionados}>
                           {doc.documentosRelacionados || "—"}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             )}
           </div>
 
@@ -1006,11 +976,6 @@ export default function Documentos() {
           )}
         </div>
 
-        {isApiConnected && filteredDocs.length === 0 && !isLoading && (
-          <div className="text-center text-xs text-brand-gray-400">
-            Sin comprobantes con los filtros actuales
-          </div>
-        )}
       </div>
       )}
 
@@ -1018,7 +983,7 @@ export default function Documentos() {
       {selectedDoc && (
         <div
           onClick={() => setSelectedDoc(null)}
-          className="fixed inset-0 bg-brand-navy/30 backdrop-blur-xs transition-opacity z-50 animate-fade-in"
+          className="fixed inset-0 bg-brand-red/30 backdrop-blur-xs transition-opacity z-50 animate-fade-in"
         />
       )}
 
@@ -1037,22 +1002,21 @@ export default function Documentos() {
                   <span className={`text-[10px] font-bold rounded px-2 py-0.5 ${getTypePill(selectedDoc.tipoComprobante || '01')}`}>
                     {TIPO_DESC[selectedDoc.tipoComprobante || '01']}
                   </span>
-                  <span className={`text-[10px] font-semibold rounded-full px-2 py-0.5 ${getEstadoBadge(selectedDoc.estado || '')}`}>
-                    {getEstadoLabel(selectedDoc.estado || 'PENDIENTE')}
-                  </span>
+                  <StatusBadge estado={selectedDoc.estado || 'PENDIENTE'} className="font-semibold" />
                 </div>
-                <div className="text-sm font-extrabold text-brand-navy mt-1">
+                <div className="text-sm font-extrabold text-brand-red mt-1">
                   {selectedDoc.emisor?.razonSocial || selectedDoc.receptorRazonSocial || "Comprobante"}
                 </div>
               </div>
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Cerrar detalle"
                 onClick={() => setSelectedDoc(null)}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-brand-gray-100 text-brand-gray-400 cursor-pointer transition-colors"
               >
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+                <X className="w-4 h-4" />
+              </Button>
             </div>
 
             {/* Drawer Body */}
@@ -1109,7 +1073,7 @@ export default function Documentos() {
               )}
 
               {/* Totals */}
-              <div className="bg-brand-navy/5 rounded-xl p-4 flex flex-col gap-2">
+              <div className="bg-brand-red/5 rounded-xl p-4 flex flex-col gap-2">
                 <div className="flex justify-between text-xs text-brand-gray-600">
                   <span>Subtotal sin impuesto</span>
                   <span className="font-semibold">${(selectedDoc.subtotal || 0).toFixed(2)}</span>
@@ -1118,7 +1082,7 @@ export default function Documentos() {
                   <span>IVA</span>
                   <span className="font-semibold">${(selectedDoc.totalIva || 0).toFixed(2)}</span>
                 </div>
-                <div className="border-t border-brand-gray-200 pt-2 flex justify-between text-sm font-extrabold text-brand-navy">
+                <div className="border-t border-brand-gray-200 pt-2 flex justify-between text-sm font-extrabold text-brand-red">
                   <span>Total</span>
                   <span>${(selectedDoc.importeTotal || 0).toFixed(2)}</span>
                 </div>
@@ -1128,57 +1092,55 @@ export default function Documentos() {
             {/* Drawer Footer */}
             <div className="flex flex-col gap-3.5 p-5 border-t border-brand-gray-100 bg-white">
               <div className="grid grid-cols-2 gap-2">
-                <button
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={downloadingClave === `xml:${selectedDoc.claveAcceso}`}
                   onClick={() => handleDownloadXml(selectedDoc)}
-                  className="bg-brand-navy/5 hover:bg-brand-navy/10 border border-brand-navy/20 text-brand-navy py-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-[0.98]"
+                  className="border-brand-red/20 bg-brand-red/5 text-brand-red hover:bg-brand-red/10"
                 >
                   XML Autorizado
-                </button>
-                <button
+                </Button>
+                <Button
+                  type="button"
+                  disabled={downloadingClave === `pdf:${selectedDoc.claveAcceso}`}
                   onClick={() => handleDownloadPdf(selectedDoc)}
-                  className="bg-brand-navy hover:bg-brand-navy-mid text-white py-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-[0.98]"
                 >
-                  RIDE PDF
-                </button>
-                <button
+                  {downloadingClave === `pdf:${selectedDoc.claveAcceso}` ? "Generando…" : "RIDE PDF"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => handleDownloadPng(selectedDoc)}
-                  className="bg-white hover:bg-brand-gray-50 border border-brand-gray-200 text-brand-gray-700 py-2 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-[0.98]"
                 >
                   Imagen PNG
-                </button>
-                <button
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => handleDownloadCsv(selectedDoc)}
-                  className="bg-white hover:bg-brand-gray-50 border border-brand-gray-200 text-brand-gray-700 py-2 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-[0.98]"
                 >
                   Excel (CSV)
-                </button>
+                </Button>
               </div>
-              <button
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
                 onClick={() => setSelectedDoc(null)}
-                className="w-full bg-brand-gray-100 hover:bg-brand-gray-200 transition-colors text-brand-gray-800 py-2.5 rounded-lg text-xs font-bold cursor-pointer"
               >
                 Cerrar
-              </button>
+              </Button>
             </div>
           </>
         )}
       </aside>
 
-      <ConfirmDialog
-        open={showSyncConfirm}
-        title="Sincronizar sin período"
-        message="No hay un período de emisión seleccionado. ¿Deseas sincronizar todos los documentos (máx. 500)?"
-        confirmLabel="Sincronizar"
-        loading={syncing}
-        onConfirm={() => executeSync(false, formatDateRangeLabel(dateRange), toDateRangeParams(dateRange))}
-        onCancel={() => setShowSyncConfirm(false)}
-      />
-
       <SyncProgressDialog
         open={showSyncResult}
         onClose={() => setShowSyncResult(false)}
         result={syncResult}
-        loading={syncing}
+        loading={false}
       />
 
       <Dialog
@@ -1200,20 +1162,25 @@ export default function Documentos() {
         />
 
         {importMessage && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 font-semibold leading-normal mt-3">
+          <div className="bg-success-pale border border-success-light/40 rounded-lg p-3 text-xs text-success font-semibold leading-normal mt-3">
             {importMessage}
           </div>
         )}
         {importError && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 font-semibold max-h-32 overflow-y-auto whitespace-pre-line leading-normal mt-3">
+          <div className="bg-brand-red-subtle border border-brand-red-pale rounded-lg p-3 text-xs text-brand-red font-semibold max-h-32 overflow-y-auto whitespace-pre-line leading-normal mt-3">
             {importError}
           </div>
         )}
       </Dialog>
 
-      <MassDownloadModal 
-        open={showMassDownloadModal} 
-        onClose={() => setShowMassDownloadModal(false)} 
+      <MassDownloadModal
+        open={showMassDownloadModal}
+        onClose={() => setShowMassDownloadModal(false)}
+        initialDateRange={dateRange}
+        initialDirection={massDownloadDirection}
+        onJobCompleted={() => {
+          void loadRealDocuments(dateRange);
+        }}
       />
     </>
   );

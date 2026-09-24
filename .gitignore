@@ -1,5 +1,4 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 /.pnp
@@ -9,55 +8,46 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-
 # testing
 /coverage
-
 # next.js
 /.next/
 /out/
-
 # production
 /build
-
 # misc
 .DS_Store
 *.pem
-
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
 !.env.plesk.example
+# Neon CLI local context (org/project/branch pointer)
+.neon
 
 # vercel
 .vercel
-
 # browser session artifacts (Chrome profiles)
 browser_session/
-
 # downloaded files
 downloads/
-
 # runtime lock files
 sri-worker.lock
-
 # runtime directories (created by Docker/app)
 /logs
 browser_session/
-
+# chromium binary + profiles (extracted at runtime into the app)
+/tmp/
 # debug screenshots
 screensht.png
 test-screenshot.png
-
 # scratch / dev scripts
 scripts/scratch/
-
 # test scripts (not part of src/)
 scripts/*.mjs
 scripts/insert-custom-job.mjs
@@ -66,9 +56,13 @@ scripts/reset-*.mjs
 scripts/smoke-test-*.mjs
 scripts/test-*.mjs
 scripts/trigger-job.mjs
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
 .vercel
+
+# managed
+**.data.json
+**.node-persist**
+**_IGNORE_**
+# end managed

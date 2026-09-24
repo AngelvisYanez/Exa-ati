@@ -55,7 +55,7 @@ COPY --from=builder --chown=nextjs:nextjs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nextjs /app/next.config.ts ./
 COPY --from=builder --chown=nextjs:nextjs /app/tsconfig.json ./
 COPY --from=deps --chown=nextjs:nextjs /app/prisma.config.ts ./prisma.config.ts
-COPY --from=builder --chown=nextjs:nextjs /app/scripts/entrypoint.sh ./scripts/entrypoint.sh
+COPY --from=builder --chown=nextjs:nextjs /app/scripts/deploy/entrypoint.sh ./scripts/entrypoint.sh
 
 RUN mkdir -p /app/downloads/xmls /app/downloads/certs /app/downloads/pdfs /app/downloads/templates /app/downloads/debug /app/downloads/RIDE /app/browser_session /app/logs \
   && chmod +x /app/scripts/entrypoint.sh \

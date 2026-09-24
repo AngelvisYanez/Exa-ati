@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { xsdValidator } from '../src/lib/sri-api/xsd-validator';
+import { xsdValidator } from '../src/services/sri-api/xsd-validator';
 
 const validFactura = {
   factura: {

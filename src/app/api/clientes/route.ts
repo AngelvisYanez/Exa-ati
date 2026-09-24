@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import bcrypt from 'bcrypt';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import bcrypt from 'bcryptjs';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
 
 // Listar usuarios clientes
 export async function GET(req: Request) {

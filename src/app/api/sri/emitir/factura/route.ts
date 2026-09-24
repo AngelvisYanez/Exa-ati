@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { xmlBuilder } from '@/lib/sri-api/xml-builder';
-import { xmlSigner } from '@/lib/sri-api/xml-signer';
-import { sriSoapClient, SriOperationResult } from '@/lib/sri-api/sri-soap-client';
-import { xmlStorage } from '@/lib/sri-api/xml-storage';
-import { claveAccesoService } from '@/lib/sri-api/clave-acceso';
-import { sincronizarConSri } from '@/lib/sri-api/sync-service';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { xmlBuilder } from '@/services/sri-api/xml-builder';
+import { xmlSigner } from '@/services/sri-api/xml-signer';
+import { sriSoapClient, SriOperationResult } from '@/services/sri-api/sri-soap-client';
+import { xmlStorage } from '@/services/sri-api/xml-storage';
+import { claveAccesoService } from '@/services/sri-api/clave-acceso';
+import { sincronizarConSri } from '@/services/sri-api/sync-service';
 import { Decimal } from 'decimal.js';
 
 export async function POST(req: Request) {

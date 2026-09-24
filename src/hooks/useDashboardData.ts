@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { sriClient, Comprobante } from "@/lib/sriClient";
-import { calculateTaxSummary } from "@/lib/sri-api/tax-calculator";
+import { calculateTaxSummary } from '@/services/sri-api/tax-calculator';
 import {
   getDefaultDateRange,
   getComprobantesListLimit,

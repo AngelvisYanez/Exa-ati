@@ -25,7 +25,7 @@ export default function XmlImportZone({ onImport, loading, className }: XmlImpor
     <div
       className={cn(
         "border-2 border-dashed rounded-xl p-8 text-center transition-colors",
-        dragOver ? "border-brand-navy bg-brand-gray-50" : "border-muted-foreground/25",
+        dragOver ? "border-brand-red bg-brand-gray-50" : "border-muted-foreground/25",
         className
       )}
       onDragOver={(e) => {

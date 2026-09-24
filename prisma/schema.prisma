@@ -34,8 +34,65 @@ model Tenant {
   transportistas     Transportista[]
   reportesFiscales   ReporteFiscal[]
   productos          Producto[]
+  controlMensual     ControlTributarioMensual[]
+  resumenIr          ResumenIR[]
+  planillasIess      PlanillaIESS[]
+  empleados          Empleado[]
+  obligaciones       ObligacionExterna[]
+  documentosFiscales  DocumentoFiscal[]
+  pagosSRI           ComprobanteSRIPago[]
+  tablaIrProgresiva  TablaIRProgresiva[]
+  parametrosTributarios ParametroTributario[]
+  cuentasPorCobrar   CuentaPorCobrar[]
+  cuentasPorPagar    CuentaPorPagar[]
+  pagosCuentas       PagoCuenta[]
+  asientos           Asiento[]
+  inventarioMovimientos InventarioMovimiento[]
+  notificaciones     Notificacion[]
 
   @@map("tenants")
+}
+
+// ─────────────────────────────────────────────
+// ROLES Y MÓDULOS (RBAC)
+// ─────────────────────────────────────────────
+model Rol {
+  codigo      String   @id @db.VarChar(50)
+  nombre      String   @db.VarChar(100)
+  descripcion String?  @db.Text
+  esSistema   Boolean  @default(false) @map("es_sistema")
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  modulos RolModulo[]
+
+  @@map("roles")
+}
+
+model Modulo {
+  codigo String  @id @db.VarChar(50)
+  nombre String  @db.VarChar(100)
+  grupo  String  @db.VarChar(50)
+  ruta   String  @db.VarChar(200)
+  orden  Int     @default(0)
+  activo Boolean @default(true)
+
+  roles RolModulo[]
+
+  @@map("modulos")
+}
+
+model RolModulo {
+  rolCodigo    String @map("rol_codigo") @db.VarChar(50)
+  moduloCodigo String @map("modulo_codigo") @db.VarChar(50)
+
+  rol    Rol    @relation(fields: [rolCodigo], references: [codigo], onDelete: Cascade)
+  modulo Modulo @relation(fields: [moduloCodigo], references: [codigo], onDelete: Cascade)
+
+  @@id([rolCodigo, moduloCodigo])
+  @@index([moduloCodigo])
+  @@map("rol_modulos")
 }
 
 // ─────────────────────────────────────────────
@@ -55,6 +112,8 @@ model Usuario {
 
   tenant Tenant? @relation(fields: [tenantId], references: [id])
 
+  @@index([tenantId])
+  @@index([tenantId, activo])
   @@map("usuarios")
 }
 
@@ -81,11 +140,15 @@ model Emisor {
   whatsappEstado               String    @default("DESCONECTADO") @map("whatsapp_estado") @db.VarChar(20)
   notifDocumentos              Boolean   @default(true) @map("notif_documentos")
   notifGeneracion              Boolean   @default(true) @map("notif_generacion")
+  notifEmail                   Boolean   @default(false) @map("notif_email")
   whatsappNotifDocumentos      Boolean?  @default(true) @map("whatsapp_notif_documentos")
   whatsappNotifGeneracion      Boolean?  @default(true) @map("whatsapp_notif_generacion")
   certificadoP12               Bytes?    @map("certificado_p12")
+  /// @deprecated Legacy plaintext column — do not write. Prefer passwordCertificado.
   certificadoPassword          String?   @map("certificado_password") @db.VarChar(500)
+  /// Canonical encrypted certificate password (read/write here).
   passwordCertificado          String?   @map("password_certificado") @db.Text
+  /// @deprecated Legacy alias — xml-signer falls back here if passwordCertificado is empty.
   certificadoPasswordEncrypted String?   @map("certificado_password_encrypted") @db.Text
   certificadoNombre            String?   @map("certificado_nombre") @db.VarChar(500)
   certificadoValidoHasta       DateTime? @map("certificado_valido_hasta")
@@ -99,6 +162,7 @@ model Emisor {
   comprobantes Comprobante[]
 
   @@unique([tenantId, ruc])
+  @@index([tenantId, activo])
   @@map("emisores")
 }
 
@@ -138,11 +202,18 @@ model Comprobante {
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
-  tenant Tenant?          @relation(fields: [tenantId], references: [id])
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
   emisor Emisor?          @relation(fields: [emisorId], references: [id])
   xmls   ComprobanteXml[]
 
+  cuentasPorCobrar CuentaPorCobrar[]
+  cuentasPorPagar  CuentaPorPagar[]
+
   @@index([fechaEmision])
+  @@index([tenantId, fechaEmision])
+  @@index([tenantId, estado])
+  @@index([emisorId])
+  @@index([tipo, fechaEmision])
   @@map("comprobantes")
 }
 
@@ -204,6 +275,9 @@ model ScrapingJob {
   proxy  ProxyPool?       @relation(fields: [proxyId], references: [id])
   logs   ScrapingJobLog[]
 
+  @@index([status])
+  @@index([tenantId, status])
+  @@index([createdAt])
   @@map("scraping_jobs")
 }
 
@@ -409,6 +483,9 @@ model Contacto {
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
+  cuentasPorCobrar CuentaPorCobrar[]
+  cuentasPorPagar  CuentaPorPagar[]
+
   @@unique([tenantId, tipoIdentificacion, identificacion])
   @@index([tenantId, razonSocial])
   @@map("contactos")
@@ -430,7 +507,8 @@ model Producto {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant     Tenant                 @relation(fields: [tenantId], references: [id])
+  movimientos InventarioMovimiento[]
 
   @@unique([tenantId, codigo])
   @@index([tenantId, activo])
@@ -511,4 +589,482 @@ model Auditoria {
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@map("auditoria")
+}
+
+// ═══════════════════════════════════════════════
+// MÓDULO CONTROL TRIBUTARIO
+// ═══════════════════════════════════════════════
+
+// ─────────────────────────────────────────────
+// CONTROL_TRIBUTARIO_MENSUAL (Hoja maestra mensual - Form. 104/103)
+// ─────────────────────────────────────────────
+model ControlTributarioMensual {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  periodo    Int    @map("periodo") // YYYYMM (ej: 202601)
+  ruc        String @db.VarChar(20)
+
+  // Form 104 - Ventas
+  ventasIva        Decimal? @default(0) @map("ventas_iva") @db.Decimal(14, 2)
+  ventas0          Decimal? @default(0) @map("ventas_0") @db.Decimal(14, 2)
+  ncVentas15       Decimal? @default(0) @map("nc_ventas_15") @db.Decimal(14, 2)
+  ncVentas0        Decimal? @default(0) @map("nc_ventas_0") @db.Decimal(14, 2)
+  retIvaRecibida   Decimal? @default(0) @map("ret_iva_recibida") @db.Decimal(14, 2)
+  retIrRecibida    Decimal? @default(0) @map("ret_ir_recibida") @db.Decimal(14, 2)
+
+  // Form 104 - Compras
+  compras15        Decimal? @default(0) @map("compras_15") @db.Decimal(14, 2)
+  compras0         Decimal? @default(0) @map("compras_0") @db.Decimal(14, 2)
+  compras5         Decimal? @default(0) @map("compras_5") @db.Decimal(14, 2)
+  compras8         Decimal? @default(0) @map("compras_8") @db.Decimal(14, 2)
+  activosFijos     Decimal? @default(0) @map("activos_fijos") @db.Decimal(14, 2)
+  importaciones    Decimal? @default(0) @map("importaciones") @db.Decimal(14, 2)
+  ncCompras15      Decimal? @default(0) @map("nc_compras_15") @db.Decimal(14, 2)
+  ncComprasSinIva  Decimal? @default(0) @map("nc_compras_sin_iva") @db.Decimal(14, 2)
+
+  // Retención IVA Emitida
+  retIva20         Decimal? @default(0) @map("ret_iva_20") @db.Decimal(14, 2)
+  retIva30         Decimal? @default(0) @map("ret_iva_30") @db.Decimal(14, 2)
+  retIva70         Decimal? @default(0) @map("ret_iva_70") @db.Decimal(14, 2)
+  retIva100        Decimal? @default(0) @map("ret_iva_100") @db.Decimal(14, 2)
+
+  // Form 103 - Ret. IR
+  retIr303         Decimal? @default(0) @map("ret_ir_303") @db.Decimal(14, 2)
+  retIr303A        Decimal? @default(0) @map("ret_ir_303a") @db.Decimal(14, 2)
+  retIr304         Decimal? @default(0) @map("ret_ir_304") @db.Decimal(14, 2)
+  retIr307         Decimal? @default(0) @map("ret_ir_307") @db.Decimal(14, 2)
+  retIr310         Decimal? @default(0) @map("ret_ir_310") @db.Decimal(14, 2)
+  retIr312         Decimal? @default(0) @map("ret_ir_312") @db.Decimal(14, 2)
+  retIr322         Decimal? @default(0) @map("ret_ir_322") @db.Decimal(14, 2)
+  retIr332         Decimal? @default(0) @map("ret_ir_332") @db.Decimal(14, 2)
+  retIr343         Decimal? @default(0) @map("ret_ir_343") @db.Decimal(14, 2)
+  retIr344         Decimal? @default(0) @map("ret_ir_344") @db.Decimal(14, 2)
+  retIr346         Decimal? @default(0) @map("ret_ir_346") @db.Decimal(14, 2)
+
+  // Sueldos y gastos de personal
+  sueldo           Decimal? @default(0) @db.Decimal(14, 2)
+  aportePatronal   Decimal? @default(0) @map("aporte_patronal") @db.Decimal(14, 2)
+  valorCcc         Decimal? @default(0) @map("valor_ccc") @db.Decimal(14, 2)
+  fondosReserva    Decimal? @default(0) @map("fondos_reserva") @db.Decimal(14, 2)
+  decimoTercero    Decimal? @default(0) @map("decimo_tercero") @db.Decimal(14, 2)
+  decimoCuarto     Decimal? @default(0) @map("decimo_cuarto") @db.Decimal(14, 2)
+  vacaciones       Decimal? @default(0) @map("vacaciones") @db.Decimal(14, 2)
+  depreciaciones   Decimal? @default(0) @db.Decimal(14, 2)
+  gastosNoDeducibles Decimal? @default(0) @map("gastos_no_deducibles") @db.Decimal(14, 2)
+
+  // Totales calculados (se actualizan al recalcular)
+  totalVentas      Decimal? @default(0) @map("total_ventas") @db.Decimal(14, 2)
+  totalCompras     Decimal? @default(0) @map("total_compras") @db.Decimal(14, 2)
+  ivaCausado       Decimal? @default(0) @map("iva_causado") @db.Decimal(14, 2)
+  creditoTributario Decimal? @default(0) @map("credito_tributario") @db.Decimal(14, 2)
+  ivaAPagar        Decimal? @default(0) @map("iva_a_pagar") @db.Decimal(14, 2)
+  creditoPendiente Decimal? @default(0) @map("credito_pendiente") @db.Decimal(14, 2)
+  totalIngresos    Decimal? @default(0) @map("total_ingresos") @db.Decimal(14, 2)
+  totalGastos      Decimal? @default(0) @map("total_gastos") @db.Decimal(14, 2)
+
+  observaciones    String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, periodo, ruc])
+  @@map("control_tributario_mensual")
+}
+
+// ─────────────────────────────────────────────
+// RESUMEN_IR (Resumen Anual Impuesto a la Renta)
+// ─────────────────────────────────────────────
+model ResumenIR {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  ruc      String @db.VarChar(20)
+  anio     Int    @map("anio")
+
+  // Ingresos
+  ingresosVentas          Decimal? @default(0) @map("ingresos_ventas") @db.Decimal(14, 2)
+  ingresosFinancieros     Decimal? @default(0) @map("ingresos_financieros") @db.Decimal(14, 2)
+  otrosIngresosGravados   Decimal? @default(0) @map("otros_ingresos_gravados") @db.Decimal(14, 2)
+  ingresosExentos         Decimal? @default(0) @map("ingresos_exentos") @db.Decimal(14, 2)
+
+  // Gastos
+  gastosCompras           Decimal? @default(0) @map("gastos_compras") @db.Decimal(14, 2)
+  gastosSueldos           Decimal? @default(0) @map("gastos_sueldos") @db.Decimal(14, 2)
+  gastosBeneficiosSociales Decimal? @default(0) @map("gastos_beneficios_sociales") @db.Decimal(14, 2)
+  gastosSeguridadSocial   Decimal? @default(0) @map("gastos_seguridad_social") @db.Decimal(14, 2)
+  gastosDepreciaciones    Decimal? @default(0) @map("gastos_depreciaciones") @db.Decimal(14, 2)
+  gastosInteresesBancarios Decimal? @default(0) @map("gastos_intereses_bancarios") @db.Decimal(14, 2)
+  otrosGastosDeducibles   Decimal? @default(0) @map("otros_gastos_deducibles") @db.Decimal(14, 2)
+
+  // Conciliación tributaria
+  utilidadAntesParticipacion Decimal? @default(0) @map("utilidad_antes_participacion") @db.Decimal(14, 2)
+  participacionTrabajadores  Decimal? @default(0) @map("participacion_trabajadores") @db.Decimal(14, 2)
+  gastosNoDeducibles         Decimal? @default(0) @map("gastos_no_deducibles") @db.Decimal(14, 2)
+  utilidadGravable         Decimal? @default(0) @map("utilidad_gravable") @db.Decimal(14, 2)
+
+  // Liquidación IR
+  impuestoCausado        Decimal? @default(0) @map("impuesto_causado") @db.Decimal(14, 2)
+  gastosPersonales       Decimal? @default(0) @map("gastos_personales") @db.Decimal(14, 2)
+  retencionesRecibidas   Decimal? @default(0) @map("retenciones_recibidas") @db.Decimal(14, 2)
+  creditoTributarioAnioAnterior Decimal? @default(0) @map("credito_tributario_anio_anterior") @db.Decimal(14, 2)
+  anticipoIR             Decimal? @default(0) @map("anticipo_ir") @db.Decimal(14, 2)
+  irAPagar               Decimal? @default(0) @map("ir_a_pagar") @db.Decimal(14, 2)
+  saldoAFavor            Decimal? @default(0) @map("saldo_a_favor") @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, anio, ruc])
+  @@map("resumen_ir")
+}
+
+// ─────────────────────────────────────────────
+// EMPLEADOS (Nómina — maestro; planillas_iess referencia por cédula)
+// ─────────────────────────────────────────────
+model Empleado {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  cedula       String    @db.VarChar(20)
+  nombres      String    @db.VarChar(200)
+  apellidos    String    @db.VarChar(200)
+  email        String?   @db.VarChar(255)
+  telefono     String?   @db.VarChar(50)
+  cargo        String?   @db.VarChar(200)
+  fechaIngreso DateTime? @map("fecha_ingreso") @db.Date
+  sueldo       Decimal   @default(0) @db.Decimal(12, 2)
+  activo       Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, cedula])
+  @@index([tenantId, activo])
+  @@map("empleados")
+}
+
+// ─────────────────────────────────────────────
+// PLANILLAS_IESS (Planillas IESS por empleado)
+// ─────────────────────────────────────────────
+model PlanillaIESS {
+  id                  String   @id @default(uuid()) @db.Uuid
+  tenantId            String   @map("tenant_id") @db.Uuid
+  periodo             Int      @map("periodo") // YYYYMM
+  cedula              String   @db.VarChar(20)
+  nombreCompleto      String   @map("nombre_completo") @db.VarChar(255)
+  relacionTrabajo     String?  @map("relacion_trabajo") @db.VarChar(50) // DEPENDIENTE, INDEPENDIENTE
+  sueldo              Decimal  @db.Decimal(12, 2)
+  diasTrabajados      Int      @default(30) @map("dias_trabajados")
+
+  // Calculados
+  aportePatronal      Decimal? @default(0) @map("aporte_patronal") @db.Decimal(12, 2)
+  aporteIndividual    Decimal? @default(0) @map("aporte_individual") @db.Decimal(12, 2)
+  valorCcc            Decimal? @default(0) @map("valor_ccc") @db.Decimal(12, 2)
+  fondosReserva       Decimal? @default(0) @map("fondos_reserva") @db.Decimal(12, 2)
+  decimoTercero       Decimal? @default(0) @map("decimo_tercero") @db.Decimal(12, 2)
+  decimoCuarto        Decimal? @default(0) @map("decimo_cuarto") @db.Decimal(12, 2)
+  vacaciones          Decimal? @default(0) @map("vacaciones") @db.Decimal(12, 2)
+  totalAporte         Decimal? @default(0) @map("total_aporte") @db.Decimal(12, 2)
+  sueldoLiquido       Decimal? @default(0) @map("sueldo_liquido") @db.Decimal(12, 2)
+  costoTotalEmpresa   Decimal? @default(0) @map("costo_total_empresa") @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, periodo, cedula])
+  @@index([tenantId, periodo])
+  @@map("planillas_iess")
+}
+
+// ─────────────────────────────────────────────
+// OBLIGACIONES_EXTERNAS (Semáforo de obligaciones)
+// ─────────────────────────────────────────────
+model ObligacionExterna {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  ruc             String   @db.VarChar(20)
+  tipo            String   @db.VarChar(50) // IVA, RET_IR, ATS, IR_ANUAL, ANTICIPO_IR, IESS, etc.
+  periodo         Int      @map("periodo") // YYYYMM
+  descripcion     String?  @db.VarChar(500)
+  fechaVencimiento DateTime? @map("fecha_vencimiento") @db.Date
+  fechaDeclarado  DateTime? @map("fecha_declarado") @db.Date
+  estado          String   @default("PENDIENTE") @db.VarChar(20) // PENDIENTE, EN_PROCESO, CUMPLIDO, TARDIO
+  observaciones   String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, ruc, tipo, periodo])
+  @@index([tenantId, estado])
+  @@map("obligaciones_externas")
+}
+
+// ─────────────────────────────────────────────
+// DOCUMENTOS_FISCALES (Repositorio de documentos)
+// ─────────────────────────────────────────────
+model DocumentoFiscal {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  periodo     Int      @map("periodo") // YYYYMM
+  nombre      String   @db.VarChar(255)
+  tipo        String   @db.VarChar(50) // COMPROBANTE_SRI, PLANILLA_IESS, ATS, ANEXO, DECLARACION, OTRO
+  modulo      String   @default("GENERAL") @db.VarChar(50) // CONTROL_TRIBUTARIO, IESS, SRI, EXA
+  categoria   String?  @db.VarChar(100)
+  archivoPath String?  @map("archivo_path") @db.Text
+  mimeType    String?  @map("mime_type") @db.VarChar(100)
+  tamanoBytes Int?     @map("tamano_bytes")
+  metadata    String?  @db.Text // JSON con metadatos adicionales
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, periodo, tipo])
+  @@map("documentos_fiscales")
+}
+
+// ─────────────────────────────────────────────
+// COMPROBANTES_SRI_PAGOS (Recibos de pago SRI)
+// ─────────────────────────────────────────────
+model ComprobanteSRIPago {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  rucContribuyente String   @map("ruc_contribuyente") @db.VarChar(20)
+  numeroSerie      String?  @map("numero_serie") @db.VarChar(50)
+  formulario       String   @db.VarChar(10) // 104, 103, 101, 102
+  periodo          Int      @map("periodo") // YYYYMM
+  fechaDeclaracion DateTime? @map("fecha_declaracion") @db.Date
+  valorPagado      Decimal? @map("valor_pagado") @db.Decimal(14, 2)
+  tipo             String   @default("ORIGINAL") @db.VarChar(20) // ORIGINAL, SUSTITUTIVA
+  archivoPath      String?  @map("archivo_path") @db.Text
+  estadoSri        String?  @map("estado_sri") @db.VarChar(50)
+  observaciones    String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, periodo, formulario, tipo])
+  @@map("comprobantes_sri_pagos")
+}
+
+// ─────────────────────────────────────────────
+// TABLA_IR_PROGRESIVA (Tramos IR por año)
+// ─────────────────────────────────────────────
+model TablaIRProgresiva {
+  id                    Int      @id @default(autoincrement())
+  tenantId              String   @map("tenant_id") @db.Uuid
+  anio                  Int      @map("anio")
+  fraccionBasica        Decimal  @map("fraccion_basica") @db.Decimal(14, 2)
+  excesoHasta           Decimal? @map("exceso_hasta") @db.Decimal(14, 2)
+  impuestoFraccionBasica Decimal @map("impuesto_fraccion_basica") @db.Decimal(14, 2)
+  porcentajeExcedente   Decimal  @map("porcentaje_excedente") @db.Decimal(5, 2)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, anio, fraccionBasica])
+  @@map("tabla_ir_progresiva")
+}
+
+// ─────────────────────────────────────────────
+// PARAMETROS_TRIBUTARIOS (Parámetros editables)
+// ─────────────────────────────────────────────
+model ParametroTributario {
+  id        Int      @id @default(autoincrement())
+  tenantId  String   @map("tenant_id") @db.Uuid
+  codigo    String   @db.VarChar(50)
+  nombre    String   @db.VarChar(255)
+  valor     Decimal  @db.Decimal(12, 4)
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, codigo])
+  @@map("parametros_tributarios")
+}
+
+// ─────────────────────────────────────────────
+// CUENTAS POR COBRAR (Cuentas del cliente a nuestro favor)
+// ─────────────────────────────────────────────
+model CuentaPorCobrar {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  contactoId       String?  @map("contacto_id") @db.Uuid
+  comprobanteId    String?  @map("comprobante_id") @db.Uuid
+  clienteTipoId    String?  @map("cliente_tipo_id") @db.VarChar(5)
+  clienteIdentificacion String? @map("cliente_identificacion") @db.VarChar(20)
+  clienteNombre    String?  @map("cliente_nombre") @db.VarChar(500)
+  clienteEmail     String?  @map("cliente_email") @db.VarChar(255)
+  tipoDocumento    String   @default("01") @map("tipo_documento") @db.VarChar(5)
+  numeroDocumento  String?  @map("numero_documento") @db.VarChar(30)
+  fechaEmision     DateTime @map("fecha_emision") @db.Date
+  fechaVencimiento DateTime? @map("fecha_vencimiento") @db.Date
+  montoOriginal    Decimal  @map("monto_original") @db.Decimal(14, 2)
+  saldoPendiente   Decimal  @map("saldo_pendiente") @db.Decimal(14, 2)
+  estado           String   @default("PENDIENTE") @db.VarChar(20) // PENDIENTE, PARCIAL, PAGADO, VENCIDO, ANULADO
+  notas            String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant        @relation(fields: [tenantId], references: [id])
+  contacto   Contacto?     @relation(fields: [contactoId], references: [id])
+  comprobante Comprobante? @relation(fields: [comprobanteId], references: [id])
+  pagos      PagoCuenta[]
+
+  @@index([tenantId, estado])
+  @@index([tenantId, fechaVencimiento])
+  @@map("cuentas_por_cobrar")
+}
+
+// ─────────────────────────────────────────────
+// CUENTAS POR PAGAR (Obligaciones del cliente con proveedores)
+// ─────────────────────────────────────────────
+model CuentaPorPagar {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  contactoId       String?  @map("contacto_id") @db.Uuid
+  comprobanteId    String?  @map("comprobante_id") @db.Uuid
+  proveedorTipoId  String?  @map("proveedor_tipo_id") @db.VarChar(5)
+  proveedorIdentificacion String? @map("proveedor_identificacion") @db.VarChar(20)
+  proveedorNombre  String?  @map("proveedor_nombre") @db.VarChar(500)
+  proveedorEmail   String?  @map("proveedor_email") @db.VarChar(255)
+  tipoDocumento    String   @default("01") @map("tipo_documento") @db.VarChar(5)
+  numeroDocumento  String?  @map("numero_documento") @db.VarChar(30)
+  fechaEmision     DateTime @map("fecha_emision") @db.Date
+  fechaVencimiento DateTime? @map("fecha_vencimiento") @db.Date
+  montoOriginal    Decimal  @map("monto_original") @db.Decimal(14, 2)
+  saldoPendiente   Decimal  @map("saldo_pendiente") @db.Decimal(14, 2)
+  estado           String   @default("PENDIENTE") @db.VarChar(20) // PENDIENTE, PARCIAL, PAGADO, VENCIDO, ANULADO
+  notas            String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+  contacto    Contacto?     @relation(fields: [contactoId], references: [id])
+  comprobante Comprobante?  @relation(fields: [comprobanteId], references: [id])
+  pagos       PagoCuenta[]
+
+  @@index([tenantId, estado])
+  @@index([tenantId, fechaVencimiento])
+  @@map("cuentas_por_pagar")
+}
+
+// ─────────────────────────────────────────────
+// PAGOS_CUENTAS (Abonos/pagos aplicados a cuentas)
+// ─────────────────────────────────────────────
+model PagoCuenta {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  tipoCuenta  String   @map("tipo_cuenta") @db.VarChar(10) // COBRAR, PAGAR
+  cuentaCobrarId String? @map("cuenta_cobrar_id") @db.Uuid
+  cuentaPagarId  String? @map("cuenta_pagar_id") @db.Uuid
+  fecha       DateTime @db.Date
+  monto       Decimal  @db.Decimal(14, 2)
+  metodoPago  String?  @map("metodo_pago") @db.VarChar(50)
+  referencia  String?  @db.VarChar(100)
+  notas       String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant       Tenant          @relation(fields: [tenantId], references: [id])
+  cuentaCobrar CuentaPorCobrar? @relation(fields: [cuentaCobrarId], references: [id])
+  cuentaPagar  CuentaPorPagar?  @relation(fields: [cuentaPagarId], references: [id])
+
+  @@index([tenantId, tipoCuenta])
+  @@index([tenantId, fecha])
+  @@map("pagos_cuentas")
+}
+
+// ─────────────────────────────────────────────
+// ASIENTOS CONTABLES (Libro Diario)
+// ─────────────────────────────────────────────
+model Asiento {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  fecha         DateTime @db.Date
+  numero        Int
+  glosa         String   @db.VarChar(500)
+  origen        String   @default("MANUAL") @db.VarChar(50)
+  comprobanteId String?  @map("comprobante_id") @db.Uuid
+  estado        String   @default("BORRADOR") @db.VarChar(20)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id])
+  lineas AsientoLinea[]
+
+  @@unique([tenantId, numero])
+  @@map("asientos")
+}
+
+model AsientoLinea {
+  id           String  @id @default(uuid()) @db.Uuid
+  asientoId    String  @map("asiento_id") @db.Uuid
+  cuentaCodigo String  @map("cuenta_codigo") @db.VarChar(20)
+  cuentaNombre String  @map("cuenta_nombre") @db.VarChar(255)
+  debe         Decimal @db.Decimal(14, 2)
+  haber        Decimal @db.Decimal(14, 2)
+  orden        Int
+
+  asiento Asiento @relation(fields: [asientoId], references: [id], onDelete: Cascade)
+
+  @@index([asientoId])
+  @@map("asiento_lineas")
+}
+
+// ─────────────────────────────────────────────
+// INVENTARIO MOVIMIENTOS (Kardex)
+// ─────────────────────────────────────────────
+model InventarioMovimiento {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  productoId   String   @map("producto_id") @db.Uuid
+  tipo         String   @db.VarChar(10)
+  cantidad     Decimal  @db.Decimal(10, 2)
+  stockAntes   Decimal  @map("stock_antes") @db.Decimal(10, 2)
+  stockDespues Decimal  @map("stock_despues") @db.Decimal(10, 2)
+  motivo       String?  @db.VarChar(255)
+  referencia   String?  @db.VarChar(100)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  producto Producto @relation(fields: [productoId], references: [id])
+
+  @@index([tenantId, productoId])
+  @@map("inventario_movimientos")
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICACIONES (App / Email / WhatsApp)
+// ─────────────────────────────────────────────
+model Notificacion {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  ruc         String?  @db.VarChar(20)
+  dedupeKey   String   @map("dedupe_key") @db.VarChar(120)
+  type        String   @db.VarChar(30)
+  title       String   @db.VarChar(255)
+  body        String   @db.Text
+  channel     String   @db.VarChar(20)
+  unread      Boolean  @default(true)
+  actionLabel String?  @map("action_label") @db.VarChar(100)
+  actionHref  String?  @map("action_href") @db.VarChar(255)
+  eventAt     DateTime @map("event_at")
+  deliveredAt DateTime? @map("delivered_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId, unread])
+  @@index([tenantId, eventAt])
+  @@map("notificaciones")
 }

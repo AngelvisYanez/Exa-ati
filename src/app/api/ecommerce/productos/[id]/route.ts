@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { embeddings } from '@/services/sri-api/embeddings';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -75,6 +76,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ]
     );
 
+    const updated = await db.queryOne<any>(
+      'SELECT * FROM productos WHERE id = ? AND tenant_id = ?',
+      [id, user.tenantId]
+    );
+    if (updated) embeddings.maybeIndex(user.tenantId!, 'producto', id, updated);
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('[Productos Update Error]', error);
@@ -99,6 +106,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
 
     await db.query('DELETE FROM productos WHERE id = ?', [id]);
+    embeddings.maybeUnindex(user.tenantId!, 'producto', id);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

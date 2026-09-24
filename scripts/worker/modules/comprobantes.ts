@@ -7,7 +7,7 @@ import {
   cleanEmisorRazonSocial, extractDocumentosRelacionados, extractIva,
   parseLocalIsoDate, getDaysInRange, waitForDownload,
   updateComprobanteFromXml, realisticClick, clickButtonByText, type DbLike,
-} from '../../../src/lib/scraping/sri-utils';
+} from '../../../src/services/scraping/sri-utils';
 
 function toMysqlPlaceholders(sql: string): string {
   return sql.replace(/\$(\d+)/g, '?');

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { getTenantLlmConfigMasked } from '@/lib/sri-api/tenant-llm-config';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { getTenantLlmConfigMasked } from '@/services/sri-api/tenant-llm-config';
 
 export async function GET(req: Request) {
   try {
@@ -22,7 +22,7 @@ export async function PUT(req: Request) {
     const tenantId = requireTenantId(user);
     const body = await req.json();
 
-    const { saveTenantLlmConfig } = await import('@/lib/sri-api/tenant-llm-config');
+    const { saveTenantLlmConfig } = await import('@/services/sri-api/tenant-llm-config');
     await saveTenantLlmConfig(tenantId, {
       provider: body.provider,
       model: body.model,

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { sendInvoiceEmail } from '@/lib/sri-api/ecommerce';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { sendInvoiceEmail } from '@/services/sri-api/ecommerce';
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +9,7 @@ export async function GET() {
   let allOk = true;
 
   try {
-    const { db } = await import('@/lib/sri-api/db');
+    const { db } = await import('@/services/sri-api/db');
     await db.query('SELECT 1');
     checks.database = 'ok';
   } catch (err: any) {

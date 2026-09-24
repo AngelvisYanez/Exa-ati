@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Eye, EyeOff, RefreshCw } from "lucide-react";
 
+import { apiFetch } from "@/lib/apiFetch";
 function generatePassword(): string {
   const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const lower = "abcdefghijklmnopqrstuvwxyz";
@@ -32,6 +33,11 @@ interface Tenant {
   nombre: string;
 }
 
+interface RolOption {
+  codigo: string;
+  nombre: string;
+}
+
 export default function EditarUsuarioPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -46,14 +52,16 @@ export default function EditarUsuarioPage() {
   const [ruc, setRuc] = useState("");
   const [activo, setActivo] = useState(true);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [roles, setRoles] = useState<RolOption[]>([]);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [userRes, tenantsRes] = await Promise.all([
-          fetch(`/api/admin/usuarios/${id}`),
-          fetch("/api/admin/tenants?pageSize=100").catch(() => null),
+        const [userRes, tenantsRes, rolesRes] = await Promise.all([
+          apiFetch(`/api/admin/usuarios/${id}`),
+          apiFetch("/api/admin/tenants?pageSize=100").catch(() => null),
+          apiFetch("/api/admin/roles"),
         ]);
         if (!userRes.ok) throw new Error("No encontrado");
         const userData = await userRes.json();
@@ -69,6 +77,15 @@ export default function EditarUsuarioPage() {
           const tData = await tenantsRes.json();
           setTenants(tData.data || []);
           setIsSuperadmin(true);
+        }
+        if (rolesRes.ok) {
+          const rData = await rolesRes.json();
+          setRoles(
+            (rData.data || []).map((r: { codigo: string; nombre: string }) => ({
+              codigo: r.codigo,
+              nombre: r.nombre,
+            }))
+          );
         }
       } catch {
         toast.error("Error al cargar usuario");
@@ -102,7 +119,7 @@ export default function EditarUsuarioPage() {
       };
       if (password.trim()) body.password = password;
 
-      const res = await fetch(`/api/admin/usuarios/${id}`, {
+      const res = await apiFetch(`/api/admin/usuarios/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -123,7 +140,7 @@ export default function EditarUsuarioPage() {
   const handleDelete = async () => {
     if (!confirm("¿Eliminar este usuario?")) return;
     try {
-      const res = await fetch(`/api/admin/usuarios/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/admin/usuarios/${id}`, { method: "DELETE" });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || "Error");
@@ -148,7 +165,7 @@ export default function EditarUsuarioPage() {
     <>
       <title>Editar Usuario - Admin - OFSERCONT IA</title>
       <Topbar title="Editar Usuario" backLink={{ href: "/admin/usuarios", label: "Usuarios" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Editar Usuario</h1>
 
         <Card className="p-5 border-brand-gray-200 max-w-xl">
@@ -191,9 +208,20 @@ export default function EditarUsuarioPage() {
             <div className="flex flex-col gap-1.5">
               <Label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">Rol</Label>
               <select value={rol} onChange={(e) => setRol(e.target.value)} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none">
-                <option value="USER">USER</option>
-                <option value="ADMIN">ADMIN</option>
-                <option value="SUPERADMIN">SUPERADMIN</option>
+                {(roles.length > 0
+                  ? roles.filter((r) => isSuperadmin || r.codigo !== "SUPERADMIN" || rol === "SUPERADMIN")
+                  : [
+                      { codigo: "USER", nombre: "Usuario" },
+                      { codigo: "ADMIN", nombre: "Administrador" },
+                      ...(isSuperadmin || rol === "SUPERADMIN"
+                        ? [{ codigo: "SUPERADMIN", nombre: "Superadministrador" }]
+                        : []),
+                    ]
+                ).map((r) => (
+                  <option key={r.codigo} value={r.codigo}>
+                    {r.codigo} — {r.nombre}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -215,12 +243,12 @@ export default function EditarUsuarioPage() {
             </div>
 
             <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-navy focus:ring-brand-navy/30" />
+              <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-red focus:ring-brand-red/30" />
               <span className="text-xs font-medium text-brand-gray-700">Usuario activo</span>
             </label>
 
             <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={submitting} className="bg-brand-navy hover:bg-brand-navy-light text-white">
+              <Button type="submit" disabled={submitting} className="bg-brand-red hover:bg-brand-red-bright text-white">
                 {submitting ? "Guardando..." : "Guardar Cambios"}
               </Button>
               <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>

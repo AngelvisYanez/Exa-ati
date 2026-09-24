@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 
+import { apiFetch } from "@/lib/apiFetch";
 export default function NuevaEmpresaPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
@@ -23,7 +24,7 @@ export default function NuevaEmpresaPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/tenants", {
+      const res = await apiFetch("/api/admin/tenants", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -48,7 +49,7 @@ export default function NuevaEmpresaPage() {
     <>
       <title>Nueva Empresa - Admin - OFSERCONT IA</title>
       <Topbar title="Nueva Empresa" backLink={{ href: "/admin/empresas", label: "Empresas" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Nueva Empresa</h1>
 
         <Card className="p-5 border-brand-gray-200 max-w-xl">
@@ -64,7 +65,7 @@ export default function NuevaEmpresaPage() {
             </div>
 
             <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={submitting} className="bg-brand-navy hover:bg-brand-navy-light text-white">
+              <Button type="submit" disabled={submitting} className="bg-brand-red hover:bg-brand-red-bright text-white">
                 {submitting ? "Guardando..." : "Crear Empresa"}
               </Button>
               <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>

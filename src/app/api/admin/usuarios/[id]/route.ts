@@ -1,18 +1,13 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import bcrypt from 'bcrypt';
-
-function requireAdminOrSuperadmin(user: { rol: string }) {
-  if (user.rol !== 'ADMIN' && user.rol !== 'SUPERADMIN') {
-    throw new Error('Acceso denegado: se requiere rol ADMIN o SUPERADMIN');
-  }
-}
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import bcrypt from 'bcryptjs';
+import { forbiddenResponse, isValidActiveRol, requireModule } from '@/services/sri-api/rbac';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await verifyAuth(req);
-    requireAdminOrSuperadmin(user);
+    await requireModule(user, 'admin');
     const { id } = await params;
 
     const usuario = await db.queryOne<any>(
@@ -58,7 +53,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await verifyAuth(req);
-    requireAdminOrSuperadmin(user);
+    await requireModule(user, 'admin');
     const { id } = await params;
     const body = await req.json();
     const { email, nombre, password, rol, tenantId, ruc, activo } = body;
@@ -88,12 +83,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }
     }
 
+    let resolvedRol = rol;
+    if (rol !== undefined) {
+      const requested = String(rol).trim().toUpperCase();
+      if (!(await isValidActiveRol(requested))) {
+        return NextResponse.json({ message: 'Rol inválido o inactivo' }, { status: 400 });
+      }
+      resolvedRol = requested;
+    }
+
     const fields: string[] = [];
     const values: any[] = [];
 
     if (email !== undefined) { fields.push('email = $' + (fields.length + 1)); values.push(email); }
     if (nombre !== undefined) { fields.push('nombre = $' + (fields.length + 1)); values.push(nombre); }
-    if (rol !== undefined) { fields.push('rol = $' + (fields.length + 1)); values.push(rol); }
+    if (resolvedRol !== undefined) { fields.push('rol = $' + (fields.length + 1)); values.push(resolvedRol); }
     if (tenantId !== undefined) { fields.push('tenant_id = $' + (fields.length + 1)); values.push(tenantId || null); }
     if (ruc !== undefined) { fields.push('ruc = $' + (fields.length + 1)); values.push(ruc || null); }
     if (activo !== undefined) { fields.push('activo = $' + (fields.length + 1)); values.push(activo); }
@@ -128,6 +132,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       },
     });
   } catch (error: any) {
+    if (error.message?.includes('Acceso denegado') && !error.message?.startsWith('No autorizado')) {
+      return forbiddenResponse(error.message);
+    }
     return NextResponse.json(
       { message: error.message || 'Error interno' },
       { status: error.message?.startsWith('No autorizado') ? 401 : error.message?.includes('Acceso denegado') ? 403 : 500 }
@@ -138,7 +145,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await verifyAuth(req);
-    requireAdminOrSuperadmin(user);
+    await requireModule(user, 'admin');
     const { id } = await params;
 
     const existing = await db.queryOne<any>('SELECT * FROM usuarios WHERE id = $1', [id]);

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   createContext,
@@ -29,6 +29,8 @@ interface AuthContextValue {
   register: (email: string, password: string, nombre?: string) => Promise<void>;
   logout: () => void;
   refreshSriStatus: () => Promise<void>;
+  refreshUserModules: () => Promise<void>;
+  hasModule: (codigo: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -98,18 +100,84 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(session?.user ?? null);
     if (session?.user) {
       checkSriLinked(session.user).finally(() => setIsLoading(false));
+      // Refrescar módulos desde /api/auth/me (por si cambiaron en admin)
+      void (async () => {
+        try {
+          const token = typeof window !== "undefined"
+            ? localStorage.getItem("sri_access_token")
+            : null;
+          if (!token) return;
+          const res = await fetch("/api/auth/me", {
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
+          });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data.user) {
+            const updated: SessionUser = {
+              ...session.user,
+              ...data.user,
+              modulos: data.user.modulos || [],
+            };
+            setSession({
+              accessToken: token,
+              user: updated,
+            });
+            setUser(updated);
+          }
+        } catch {
+          /* ignore */
+        }
+      })();
     } else {
       setIsLoading(false);
     }
   }, [checkSriLinked]);
 
+  const refreshUserModules = useCallback(async () => {
+    const session = getSession();
+    if (!session?.user) return;
+    try {
+      const token = localStorage.getItem("sri_access_token");
+      if (!token) return;
+      const res = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.user) {
+        const updated: SessionUser = {
+          ...session.user,
+          ...data.user,
+          modulos: data.user.modulos || [],
+        };
+        setSession({ accessToken: token, user: updated });
+        setUser(updated);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const hasModule = useCallback(
+    (codigo: string) => {
+      if (!user) return false;
+      if (user.rol === "SUPERADMIN") return true;
+      if (user.modulos?.includes(codigo)) return true;
+      return false;
+    },
+    [user]
+  );
+
   const login = useCallback(
     async (email: string, password: string) => {
       const data = await sriClient.login(email.trim(), password);
       setUser(data.user);
+      await checkSriLinked(data.user);
       return data.user;
     },
-    []
+    [checkSriLinked]
   );
 
   const register = useCallback(
@@ -158,6 +226,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         refreshSriStatus,
+        refreshUserModules,
+        hasModule,
       }}
     >
       {children}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Calendar, ChevronDown, X, Filter, CalendarDays } from "lucide-react";
 
 export type DateRange = {
   from: string; // YYYY-MM-DD
@@ -14,14 +15,28 @@ export type QuickPeriod = {
   to: string;
 };
 
-function getQuickPeriods(): QuickPeriod[] {
+export const MONTHS_FULL_ES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+];
+
+export const MONTHS_SHORT_ES = [
+  "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+  "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"
+];
+
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function lastDayOf(y: number, m: number) {
+  return new Date(y, m + 1, 0).getDate();
+}
+
+export function getQuickPeriods(): QuickPeriod[] {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth(); // 0-indexed
-
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const lastDayOf = (y: number, m: number) =>
-    new Date(y, m + 1, 0).getDate();
 
   // Current month
   const cmFrom = `${year}-${pad(month + 1)}-01`;
@@ -32,6 +47,12 @@ function getQuickPeriods(): QuickPeriod[] {
   const prevY = month === 0 ? year - 1 : year;
   const pmFrom = `${prevY}-${pad(prevM + 1)}-01`;
   const pmTo = `${prevY}-${pad(prevM + 1)}-${pad(lastDayOf(prevY, prevM))}`;
+
+  // Last 30 days
+  const d30Now = new Date();
+  const d30Start = new Date(d30Now.getTime() - 30 * 86400000);
+  const d30From = `${d30Start.getFullYear()}-${pad(d30Start.getMonth() + 1)}-${pad(d30Start.getDate())}`;
+  const d30To = `${d30Now.getFullYear()}-${pad(d30Now.getMonth() + 1)}-${pad(d30Now.getDate())}`;
 
   // Current quarter
   const qStart = Math.floor(month / 3) * 3;
@@ -47,14 +68,10 @@ function getQuickPeriods(): QuickPeriod[] {
   const lyFrom = `${year - 1}-01-01`;
   const lyTo = `${year - 1}-12-31`;
 
-  const MONTHS_ES = [
-    "Ene", "Feb", "Mar", "Abr", "May", "Jun",
-    "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
-  ];
-
   return [
-    { key: "cm",   label: `${MONTHS_ES[month]} ${year}`,          from: cmFrom, to: cmTo },
-    { key: "pm",   label: `${MONTHS_ES[prevM]} ${prevY}`,         from: pmFrom, to: pmTo },
+    { key: "cm",   label: `${MONTHS_SHORT_ES[month]} ${year}`,          from: cmFrom, to: cmTo },
+    { key: "pm",   label: `${MONTHS_SHORT_ES[prevM]} ${prevY}`,         from: pmFrom, to: pmTo },
+    { key: "30d",  label: "Últimos 30 días",                       from: d30From, to: d30To },
     { key: "q",    label: `T${Math.floor(month / 3) + 1} ${year}`, from: qFrom,  to: qTo  },
     { key: "cy",   label: `Año ${year}`,                           from: cyFrom, to: cyTo  },
     { key: "ly",   label: `Año ${year - 1}`,                       from: lyFrom, to: lyTo  },
@@ -85,6 +102,14 @@ export function formatDateRangeLabel(range: DateRange): string {
     return `${fromStr} – ${toStr}`;
   }
   return "Rango personalizado";
+}
+
+export function getRangeDaysCount(range: DateRange): number | null {
+  if (!range.from || !range.to) return null;
+  const f = new Date(`${range.from}T12:00:00`).getTime();
+  const t = new Date(`${range.to}T12:00:00`).getTime();
+  if (isNaN(f) || isNaN(t)) return null;
+  return Math.max(1, Math.round((t - f) / (1000 * 60 * 60 * 24)) + 1);
 }
 
 export function toDateRangeParams(range: DateRange): { fechaDesde?: string; fechaHasta?: string } {
@@ -131,6 +156,11 @@ interface DateRangeFilterProps {
   filterLabel?: string;
   /** Show the custom date pickers inline (default: true) */
   showCustom?: boolean;
+  /**
+   * compact: franja densa con presets en scroll;
+   * paneles de mes/rango solo al abrir.
+   */
+  variant?: "default" | "compact";
   /** Extra class for the root wrapper */
   className?: string;
 }
@@ -138,19 +168,36 @@ interface DateRangeFilterProps {
 export default function DateRangeFilter({
   value,
   onChange,
-  filterLabel = "Fecha emisión",
+  filterLabel = "Período",
   showCustom = true,
+  variant = "default",
   className = "",
 }: DateRangeFilterProps) {
   const periods = getQuickPeriods();
   const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  
+  const currentYear = new Date().getFullYear();
+  const [selectedPickerYear, setSelectedPickerYear] = useState<number>(currentYear);
 
   const activeKey =
     periods.find((p) => p.from === value.from && p.to === value.to)?.key ??
     "custom";
 
+  const daysCount = getRangeDaysCount(value);
+  const formattedLabel = formatDateRangeLabel(value);
+
   const handleQuick = (p: QuickPeriod) => {
     onChange({ from: p.from, to: p.to });
+    setShowCustomPicker(false);
+    setShowMonthPicker(false);
+  };
+
+  const handleSelectMonth = (monthIndex: number, year: number) => {
+    const from = `${year}-${pad(monthIndex + 1)}-01`;
+    const to = `${year}-${pad(monthIndex + 1)}-${pad(lastDayOf(year, monthIndex))}`;
+    onChange({ from, to });
+    setShowMonthPicker(false);
     setShowCustomPicker(false);
   };
 
@@ -158,95 +205,249 @@ export default function DateRangeFilter({
     onChange({ ...value, [field]: val });
   };
 
+  const applyShortcut = (type: "today" | "yesterday" | "7d" | "30d") => {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+    if (type === "today") {
+      onChange({ from: todayStr, to: todayStr });
+    } else if (type === "yesterday") {
+      const y = new Date(now.getTime() - 86400000);
+      const yStr = `${y.getFullYear()}-${pad(y.getMonth() + 1)}-${pad(y.getDate())}`;
+      onChange({ from: yStr, to: yStr });
+    } else if (type === "7d") {
+      const d7 = new Date(now.getTime() - 7 * 86400000);
+      const d7Str = `${d7.getFullYear()}-${pad(d7.getMonth() + 1)}-${pad(d7.getDate())}`;
+      onChange({ from: d7Str, to: todayStr });
+    } else if (type === "30d") {
+      const d30 = new Date(now.getTime() - 30 * 86400000);
+      const d30Str = `${d30.getFullYear()}-${pad(d30.getMonth() + 1)}-${pad(d30.getDate())}`;
+      onChange({ from: d30Str, to: todayStr });
+    }
+  };
+
+  const isCompact = variant === "compact";
+
   return (
-    <div className={`flex flex-col gap-2 ${className}`}>
-      {/* Quick period pills */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1 hidden sm:block">
-          {filterLabel}:
-        </span>
-        {periods.map((p) => (
-          <button
-            key={p.key}
-            onClick={() => handleQuick(p)}
-            className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all cursor-pointer whitespace-nowrap
-              ${activeKey === p.key
-                ? "bg-brand-navy text-white border-brand-navy shadow-sm"
-                : "bg-white text-slate-600 border-slate-200 hover:border-slate-400 hover:text-slate-800"
-              }`}
-          >
-            {p.label}
-          </button>
-        ))}
+    <div className={`flex flex-col ${isCompact ? "gap-2" : "gap-2.5"} ${className}`}>
+      {/* Top row: Label, active period badge & quick action pills */}
+      <div className={`flex items-center gap-2 ${isCompact ? "flex-nowrap overflow-x-auto pb-0.5 -mx-0.5 px-0.5" : "flex-wrap justify-between"}`}>
+        <div className="flex items-center gap-2 shrink-0 min-w-0">
+          {!isCompact && (
+            <span className="text-[11px] font-bold text-brand-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-brand-red" />
+              {filterLabel}:
+            </span>
+          )}
 
-        {/* Custom range toggle */}
-        {showCustom && (
-          <button
-            onClick={() => setShowCustomPicker((v) => !v)}
-            className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all cursor-pointer flex items-center gap-1
-              ${activeKey === "custom" || showCustomPicker
-                ? "bg-slate-800 text-white border-slate-800"
-                : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
-              }`}
-          >
-            <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-            Rango
-          </button>
-        )}
-
-        {/* Active custom label */}
-        {activeKey === "custom" && value.from && value.to && !showCustomPicker && (
-          <span className="text-[11px] text-slate-500 font-medium">
-            {value.from} → {value.to}
-          </span>
-        )}
-        {value.from && value.to && activeKey !== "custom" && (
-          <span className="text-[10px] text-slate-400 font-medium hidden md:inline">
-            {value.from} → {value.to}
-          </span>
-        )}
-      </div>
-
-      {/* Custom date inputs */}
-      {showCustom && showCustomPicker && (
-        <div className="flex items-center gap-2 flex-wrap bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
-          <div className="flex items-center gap-1.5">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap">
-              Desde
-            </label>
-            <input
-              type="date"
-              value={value.from}
-              onChange={(e) => handleCustom("from", e.target.value)}
-              className="text-[12px] font-medium text-slate-800 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:border-brand-navy transition-colors cursor-pointer"
-            />
+          {/* Active Period Badge */}
+          <div className="flex items-center gap-1.5 bg-brand-gray-100/80 border border-brand-gray-200/80 rounded-lg px-2.5 py-0.5 min-w-0">
+            <Calendar className="w-3 h-3 text-brand-gray-600 shrink-0" />
+            <span className="text-[11.5px] font-bold text-brand-gray-800 capitalize truncate">
+              {formattedLabel}
+            </span>
+            {daysCount !== null && !isCompact && (
+              <span className="text-[10px] font-semibold text-brand-gray-500 bg-white border border-brand-gray-200 px-1.5 rounded">
+                {daysCount} {daysCount === 1 ? "día" : "días"}
+              </span>
+            )}
           </div>
-          <span className="text-slate-300 text-sm">—</span>
-          <div className="flex items-center gap-1.5">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap">
-              Hasta
-            </label>
-            <input
-              type="date"
-              value={value.to}
-              onChange={(e) => handleCustom("to", e.target.value)}
-              className="text-[12px] font-medium text-slate-800 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:border-brand-navy transition-colors cursor-pointer"
-            />
-          </div>
+        </div>
+
+        {/* Quick Month & Custom Pickers toggles */}
+        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
           <button
+            type="button"
             onClick={() => {
-              onChange({ from: "", to: "" });
+              setShowMonthPicker((v) => !v);
               setShowCustomPicker(false);
             }}
-            className="ml-auto text-[11px] text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+            className={`text-[11px] font-semibold px-2.5 py-1.5 min-h-8 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
+              showMonthPicker
+                ? "bg-brand-red text-white border-brand-red shadow-sm"
+                : "bg-white text-brand-gray-700 border-brand-gray-200 hover:border-brand-gray-400 hover:bg-brand-gray-50"
+            }`}
           >
-            Limpiar
+            <CalendarDays className="w-3.5 h-3.5" />
+            <span className={isCompact ? "hidden sm:inline" : ""}>{isCompact ? "Mes" : "Seleccionar Mes"}</span>
+            <ChevronDown className={`w-3 h-3 transition-transform ${showMonthPicker ? "rotate-180" : ""}`} />
           </button>
+
+          {showCustom && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowCustomPicker((v) => !v);
+                setShowMonthPicker(false);
+              }}
+              className={`text-[11px] font-semibold px-2.5 py-1.5 min-h-8 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeKey === "custom" || showCustomPicker
+                  ? "bg-brand-gray-900 text-white border-brand-gray-900 shadow-sm"
+                  : "bg-white text-brand-gray-700 border-brand-gray-200 hover:border-brand-gray-400 hover:bg-brand-gray-50"
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span className={isCompact ? "hidden sm:inline" : ""}>{isCompact ? "Rango" : "Rango Libre"}</span>
+            </button>
+          )}
+
+          {(value.from || value.to) && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange({ from: "", to: "" });
+                setShowCustomPicker(false);
+                setShowMonthPicker(false);
+              }}
+              title="Limpiar período (Ver todos)"
+              className="text-[11px] font-semibold text-brand-gray-400 hover:text-brand-red transition-colors p-1.5 min-h-8 min-w-8 hover:bg-brand-red-subtle rounded-lg cursor-pointer flex items-center justify-center gap-1"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Limpiar</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Quick Preset Pills Bar */}
+      <div
+        className={`flex items-center gap-1.5 ${
+          isCompact
+            ? "overflow-x-auto pb-0.5 -mx-0.5 px-0.5 scrollbar-thin"
+            : "flex-wrap pt-0.5"
+        }`}
+        role="group"
+        aria-label={`Presets de ${filterLabel.toLowerCase()}`}
+      >
+        {periods.map((p) => {
+          const isSelected = activeKey === p.key;
+          return (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => handleQuick(p)}
+              className={`text-[11px] font-semibold px-3 py-1.5 min-h-8 rounded-full border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                isSelected
+                  ? "bg-brand-red text-white border-brand-red shadow-xs font-bold"
+                  : "bg-white text-brand-gray-600 border-brand-gray-200 hover:border-brand-gray-400 hover:text-brand-gray-900 hover:bg-brand-gray-50"
+              }`}
+            >
+              {p.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Month & Year Direct Selector Grid */}
+      {showMonthPicker && (
+        <div className="mt-1 bg-white border border-brand-gray-200 rounded-xl p-3.5 shadow-lg flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="flex items-center justify-between border-b border-brand-gray-100 pb-2">
+            <span className="text-[11px] font-bold text-brand-gray-600 uppercase tracking-wider">
+              Seleccionar mes del año
+            </span>
+            {/* Year selector pills */}
+            <div className="flex items-center gap-1">
+              {[currentYear, currentYear - 1, currentYear - 2, currentYear - 3].map((y) => (
+                <button
+                  key={y}
+                  onClick={() => setSelectedPickerYear(y)}
+                  className={`text-[11px] font-bold px-2 py-0.5 rounded transition-colors ${
+                    selectedPickerYear === y
+                      ? "bg-brand-red text-white"
+                      : "text-brand-gray-600 hover:bg-brand-gray-100"
+                  }`}
+                >
+                  {y}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 12 Months Grid */}
+          <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5">
+            {MONTHS_SHORT_ES.map((monthName, idx) => {
+              const mFrom = `${selectedPickerYear}-${pad(idx + 1)}-01`;
+              const isSelected = value.from === mFrom;
+              return (
+                <button
+                  key={monthName}
+                  onClick={() => handleSelectMonth(idx, selectedPickerYear)}
+                  className={`text-[12px] font-semibold py-2 px-1 rounded-lg border text-center transition-all cursor-pointer ${
+                    isSelected
+                      ? "bg-brand-red text-white border-brand-red font-bold shadow-xs"
+                      : "bg-brand-gray-50/70 border-brand-gray-200 text-brand-gray-800 hover:border-brand-red hover:bg-brand-red-subtle/50 hover:text-brand-red"
+                  }`}
+                >
+                  <div className="font-bold">{monthName}</div>
+                  <div className="text-[9px] opacity-75">{selectedPickerYear}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Custom Date Range Panel */}
+      {showCustom && showCustomPicker && (
+        <div className="mt-1 bg-white border border-brand-gray-200 rounded-xl p-3.5 shadow-lg flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="flex items-center justify-between border-b border-brand-gray-100 pb-2">
+            <span className="text-[11px] font-bold text-brand-gray-600 uppercase tracking-wider">
+              Rango de Fechas Personalizado
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-brand-gray-400 font-semibold">Atajos:</span>
+              <button
+                onClick={() => applyShortcut("today")}
+                className="text-[10px] font-semibold text-brand-gray-600 hover:text-brand-red bg-brand-gray-100 hover:bg-brand-red-subtle px-1.5 py-0.5 rounded transition-colors"
+              >
+                Hoy
+              </button>
+              <button
+                onClick={() => applyShortcut("yesterday")}
+                className="text-[10px] font-semibold text-brand-gray-600 hover:text-brand-red bg-brand-gray-100 hover:bg-brand-red-subtle px-1.5 py-0.5 rounded transition-colors"
+              >
+                Ayer
+              </button>
+              <button
+                onClick={() => applyShortcut("7d")}
+                className="text-[10px] font-semibold text-brand-gray-600 hover:text-brand-red bg-brand-gray-100 hover:bg-brand-red-subtle px-1.5 py-0.5 rounded transition-colors"
+              >
+                7d
+              </button>
+              <button
+                onClick={() => applyShortcut("30d")}
+                className="text-[10px] font-semibold text-brand-gray-600 hover:text-brand-red bg-brand-gray-100 hover:bg-brand-red-subtle px-1.5 py-0.5 rounded transition-colors"
+              >
+                30d
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-1 min-w-[140px]">
+              <label className="text-[11px] font-bold text-brand-gray-600 whitespace-nowrap">
+                Desde:
+              </label>
+              <input
+                type="date"
+                value={value.from}
+                onChange={(e) => handleCustom("from", e.target.value)}
+                className="w-full text-[12px] font-semibold text-brand-gray-900 bg-white border border-brand-gray-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-brand-red focus:ring-1 focus:ring-brand-red transition-all cursor-pointer"
+              />
+            </div>
+            <span className="text-brand-gray-300 font-bold hidden sm:inline">—</span>
+            <div className="flex items-center gap-2 flex-1 min-w-[140px]">
+              <label className="text-[11px] font-bold text-brand-gray-600 whitespace-nowrap">
+                Hasta:
+              </label>
+              <input
+                type="date"
+                value={value.to}
+                onChange={(e) => handleCustom("to", e.target.value)}
+                className="w-full text-[12px] font-semibold text-brand-gray-900 bg-white border border-brand-gray-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-brand-red focus:ring-1 focus:ring-brand-red transition-all cursor-pointer"
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

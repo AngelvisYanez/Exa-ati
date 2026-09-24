@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Trash2, Search } from "lucide-react";
 
+import { apiFetch } from "@/lib/apiFetch";
 const MOTIVOS_TRASLADO = [
   { value: "1", label: "Venta" },
   { value: "2", label: "Compra" },
@@ -48,8 +49,14 @@ export default function NuevaGuiaPage() {
   const [placa, setPlaca] = useState("");
   const [transportistaRuc, setTransportistaRuc] = useState("");
   const [transportistaRazonSocial, setTransportistaRazonSocial] = useState("");
-  const [fechaInicio, setFechaInicio] = useState(() => new Date().toISOString().split("T")[0]);
-  const [fechaFin, setFechaFin] = useState(() => new Date().toISOString().split("T")[0]);
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
+
+  useEffect(() => {
+    const today = new Date().toISOString().split("T")[0];
+    setFechaInicio(today);
+    setFechaFin(today);
+  }, []);
   const [numFacturaReferencia, setNumFacturaReferencia] = useState("");
 
   const [destinatarios, setDestinatarios] = useState<Destinatario[]>([
@@ -61,7 +68,7 @@ export default function NuevaGuiaPage() {
     if (!id.trim()) return;
     setBuscandoContacto(true);
     try {
-      const res = await fetch(`/api/contactos?q=${id}`);
+      const res = await apiFetch(`/api/contactos?q=${id}`);
       if (!res.ok) throw new Error("Error");
       const data = await res.json();
       const contactos = data.contactos || data.data || [];
@@ -118,7 +125,7 @@ export default function NuevaGuiaPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/sri/guia-remision", {
+      const res = await apiFetch("/api/sri/guia-remision", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -161,7 +168,7 @@ export default function NuevaGuiaPage() {
     <>
       <title>Nueva Guía de Remisión - OFSERCONT IA</title>
       <Topbar title="Nueva Guía de Remisión" backLink={{ href: "/guias-remision", label: "Guías de Remisión" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Nueva Guía de Remisión</h1>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -175,7 +182,7 @@ export default function NuevaGuiaPage() {
                   <Button type="button" variant="outline" size="sm" disabled={buscandoContacto} onClick={async () => {
                     if (!identificacion.trim()) return;
                     try {
-                      const res = await fetch(`/api/contactos?q=${identificacion}`);
+                      const res = await apiFetch(`/api/contactos?q=${identificacion}`);
                       const data = await res.json();
                       const list = data.contactos || data.data || [];
                       if (list.length > 0) {
@@ -330,7 +337,7 @@ export default function NuevaGuiaPage() {
           </Card>
 
           <div className="flex gap-3">
-            <Button type="submit" disabled={submitting} className="bg-brand-navy hover:bg-brand-navy-light text-white">
+            <Button type="submit" disabled={submitting} className="bg-brand-red hover:bg-brand-red-bright text-white">
               {submitting ? "Guardando..." : "Guardar Guía de Remisión"}
             </Button>
             <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>

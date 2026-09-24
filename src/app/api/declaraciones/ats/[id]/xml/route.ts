@@ -1,15 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { buildAtsXml, type AtsData } from '@/services/sri-api/ats';
 
 export async function GET(
   req: Request,
@@ -35,61 +27,19 @@ export async function GET(
       );
     }
 
-    const data = typeof reporte.data === 'string' ? JSON.parse(reporte.data) : reporte.data;
+    const data: AtsData =
+      typeof reporte.data === 'string' ? JSON.parse(reporte.data) : reporte.data;
 
-    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-    xml += '<ats>\n';
-    xml += `  <periodo>${data.periodo}</periodo>\n`;
-    xml += `  <razonSocial>${escapeXml(data.razonSocial || '')}</razonSocial>\n`;
-    xml += `  <ruc>${data.ruc || ''}</ruc>\n`;
-
-    xml += '  <ventas>\n';
-    for (const v of data.ventas || []) {
-      xml += '    <venta>\n';
-      xml += `      <tpIdCliente>${v.tpIdCliente}</tpIdCliente>\n`;
-      xml += `      <idCliente>${escapeXml(v.idCliente)}</idCliente>\n`;
-      xml += `      <razonSocial>${escapeXml(v.razonSocial)}</razonSocial>\n`;
-      xml += `      <tipoComprobante>${v.tipoComprobante}</tipoComprobante>\n`;
-      xml += `      <numeroComprobantes>${v.numeroComprobantes}</numeroComprobantes>\n`;
-      xml += `      <baseImponible>${(v.baseImponible || 0).toFixed(2)}</baseImponible>\n`;
-      xml += `      <baseNoGraIva>${(v.baseNoGraIva || 0).toFixed(2)}</baseNoGraIva>\n`;
-      xml += `      <montoIva>${(v.montoIva || 0).toFixed(2)}</montoIva>\n`;
-      xml += `      <valorRetenidoIva>${(v.valorRetenidoIva || 0).toFixed(2)}</valorRetenidoIva>\n`;
-      xml += `      <valorRetenidoRenta>${(v.valorRetenidoRenta || 0).toFixed(2)}</valorRetenidoRenta>\n`;
-      xml += '    </venta>\n';
+    if (!data || !Array.isArray(data.ventas)) {
+      return NextResponse.json(
+        { message: 'El reporte ATS no contiene datos válidos para exportar' },
+        { status: 422 }
+      );
     }
-    xml += '  </ventas>\n';
 
-    xml += '  <compras>\n';
-    for (const c of data.compras || []) {
-      xml += '    <compra>\n';
-      xml += `      <tpIdProveedor>${c.tpIdProveedor}</tpIdProveedor>\n`;
-      xml += `      <idProveedor>${escapeXml(c.idProveedor)}</idProveedor>\n`;
-      xml += `      <razonSocial>${escapeXml(c.razonSocial)}</razonSocial>\n`;
-      xml += `      <tipoComprobante>${c.tipoComprobante}</tipoComprobante>\n`;
-      xml += `      <numeroComprobantes>${c.numeroComprobantes}</numeroComprobantes>\n`;
-      xml += `      <baseImponible>${(c.baseImponible || 0).toFixed(2)}</baseImponible>\n`;
-      xml += `      <baseNoGraIva>${(c.baseNoGraIva || 0).toFixed(2)}</baseNoGraIva>\n`;
-      xml += `      <montoIva>${(c.montoIva || 0).toFixed(2)}</montoIva>\n`;
-      xml += `      <valorRetenidoIva>${(c.valorRetenidoIva || 0).toFixed(2)}</valorRetenidoIva>\n`;
-      xml += `      <valorRetenidoRenta>${(c.valorRetenidoRenta || 0).toFixed(2)}</valorRetenidoRenta>\n`;
-      xml += '    </compra>\n';
-    }
-    xml += '  </compras>\n';
-
-    xml += '  <retenciones>\n';
-    for (const r of data.retenciones || []) {
-      xml += '    <retencion>\n';
-      xml += `      <tipoComprobante>${r.tipoComprobante}</tipoComprobante>\n`;
-      xml += `      <numeroComprobantes>${r.numeroComprobantes}</numeroComprobantes>\n`;
-      xml += `      <baseImponible>${(r.baseImponible || 0).toFixed(2)}</baseImponible>\n`;
-      xml += `      <valorRetenidoIva>${(r.valorRetenidoIva || 0).toFixed(2)}</valorRetenidoIva>\n`;
-      xml += `      <valorRetenidoRenta>${(r.valorRetenidoRenta || 0).toFixed(2)}</valorRetenidoRenta>\n`;
-      xml += '    </retencion>\n';
-    }
-    xml += '  </retenciones>\n';
-
-    xml += '</ats>\n';
+    // Genera siempre desde los datos guardados para garantizar
+    // la estructura oficial del SRI (raíz ivaRecaudado).
+    const xml = buildAtsXml(data);
 
     return new NextResponse(xml, {
       headers: {

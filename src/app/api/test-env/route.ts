@@ -1,12 +1,24 @@
 import { NextResponse } from 'next/server';
-import { config } from '@/lib/sri-api/config';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { config } from '@/services/sri-api/config';
 
-export async function GET() {
-  return NextResponse.json({
-    proxy: process.env.SRI_PROXY_HOST,
-    reception: config.sri.wsdl.reception,
-    authorization: config.sri.wsdl.authorization,
-    rawReception: process.env.SRI_RECEPTION_WSDL,
-    rawAuthorization: process.env.SRI_AUTHORIZATION_WSDL,
-  });
+/**
+ * Diagnóstico de entorno SRI — solo ADMIN/SUPERADMIN autenticado.
+ * No exponer en producción sin auth.
+ */
+export async function GET(req: Request) {
+  try {
+    const user = await verifyAuth(req);
+    if (!['ADMIN', 'SUPERADMIN'].includes(user.rol)) {
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    }
+
+    return NextResponse.json({
+      proxyConfigured: Boolean(process.env.SRI_PROXY_HOST),
+      reception: config.sri.wsdl.reception,
+      authorization: config.sri.wsdl.authorization,
+    });
+  } catch {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
 }

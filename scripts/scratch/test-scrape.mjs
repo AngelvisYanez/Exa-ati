@@ -1,7 +1,7 @@
-import { db } from '../../src/lib/sri-api/db.js';
-import { getBrowser } from '../../src/lib/scraping/browser.js';
-import { ensureSession, solveRecaptchaAntiCaptcha, trySolveRecaptcha } from '../../src/lib/scraping/sri-auth.js';
-import { downloadReceivedComprobantes } from '../../src/lib/scraping/sri-downloader.js';
+import { db } from '../../src/services/sri-api/db.js';
+import { getBrowser } from '../../src/services/scraping/browser.js';
+import { ensureSession, solveRecaptchaAntiCaptcha, trySolveRecaptcha } from '../../src/services/scraping/sri-auth.js';
+import { downloadReceivedComprobantes } from '../../src/services/scraping/sri-downloader.js';
 import { config } from 'dotenv';
 import ws from 'ws';
 

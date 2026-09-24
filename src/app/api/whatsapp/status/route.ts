@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { getUserRuc } from '@/lib/sri-api/user-resolver';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { getUserRuc } from '@/services/sri-api/user-resolver';
 
 export async function GET(req: Request) {
   try {

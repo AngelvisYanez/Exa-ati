@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 
+import { apiFetch } from "@/lib/apiFetch";
 const TIPOS = [
   { value: "IVA", label: "IVA" },
   { value: "ICE", label: "ICE" },
@@ -35,7 +36,7 @@ export default function NuevoImpuestoPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/contabilidad/impuestos", {
+      const res = await apiFetch("/api/contabilidad/impuestos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -64,7 +65,7 @@ export default function NuevoImpuestoPage() {
     <>
       <title>Nuevo Impuesto - OFSERCONT IA</title>
       <Topbar title="Nuevo Impuesto" backLink={{ href: "/contabilidad/impuestos", label: "Impuestos" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Crear Impuesto</h1>
 
         <Card className="p-5 border-brand-gray-200">
@@ -98,12 +99,12 @@ export default function NuevoImpuestoPage() {
             </div>
 
             <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-navy focus:ring-brand-navy/30" />
+              <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-red focus:ring-brand-red/30" />
               <span className="text-xs font-medium text-brand-gray-700">Activo</span>
             </label>
 
             <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={submitting} className="bg-brand-navy hover:bg-brand-navy-light text-white">
+              <Button type="submit" disabled={submitting} className="bg-brand-red hover:bg-brand-red-bright text-white">
                 {submitting ? "Guardando..." : "Guardar Impuesto"}
               </Button>
               <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>

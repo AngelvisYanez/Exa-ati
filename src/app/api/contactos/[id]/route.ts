@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { embeddings } from '@/services/sri-api/embeddings';
 
 export async function GET(
   req: Request,
@@ -106,6 +107,8 @@ export async function PUT(
       [id]
     );
 
+    embeddings.maybeIndex(tenantId, 'contacto', updated.id, updated);
+
     return NextResponse.json({
       data: {
         id: updated.id,
@@ -159,6 +162,9 @@ export async function DELETE(
       'UPDATE contactos SET activo = false, updated_at = NOW() WHERE id = $1',
       [id]
     );
+
+    const updated = await db.queryOne<any>('SELECT * FROM contactos WHERE id = $1', [id]);
+    if (updated) embeddings.maybeIndex(tenantId, 'contacto', id, updated);
 
     return NextResponse.json({ message: 'Contacto desactivado correctamente' });
   } catch (error: any) {

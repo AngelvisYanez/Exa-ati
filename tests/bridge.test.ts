@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { parseJobOptions, isDevMode } from '../src/lib/scraping/bridge';
+import { describe, it, expect, afterEach } from 'vitest';
+import { parseJobOptions, isDevMode } from '../src/services/scraping/bridge';
 
 describe('parseJobOptions', () => {
   it('parsea JSON string', () => {
@@ -28,29 +28,30 @@ describe('parseJobOptions', () => {
 });
 
 describe('isDevMode', () => {
-  const originalEnv = process.env.NODE_ENV;
-  const originalDevMode = process.env.NEXT_PUBLIC_DEV_MODE;
+  const env = process.env as Record<string, string | undefined>;
+  const originalEnv = env.NODE_ENV;
+  const originalDevMode = env.NEXT_PUBLIC_DEV_MODE;
 
   afterEach(() => {
-    process.env.NODE_ENV = originalEnv;
-    process.env.NEXT_PUBLIC_DEV_MODE = originalDevMode;
+    env.NODE_ENV = originalEnv;
+    env.NEXT_PUBLIC_DEV_MODE = originalDevMode;
   });
 
   it('retorna true en desarrollo', () => {
-    process.env.NODE_ENV = 'development';
-    process.env.NEXT_PUBLIC_DEV_MODE = undefined;
+    env.NODE_ENV = 'development';
+    env.NEXT_PUBLIC_DEV_MODE = undefined;
     expect(isDevMode()).toBe(true);
   });
 
   it('retorna true si NEXT_PUBLIC_DEV_MODE es true', () => {
-    process.env.NODE_ENV = 'production';
-    process.env.NEXT_PUBLIC_DEV_MODE = 'true';
+    env.NODE_ENV = 'production';
+    env.NEXT_PUBLIC_DEV_MODE = 'true';
     expect(isDevMode()).toBe(true);
   });
 
   it('retorna false en producción sin flag', () => {
-    process.env.NODE_ENV = 'production';
-    process.env.NEXT_PUBLIC_DEV_MODE = undefined;
+    env.NODE_ENV = 'production';
+    env.NEXT_PUBLIC_DEV_MODE = undefined;
     expect(isDevMode()).toBe(false);
   });
 });

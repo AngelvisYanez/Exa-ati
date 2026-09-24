@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Eye, EyeOff, RefreshCw } from "lucide-react";
 
+import { apiFetch } from "@/lib/apiFetch";
 function generatePassword(): string {
   const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const lower = "abcdefghijklmnopqrstuvwxyz";
@@ -32,6 +33,11 @@ interface Tenant {
   nombre: string;
 }
 
+interface RolOption {
+  codigo: string;
+  nombre: string;
+}
+
 export default function NuevoUsuarioPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
@@ -44,16 +50,29 @@ export default function NuevoUsuarioPage() {
   const [ruc, setRuc] = useState("");
   const [activo, setActivo] = useState(true);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [roles, setRoles] = useState<RolOption[]>([]);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
 
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await fetch("/api/admin/tenants?pageSize=100");
-        if (res.ok) {
-          const data = await res.json();
+        const [tenantsRes, rolesRes] = await Promise.all([
+          apiFetch("/api/admin/tenants?pageSize=100").catch(() => null),
+          apiFetch("/api/admin/roles"),
+        ]);
+        if (tenantsRes?.ok) {
+          const data = await tenantsRes.json();
           setTenants(data.data || []);
           setIsSuperadmin(true);
+        }
+        if (rolesRes.ok) {
+          const data = await rolesRes.json();
+          setRoles(
+            (data.data || []).map((r: { codigo: string; nombre: string }) => ({
+              codigo: r.codigo,
+              nombre: r.nombre,
+            }))
+          );
         }
       } catch {}
     };
@@ -72,7 +91,7 @@ export default function NuevoUsuarioPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/usuarios", {
+      const res = await apiFetch("/api/admin/usuarios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -102,7 +121,7 @@ export default function NuevoUsuarioPage() {
     <>
       <title>Nuevo Usuario - Admin - OFSERCONT IA</title>
       <Topbar title="Nuevo Usuario" backLink={{ href: "/admin/usuarios", label: "Usuarios" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Nuevo Usuario</h1>
 
         <Card className="p-5 border-brand-gray-200 max-w-xl">
@@ -145,9 +164,18 @@ export default function NuevoUsuarioPage() {
             <div className="flex flex-col gap-1.5">
               <Label className="text-[10px] font-bold text-brand-gray-500 uppercase tracking-wider">Rol</Label>
               <select value={rol} onChange={(e) => setRol(e.target.value)} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none">
-                <option value="USER">USER</option>
-                <option value="ADMIN">ADMIN</option>
-                <option value="SUPERADMIN">SUPERADMIN</option>
+                {(roles.length > 0
+                  ? roles.filter((r) => isSuperadmin || r.codigo !== "SUPERADMIN")
+                  : [
+                      { codigo: "USER", nombre: "Usuario" },
+                      { codigo: "ADMIN", nombre: "Administrador" },
+                      ...(isSuperadmin ? [{ codigo: "SUPERADMIN", nombre: "Superadministrador" }] : []),
+                    ]
+                ).map((r) => (
+                  <option key={r.codigo} value={r.codigo}>
+                    {r.codigo} — {r.nombre}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -169,12 +197,12 @@ export default function NuevoUsuarioPage() {
             </div>
 
             <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-navy focus:ring-brand-navy/30" />
+              <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="w-4 h-4 rounded border-brand-gray-300 text-brand-red focus:ring-brand-red/30" />
               <span className="text-xs font-medium text-brand-gray-700">Usuario activo</span>
             </label>
 
             <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={submitting} className="bg-brand-navy hover:bg-brand-navy-light text-white">
+              <Button type="submit" disabled={submitting} className="bg-brand-red hover:bg-brand-red-bright text-white">
                 {submitting ? "Guardando..." : "Crear Usuario"}
               </Button>
               <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>

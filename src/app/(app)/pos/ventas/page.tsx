@@ -1,20 +1,26 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Search, FileText, Download, Eye, RefreshCw } from "lucide-react";
 
+import { apiFetch } from "@/lib/apiFetch";
 const ESTADO_COLORS: Record<string, string> = {
-  AUTORIZADO: 'bg-emerald-100 text-emerald-800',
-  EN_PROCESO: 'bg-amber-100 text-amber-800',
-  FIRMADO: 'bg-blue-100 text-blue-800',
-  RECHAZADO: 'bg-red-100 text-red-800',
-  PENDIENTE: 'bg-slate-100 text-slate-600',
+  AUTORIZADO: "bg-success-pale text-success",
+  EN_PROCESO: "bg-brand-amber-pale text-brand-amber",
+  FIRMADO: "bg-brand-sky/15 text-brand-sky",
+  RECHAZADO: "bg-brand-red-subtle text-brand-red",
+  PENDIENTE: "bg-brand-gray-100 text-brand-gray-600",
+  DEVUELTA: "bg-brand-amber-pale text-brand-amber",
+  ANULADO: "bg-brand-gray-100 text-brand-gray-600",
 };
 
 export default function PosVentasPage() {
@@ -37,7 +43,7 @@ export default function PosVentasPage() {
       if (fechaDesde) params.append('fechaDesde', fechaDesde);
       if (fechaHasta) params.append('fechaHasta', fechaHasta);
 
-      const res = await fetch(`/api/sri/pos?${params.toString()}`, {
+      const res = await apiFetch(`/api/sri/pos?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const data = await res.json();
@@ -69,8 +75,11 @@ export default function PosVentasPage() {
       <>
         <title>Ventas POS - EXA ATI</title>
         <Topbar title="Historial de Ventas POS" />
-        <main className="p-6 w-full text-center text-slate-500">
-          Vincula tu RUC del SRI para ver las ventas POS.
+        <main className="ui-page flex-1 w-full">
+          <EmptyState
+            icon={<FileText className="w-5 h-5" />}
+            title="Vincula tu RUC del SRI para ver las ventas POS."
+          />
         </main>
       </>
     );
@@ -80,23 +89,23 @@ export default function PosVentasPage() {
     <>
       <title>Ventas POS - EXA ATI</title>
       <Topbar title="Historial de Ventas POS" />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <Card className="p-4">
           <form onSubmit={handleSearch} className="flex flex-wrap gap-3 items-end">
             <div className="flex-1 min-w-[200px]">
-              <label className="text-[10px] font-bold uppercase text-slate-500">Buscar</label>
+              <label className="text-[10px] font-bold uppercase text-brand-gray-500">Buscar</label>
               <div className="relative mt-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray-400" />
                 <Input size={1} value={search} onChange={e => setSearch(e.target.value)}
                   placeholder="Cliente, RUC, secuencial..." className="pl-8 h-8 text-xs" />
               </div>
             </div>
             <div>
-              <label className="text-[10px] font-bold uppercase text-slate-500">Desde</label>
+              <label className="text-[10px] font-bold uppercase text-brand-gray-500">Desde</label>
               <Input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} className="h-8 text-xs mt-1" />
             </div>
             <div>
-              <label className="text-[10px] font-bold uppercase text-slate-500">Hasta</label>
+              <label className="text-[10px] font-bold uppercase text-brand-gray-500">Hasta</label>
               <Input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} className="h-8 text-xs mt-1" />
             </div>
             <Button type="submit" variant="outline" size="sm" className="h-8">
@@ -110,53 +119,61 @@ export default function PosVentasPage() {
 
         <Card className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="text-left p-3 font-bold text-slate-500 uppercase tracking-wider">#</th>
-                  <th className="text-left p-3 font-bold text-slate-500 uppercase tracking-wider">Fecha</th>
-                  <th className="text-left p-3 font-bold text-slate-500 uppercase tracking-wider">Cliente</th>
-                  <th className="text-left p-3 font-bold text-slate-500 uppercase tracking-wider">Identificación</th>
-                  <th className="text-right p-3 font-bold text-slate-500 uppercase tracking-wider">Total</th>
-                  <th className="text-center p-3 font-bold text-slate-500 uppercase tracking-wider">Estado</th>
-                  <th className="text-center p-3 font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-xs">
+              <TableHeader>
+                <TableRow className="bg-brand-gray-50 border-b border-brand-gray-200">
+                  <TableHead className="text-left p-3 font-bold text-brand-gray-500 uppercase tracking-wider">#</TableHead>
+                  <TableHead className="text-left p-3 font-bold text-brand-gray-500 uppercase tracking-wider">Fecha</TableHead>
+                  <TableHead className="text-left p-3 font-bold text-brand-gray-500 uppercase tracking-wider">Cliente</TableHead>
+                  <TableHead className="text-left p-3 font-bold text-brand-gray-500 uppercase tracking-wider">Identificación</TableHead>
+                  <TableHead className="text-right p-3 font-bold text-brand-gray-500 uppercase tracking-wider">Total</TableHead>
+                  <TableHead className="text-center p-3 font-bold text-brand-gray-500 uppercase tracking-wider">Estado</TableHead>
+                  <TableHead className="text-center p-3 font-bold text-brand-gray-500 uppercase tracking-wider">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {loading ? (
-                  <tr><td colSpan={7} className="p-6 text-center text-slate-400">Cargando...</td></tr>
+                  <TableRow><TableCell colSpan={7} className="p-6"><TableSkeleton rows={4} columns={6} /></TableCell></TableRow>
                 ) : ventas.length === 0 ? (
-                  <tr><td colSpan={7} className="p-6 text-center text-slate-400">No hay ventas POS registradas</td></tr>
+                  <TableRow>
+                    <TableCell colSpan={7} className="p-0">
+                      <EmptyState
+                        icon={<FileText className="w-5 h-5" />}
+                        title="No hay ventas POS registradas"
+                        compact
+                      />
+                    </TableCell>
+                  </TableRow>
                 ) : ventas.map((v, i) => (
-                  <tr key={v.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="p-3 font-mono text-slate-500">{((meta.page - 1) * 20) + i + 1}</td>
-                    <td className="p-3">{v.fecha_emision ? new Date(v.fecha_emision).toLocaleDateString('es-EC') : '—'}</td>
-                    <td className="p-3 font-medium">{v.receptor_razon_social || '—'}</td>
-                    <td className="p-3 font-mono text-slate-500">{v.receptor_identificacion || '—'}</td>
-                    <td className="p-3 text-right font-mono font-bold">${parseFloat(v.importe_total || 0).toFixed(2)}</td>
-                    <td className="p-3 text-center">
-                      <Badge className={`${ESTADO_COLORS[v.estado] || 'bg-slate-100 text-slate-600'} text-[10px]`}>
+                  <TableRow key={v.id} className="border-b border-brand-gray-100 hover:bg-brand-gray-50">
+                    <TableCell className="p-3 font-mono text-brand-gray-500">{((meta.page - 1) * 20) + i + 1}</TableCell>
+                    <TableCell className="p-3">{v.fecha_emision ? new Date(v.fecha_emision).toLocaleDateString('es-EC') : '—'}</TableCell>
+                    <TableCell className="p-3 font-medium">{v.receptor_razon_social || '—'}</TableCell>
+                    <TableCell className="p-3 font-mono text-brand-gray-500">{v.receptor_identificacion || '—'}</TableCell>
+                    <TableCell className="p-3 text-right font-mono font-bold">${parseFloat(v.importe_total || 0).toFixed(2)}</TableCell>
+                    <TableCell className="p-3 text-center">
+                      <Badge className={`${ESTADO_COLORS[v.estado] || 'bg-brand-gray-100 text-brand-gray-600'} text-[10px]`}>
                         {v.estado}
                       </Badge>
-                    </td>
-                    <td className="p-3 text-center">
+                    </TableCell>
+                    <TableCell className="p-3 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <a href={getPdfUrl(v.clave_acceso)} target="_blank" rel="noopener noreferrer"
-                          className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
+                          className="p-1.5 rounded-md hover:bg-brand-gray-100 text-brand-gray-500 hover:text-brand-gray-800 transition-colors"
                           title="Ver RIDE">
                           <Eye className="w-3.5 h-3.5" />
                         </a>
                         <a href={getPdfUrl(v.clave_acceso)} download
-                          className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
+                          className="p-1.5 rounded-md hover:bg-brand-gray-100 text-brand-gray-500 hover:text-brand-gray-800 transition-colors"
                           title="Descargar PDF">
                           <Download className="w-3.5 h-3.5" />
                         </a>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </Card>
 
@@ -165,7 +182,7 @@ export default function PosVentasPage() {
             {Array.from({ length: meta.totalPages }, (_, i) => i + 1).map(p => (
               <button key={p} onClick={() => loadVentas(p)}
                 className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors cursor-pointer
-                  ${p === meta.page ? 'bg-brand-navy text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  ${p === meta.page ? 'bg-brand-red text-white' : 'bg-brand-gray-100 text-brand-gray-600 hover:bg-brand-gray-200'}`}>
                 {p}
               </button>
             ))}

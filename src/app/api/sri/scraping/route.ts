@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/sri-api/db';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { encryption } from '@/lib/sri-api/encryption';
+import { db } from '@/services/sri-api/db';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { encryption } from '@/services/sri-api/encryption';
+import { ejecutarTrabajoScraping } from '@/services/scraping/job-runner';
+import { isSriScrapeAction } from '@/services/scraping/sri-scrape-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,21 +25,47 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!tipo_comprobante) {
+    const finalActionType = action_type || 'DOWNLOAD_RECEIVED';
+    if (!isSriScrapeAction(finalActionType)) {
       return NextResponse.json(
-        { error: 'El tipo de comprobante es obligatorio' },
+        {
+          error:
+            'action_type inválido. Use DOWNLOAD_RECEIVED|DOWNLOAD_EMITTED|DOWNLOAD_BOTH|SCRAPE_RETENCIONES|SCRAPE_DECLARACIONES|SCRAPE_OBLIGACIONES|SCRAPE_ATS',
+        },
         { status: 400 }
       );
     }
+
+    const needsTipo =
+      finalActionType === 'DOWNLOAD_RECEIVED' ||
+      finalActionType === 'DOWNLOAD_EMITTED' ||
+      finalActionType === 'DOWNLOAD_BOTH' ||
+      finalActionType === 'SCRAPE_ATS';
+
+    let resolvedTipo = tipo_comprobante;
+    if (finalActionType === 'SCRAPE_RETENCIONES') {
+      resolvedTipo = '6';
+    } else if (
+      finalActionType === 'SCRAPE_DECLARACIONES' ||
+      finalActionType === 'SCRAPE_OBLIGACIONES'
+    ) {
+      resolvedTipo = tipo_comprobante || 'todos';
+    }
+
+    if (needsTipo && !resolvedTipo) {
+      return NextResponse.json(
+        { error: 'El tipo de comprobante es obligatorio para descargas' },
+        { status: 400 }
+      );
+    }
+
     const validTipos = ['1', '2', '3', '4', '6', 'todos'];
-    if (!validTipos.includes(tipo_comprobante)) {
+    if (resolvedTipo && !validTipos.includes(resolvedTipo)) {
       return NextResponse.json(
         { error: 'Tipo de comprobante inválido' },
         { status: 400 }
       );
     }
-
-    const finalActionType = action_type || 'DOWNLOAD_RECEIVED';
 
     const optionsStr = options && typeof options === 'object' ? JSON.stringify(options) : undefined;
 
@@ -47,20 +75,16 @@ export async function POST(req: Request) {
         'SELECT clave_sri_encrypted FROM emisores WHERE ruc = $1 AND tenant_id = $2 AND activo = true',
         [ruc, tenantId]
       );
-      if (!emisor?.clave_sri_encrypted) {
-        return NextResponse.json(
-          { error: 'Contraseña SRI requerida. No hay credenciales almacenadas para este RUC. Vincule el RUC en Configuración o proporcione la contraseña.' },
-          { status: 400 }
-        );
+      if (emisor?.clave_sri_encrypted) {
+        finalClaveSri = await encryption.decrypt(emisor.clave_sri_encrypted);
       }
-      finalClaveSri = await encryption.decrypt(emisor.clave_sri_encrypted);
     }
 
     const jobData: Record<string, any> = {
       ruc,
       fecha_desde,
       fecha_hasta,
-      tipo_comprobante,
+      tipo_comprobante: resolvedTipo || 'todos',
       status: 'PENDING',
       action_type: finalActionType,
       tenant_id: tenantId,
@@ -77,9 +101,15 @@ export async function POST(req: Request) {
     const insertedJob = await db.insert('scraping_jobs', jobData, 'id');
     const jobId = insertedJob ? insertedJob.id : null;
 
+    if (jobId) {
+      ejecutarTrabajoScraping(jobId).catch((err) => {
+        console.error(`[Scraping] Error en ejecución de job ${jobId}:`, err.message);
+      });
+    }
+
     return NextResponse.json({
       success: true,
-      message: 'Trabajo de descarga encolado.',
+      message: 'Trabajo de descarga iniciado exitosamente.',
       jobId,
     });
 

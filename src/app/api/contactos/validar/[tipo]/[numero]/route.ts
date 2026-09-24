@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/sri-api/db';
+import { db } from '@/services/sri-api/db';
 
 function validarRuc(numero: string): { valido: boolean; mensaje: string } {
   if (!/^\d{13}$/.test(numero)) {

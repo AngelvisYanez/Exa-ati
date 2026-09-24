@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { randomUUID } from 'crypto';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
 
 export async function GET(req: Request) {
   try {
@@ -91,11 +92,12 @@ export async function POST(req: Request) {
       );
     }
 
+    const id = randomUUID();
     const result = await db.queryOne<any>(
-      `INSERT INTO transportistas (tenant_id, ruc, razon_social, tipo_identificacion, placa, direccion, telefono, email, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+      `INSERT INTO transportistas (id, tenant_id, ruc, razon_social, tipo_identificacion, placa, direccion, telefono, email, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
        RETURNING *`,
-      [tenantId, ruc, razonSocial, tipoIdentificacion || '04', placa.toUpperCase(), direccion || null, telefono || null, email || null]
+      [id, tenantId, ruc, razonSocial, tipoIdentificacion || '04', placa.toUpperCase(), direccion || null, telefono || null, email || null]
     );
 
     return NextResponse.json({

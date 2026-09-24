@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { resolveLlmForTenant } from '@/lib/sri-api/llm-client';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { resolveLlmForTenant } from '@/services/sri-api/llm-client';
 
 export async function GET(req: Request) {
   try {

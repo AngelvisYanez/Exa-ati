@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { config } from '@/lib/sri-api/config';
-import jwt from 'jsonwebtoken';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { createMobileCode } from '@/services/sri-api/mobile-code-store';
 import qrcode from 'qrcode';
 import os from 'os';
 
@@ -9,14 +8,12 @@ export async function GET(req: Request) {
   try {
     const user = await verifyAuth(req);
 
-    // 1. Detectar IP Local del servidor en la red LAN
     let localIp = 'localhost';
     const interfaces = os.networkInterfaces();
     for (const name of Object.keys(interfaces)) {
       const net = interfaces[name];
       if (net) {
         for (const item of net) {
-          // Filtrar IPv4 y que no sea loopback
           if (item.family === 'IPv4' && !item.internal) {
             localIp = item.address;
             break;
@@ -26,36 +23,42 @@ export async function GET(req: Request) {
       if (localIp !== 'localhost') break;
     }
 
-    // 2. Generar token JWT persistente para inicio de sesión en móvil
-    const mobileToken = jwt.sign(
-      {
-        sub: user.sub,
-        email: user.email,
-        rol: user.rol,
-        tenantId: user.tenantId
-      },
-      config.jwt.secret,
-      { expiresIn: '30d' } // Validez de 30 días para vinculación
-    );
+    const code = createMobileCode({
+      userId: user.sub,
+      email: user.email,
+      rol: user.rol,
+      tenantId: user.tenantId ?? undefined,
+    });
 
-    // 3. Generar enlace de auto-login móvil
-    const targetUrl = `http://${localIp}:3000/configuracion?token=${mobileToken}&tab=integraciones`;
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.APP_URL ||
+      (() => {
+        try {
+          return new URL(req.url).origin;
+        } catch {
+          return `http://${localIp}:3000`;
+        }
+      })();
 
-    // 4. Generar Código QR en base64 usando la librería 'qrcode'
+    const base = String(appUrl).replace(/\/$/, '');
+    const targetUrl = `${base}/mobile?code=${code}`;
+
     const qrDataBase64 = await qrcode.toDataURL(targetUrl, {
       margin: 2,
       width: 300,
       color: {
-        dark: '#0f172a', // Navy oscuro de la marca
-        light: '#ffffff'
-      }
+        dark: '#0f172a',
+        light: '#ffffff',
+      },
     });
 
     return NextResponse.json({
       success: true,
       url: targetUrl,
       qr: qrDataBase64,
-      localIp
+      localIp,
+      expiresInMinutes: 10,
     });
   } catch (error: any) {
     console.error('[Mobile QR Generation Error]', error);

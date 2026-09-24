@@ -16,7 +16,7 @@ const mockDb = vi.hoisted(() => {
   return { queryAll, queryOne, query, insert, update, transaction };
 });
 
-vi.mock('../src/lib/sri-api/db', () => ({
+vi.mock('../src/services/sri-api/db', () => ({
   db: mockDb,
 }));
 
@@ -26,15 +26,15 @@ const mockXmlBuilder = vi.hoisted(() => ({
   parseXml: vi.fn(),
 }));
 
-vi.mock('../src/lib/sri-api/xml-builder', () => ({
+vi.mock('../src/services/sri-api/xml-builder', () => ({
   xmlBuilder: mockXmlBuilder,
 }));
 
-vi.mock('../src/lib/sri-api/xml-signer', () => ({
+vi.mock('../src/services/sri-api/xml-signer', () => ({
   xmlSigner: { signXmlForEmisor: vi.fn(() => Promise.resolve('<xml>firmado</xml>')) },
 }));
 
-vi.mock('../src/lib/sri-api/xml-storage', () => ({
+vi.mock('../src/services/sri-api/xml-storage', () => ({
   xmlStorage: {
     saveXml: vi.fn(),
     saveAllXmls: vi.fn(),
@@ -42,14 +42,14 @@ vi.mock('../src/lib/sri-api/xml-storage', () => ({
   },
 }));
 
-vi.mock('../src/lib/sri-api/sri-soap-client', () => ({
+vi.mock('../src/services/sri-api/sri-soap-client', () => ({
   sriSoapClient: {
     enviarYAutorizar: vi.fn(() => Promise.resolve({ success: true, estado: 'AUTORIZADO', numeroAutorizacion: '1234567890', xmlAutorizado: '<xml>ok</xml>' })),
     autorizarComprobante: vi.fn(),
   },
 }));
 
-vi.mock('../src/lib/sri-api/clave-acceso', () => ({
+vi.mock('../src/services/sri-api/clave-acceso', () => ({
   claveAccesoService: {
     generate: vi.fn(() => '0101202501099000000000110010010000000011234567812'),
     validate: vi.fn(() => true),
@@ -176,7 +176,7 @@ describe('Módulo 1: Plan de Cuentas', () => {
 
   it('getAll filtra por tenant', async () => {
     mockDb.queryAll.mockResolvedValue(MOCK_CUENTAS);
-    const { getAll } = await import('../src/lib/sri-api/plan-cuentas');
+    const { getAll } = await import('../src/services/sri-api/plan-cuentas');
     const result = await getAll(TENANT);
     expect(result).toHaveLength(3);
     expect(mockDb.queryAll).toHaveBeenCalledWith(
@@ -187,7 +187,7 @@ describe('Módulo 1: Plan de Cuentas', () => {
 
   it('getAll filtra por tipo y activo', async () => {
     mockDb.queryAll.mockResolvedValue([MOCK_CUENTAS[0]]);
-    const { getAll } = await import('../src/lib/sri-api/plan-cuentas');
+    const { getAll } = await import('../src/services/sri-api/plan-cuentas');
     await getAll(TENANT, { tipo: 'ACTIVO', activo: true });
     expect(mockDb.queryAll).toHaveBeenCalledWith(
       expect.stringContaining("tipo = $2 AND activo = $3"),
@@ -197,62 +197,62 @@ describe('Módulo 1: Plan de Cuentas', () => {
 
   it('getById lanza error si no existe', async () => {
     mockDb.queryOne.mockResolvedValue(null);
-    const { getById } = await import('../src/lib/sri-api/plan-cuentas');
+    const { getById } = await import('../src/services/sri-api/plan-cuentas');
     await expect(getById(999)).rejects.toThrow('no encontrado');
   });
 
   it('getById retorna cuenta', async () => {
     mockDb.queryOne.mockResolvedValue(MOCK_CUENTA);
-    const { getById } = await import('../src/lib/sri-api/plan-cuentas');
+    const { getById } = await import('../src/services/sri-api/plan-cuentas');
     const result = await getById(1);
     expect(result.codigo).toBe('1.01.01');
   });
 
   it('create rechaza código duplicado', async () => {
     mockDb.queryOne.mockResolvedValue({ id: 99 });
-    const { create } = await import('../src/lib/sri-api/plan-cuentas');
+    const { create } = await import('../src/services/sri-api/plan-cuentas');
     await expect(create({ tenantId: TENANT, codigo: '1.01.01', nombre: 'Test', nivel: 1, tipo: 'ACTIVO' }))
       .rejects.toThrow('Ya existe una cuenta con el código 1.01.01');
   });
 
   it('create valida nivel 1 sin padre', async () => {
     mockDb.queryOne.mockResolvedValue(null);
-    const { create } = await import('../src/lib/sri-api/plan-cuentas');
+    const { create } = await import('../src/services/sri-api/plan-cuentas');
     await create({ tenantId: TENANT, codigo: '1', nombre: 'Activo', nivel: 1, tipo: 'ACTIVO' });
     expect(mockDb.insert).toHaveBeenCalledWith('plan_cuentas', expect.objectContaining({ codigo: '1', nivel: 1 }));
   });
 
   it('create rechaza nivel >1 sin padre', async () => {
     mockDb.queryOne.mockResolvedValue(null);
-    const { create } = await import('../src/lib/sri-api/plan-cuentas');
+    const { create } = await import('../src/services/sri-api/plan-cuentas');
     await expect(create({ tenantId: TENANT, codigo: '1.01', nombre: 'Sub', nivel: 2, tipo: 'ACTIVO' }))
       .rejects.toThrow('Una cuenta sin padre debe tener nivel 1');
   });
 
   it('create valida nivel de cuenta padre', async () => {
     mockDb.queryOne.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 1, nivel: 1 });
-    const { create } = await import('../src/lib/sri-api/plan-cuentas');
+    const { create } = await import('../src/services/sri-api/plan-cuentas');
     await expect(create({ tenantId: TENANT, codigo: '1.01', nombre: 'Sub', nivel: 3, tipo: 'ACTIVO', cuentaPadreId: 1 }))
       .rejects.toThrow('El nivel debe ser 2');
   });
 
   it('remove desactiva cuenta', async () => {
     mockDb.queryOne.mockResolvedValue(MOCK_CUENTA);
-    const { remove } = await import('../src/lib/sri-api/plan-cuentas');
+    const { remove } = await import('../src/services/sri-api/plan-cuentas');
     await remove(1);
     expect(mockDb.update).toHaveBeenCalledWith('plan_cuentas', { activo: false }, 'id = $1', [1]);
   });
 
   it('update lanza error si cuenta no existe', async () => {
     mockDb.queryOne.mockResolvedValue(null);
-    const { update, remove } = await import('../src/lib/sri-api/plan-cuentas');
+    const { update, remove } = await import('../src/services/sri-api/plan-cuentas');
     await expect(update(999, { nombre: 'Test' })).rejects.toThrow('no encontrado');
     await expect(remove(999)).rejects.toThrow('no encontrado');
   });
 
   it('getArbol construye jerarquía', async () => {
     mockDb.queryAll.mockResolvedValue(MOCK_CUENTAS);
-    const { getArbol } = await import('../src/lib/sri-api/plan-cuentas');
+    const { getArbol } = await import('../src/services/sri-api/plan-cuentas');
     const arbol = await getArbol(TENANT);
     expect(arbol).toHaveLength(1);
     expect(arbol[0].subcuentas).toHaveLength(1);
@@ -262,7 +262,7 @@ describe('Módulo 1: Plan de Cuentas', () => {
   it('getHijas retorna subcuentas', async () => {
     mockDb.queryOne.mockResolvedValue(MOCK_CUENTAS[1]);
     mockDb.queryAll.mockResolvedValue([MOCK_CUENTAS[2]]);
-    const { getHijas } = await import('../src/lib/sri-api/plan-cuentas');
+    const { getHijas } = await import('../src/services/sri-api/plan-cuentas');
     const hijas = await getHijas(2);
     expect(hijas).toHaveLength(1);
     expect(hijas[0].codigo).toBe('1.01.01');
@@ -270,7 +270,7 @@ describe('Módulo 1: Plan de Cuentas', () => {
 
   it('getByCodigo retorna cuenta por código', async () => {
     mockDb.queryOne.mockResolvedValue(MOCK_CUENTA);
-    const { getByCodigo } = await import('../src/lib/sri-api/plan-cuentas');
+    const { getByCodigo } = await import('../src/services/sri-api/plan-cuentas');
     const result = await getByCodigo(TENANT, '1.01.01');
     expect(result.nombre).toBe('Caja');
   });
@@ -285,34 +285,34 @@ describe('Módulo 2: Impuestos', () => {
 
   it('getAll filtra por tenant', async () => {
     mockDb.queryAll.mockResolvedValue([IMP_IVA]);
-    const { getAll } = await import('../src/lib/sri-api/impuestos');
+    const { getAll } = await import('../src/services/sri-api/impuestos');
     const result = await getAll(TENANT);
     expect(result).toHaveLength(1);
   });
 
   it('getById lanza error si no existe', async () => {
     mockDb.queryOne.mockResolvedValue(null);
-    const { getById } = await import('../src/lib/sri-api/impuestos');
+    const { getById } = await import('../src/services/sri-api/impuestos');
     await expect(getById(999)).rejects.toThrow('no encontrado');
   });
 
   it('create rechaza duplicado por codigo+codigoPorcentaje', async () => {
     mockDb.queryOne.mockResolvedValue({ id: 1 });
-    const { create } = await import('../src/lib/sri-api/impuestos');
+    const { create } = await import('../src/services/sri-api/impuestos');
     await expect(create({ tenantId: TENANT, codigo: '2', codigoPorcentaje: '2', nombre: 'IVA 12%', porcentaje: 12, tarifa: 12, tipoImpuesto: 'IVA' }))
       .rejects.toThrow('Ya existe un impuesto con código 2-2');
   });
 
   it('create inserta impuesto válido', async () => {
     mockDb.queryOne.mockResolvedValue(null);
-    const { create } = await import('../src/lib/sri-api/impuestos');
+    const { create } = await import('../src/services/sri-api/impuestos');
     await create({ tenantId: TENANT, codigo: '2', codigoPorcentaje: '0', nombre: 'IVA 0%', porcentaje: 0, tarifa: 0, tipoImpuesto: 'IVA' });
     expect(mockDb.insert).toHaveBeenCalledWith('impuestos', expect.objectContaining({ codigo: '2', codigo_porcentaje: '0' }));
   });
 
   it('getRetencionesIVA filtra por tipo_impuesto', async () => {
     mockDb.queryAll.mockResolvedValue([IMP_RET]);
-    const { getRetencionesIVA } = await import('../src/lib/sri-api/impuestos');
+    const { getRetencionesIVA } = await import('../src/services/sri-api/impuestos');
     const result = await getRetencionesIVA(TENANT);
     expect(result).toHaveLength(1);
     expect(mockDb.queryAll).toHaveBeenCalledWith(
@@ -323,21 +323,21 @@ describe('Módulo 2: Impuestos', () => {
 
   it('getRetencionesRenta filtra por tipo_impuesto', async () => {
     mockDb.queryAll.mockResolvedValue([]);
-    const { getRetencionesRenta } = await import('../src/lib/sri-api/impuestos');
+    const { getRetencionesRenta } = await import('../src/services/sri-api/impuestos');
     const result = await getRetencionesRenta(TENANT);
     expect(result).toHaveLength(0);
   });
 
   it('getByTipo filtra por tipo', async () => {
     mockDb.queryAll.mockResolvedValue([IMP_IVA]);
-    const { getByTipo } = await import('../src/lib/sri-api/impuestos');
+    const { getByTipo } = await import('../src/services/sri-api/impuestos');
     const result = await getByTipo(TENANT, 'IVA');
     expect(result).toHaveLength(1);
   });
 
   it('remove desactiva impuesto', async () => {
     mockDb.queryOne.mockResolvedValue(IMP_IVA);
-    const { remove } = await import('../src/lib/sri-api/impuestos');
+    const { remove } = await import('../src/services/sri-api/impuestos');
     await remove(1);
     expect(mockDb.update).toHaveBeenCalledWith('impuestos', { activo: false }, 'id = $1', [1]);
   });
@@ -348,7 +348,7 @@ describe('Módulo 3: Tipos Documento SRI', () => {
 
   it('getAll retorna tipos activos', async () => {
     mockDb.queryAll.mockResolvedValue([{ codigo: '01', nombre: 'Factura' }, { codigo: '04', nombre: 'Nota de Crédito' }]);
-    const { getAll } = await import('../src/lib/sri-api/tipos-documento');
+    const { getAll } = await import('../src/services/sri-api/tipos-documento');
     const result = await getAll();
     expect(result).toHaveLength(2);
     expect(mockDb.queryAll).toHaveBeenCalledWith(
@@ -358,14 +358,14 @@ describe('Módulo 3: Tipos Documento SRI', () => {
 
   it('getByCodigo retorna tipo', async () => {
     mockDb.queryOne.mockResolvedValue({ codigo: '01', nombre: 'Factura' });
-    const { getByCodigo } = await import('../src/lib/sri-api/tipos-documento');
+    const { getByCodigo } = await import('../src/services/sri-api/tipos-documento');
     const result = await getByCodigo('01');
     expect(result.nombre).toBe('Factura');
   });
 
   it('getByCodigo lanza error si no existe', async () => {
     mockDb.queryOne.mockResolvedValue(null);
-    const { getByCodigo } = await import('../src/lib/sri-api/tipos-documento');
+    const { getByCodigo } = await import('../src/services/sri-api/tipos-documento');
     await expect(getByCodigo('99')).rejects.toThrow('no encontrado');
   });
 });
@@ -375,14 +375,14 @@ describe('Módulo 4: Tipos Sustento Tributario', () => {
 
   it('getAll retorna tipos activos', async () => {
     mockDb.queryAll.mockResolvedValue([{ codigo: '01', nombre: 'Sustento normal' }]);
-    const { getAll } = await import('../src/lib/sri-api/tipos-sustento');
+    const { getAll } = await import('../src/services/sri-api/tipos-sustento');
     const result = await getAll();
     expect(result).toHaveLength(1);
   });
 
   it('getByCodigo retorna tipo', async () => {
     mockDb.queryOne.mockResolvedValue({ codigo: '01', nombre: 'Sustento normal' });
-    const { getByCodigo } = await import('../src/lib/sri-api/tipos-sustento');
+    const { getByCodigo } = await import('../src/services/sri-api/tipos-sustento');
     const result = await getByCodigo('01');
     expect(result.nombre).toBe('Sustento normal');
   });
@@ -396,13 +396,13 @@ describe('Módulo 5: Posiciones Fiscales', () => {
 
   it('getAll retorna posiciones activas', async () => {
     mockDb.queryAll.mockResolvedValue([POSICION]);
-    const { getAll } = await import('../src/lib/sri-api/posiciones-fiscales');
+    const { getAll } = await import('../src/services/sri-api/posiciones-fiscales');
     const result = await getAll(TENANT);
     expect(result).toHaveLength(1);
   });
 
   it('create inserta posición fiscal', async () => {
-    const { create } = await import('../src/lib/sri-api/posiciones-fiscales');
+    const { create } = await import('../src/services/sri-api/posiciones-fiscales');
     await create({ tenantId: TENANT, nombre: 'General', tipoContribuyente: 'PERSONA_NATURAL' });
     expect(mockDb.insert).toHaveBeenCalledWith('posiciones_fiscales', expect.objectContaining({ nombre: 'General' }));
   });
@@ -410,27 +410,27 @@ describe('Módulo 5: Posiciones Fiscales', () => {
   it('getWithLines retorna posición con líneas', async () => {
     mockDb.queryOne.mockResolvedValue(POSICION);
     mockDb.queryAll.mockResolvedValue([{ id: 1, impuesto_id: 1, tipo_operacion: 'VENTA', codigo: '2', nombre: 'IVA 12%' }]);
-    const { getWithLines } = await import('../src/lib/sri-api/posiciones-fiscales');
+    const { getWithLines } = await import('../src/services/sri-api/posiciones-fiscales');
     const result = await getWithLines(1);
     expect(result.lineas).toHaveLength(1);
   });
 
   it('addLinea valida posición e impuesto', async () => {
     mockDb.queryOne.mockResolvedValueOnce(POSICION).mockResolvedValueOnce({ id: 1, codigo: '2' });
-    const { addLinea } = await import('../src/lib/sri-api/posiciones-fiscales');
+    const { addLinea } = await import('../src/services/sri-api/posiciones-fiscales');
     await addLinea(1, { impuestoId: 1, tipoOperacion: 'VENTA' });
     expect(mockDb.insert).toHaveBeenCalledWith('posiciones_fiscales_lineas', expect.objectContaining({ posicion_fiscal_id: 1, impuesto_id: 1 }));
   });
 
   it('addLinea rechaza impuesto inexistente', async () => {
     mockDb.queryOne.mockResolvedValueOnce(POSICION).mockResolvedValueOnce(null);
-    const { addLinea } = await import('../src/lib/sri-api/posiciones-fiscales');
+    const { addLinea } = await import('../src/services/sri-api/posiciones-fiscales');
     await expect(addLinea(1, { impuestoId: 999, tipoOperacion: 'VENTA' })).rejects.toThrow('no encontrado');
   });
 
   it('removeLinea elimina línea', async () => {
     mockDb.queryOne.mockResolvedValue({ id: 1, posicion_fiscal_id: 1 });
-    const { removeLinea } = await import('../src/lib/sri-api/posiciones-fiscales');
+    const { removeLinea } = await import('../src/services/sri-api/posiciones-fiscales');
     await removeLinea(1);
     expect(mockDb.query).toHaveBeenCalledWith('DELETE FROM posiciones_fiscales_lineas WHERE id = $1', [1]);
   });
@@ -438,7 +438,7 @@ describe('Módulo 5: Posiciones Fiscales', () => {
   it('findByTipoContribuyente filtra y carga líneas', async () => {
     mockDb.queryAll.mockResolvedValueOnce([POSICION]);
     mockDb.queryAll.mockResolvedValueOnce([{ id: 1, impuesto_id: 1 }]);
-    const { findByTipoContribuyente } = await import('../src/lib/sri-api/posiciones-fiscales');
+    const { findByTipoContribuyente } = await import('../src/services/sri-api/posiciones-fiscales');
     const result = await findByTipoContribuyente(TENANT, 'PERSONA_NATURAL');
     expect(result).toHaveLength(1);
     expect(result[0].lineas).toHaveLength(1);
@@ -447,32 +447,32 @@ describe('Módulo 5: Posiciones Fiscales', () => {
 
 describe('Módulo 6: Contactos SRI — validarIdentificacion', () => {
   it('valida cédula correcta', async () => {
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('05', CEDULA_VALIDA).valido).toBe(true);
   });
 
   it('rechaza cédula con dígito incorrecto', async () => {
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('05', '1710034064').valido).toBe(false);
   });
 
   it('rechaza cédula con menos de 10 dígitos', async () => {
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('05', '12345').valido).toBe(false);
   });
 
   it('rechaza cédula con tercer dígito > 6', async () => {
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('05', '1780034065').valido).toBe(false);
   });
 
   it('valida RUC persona natural', async () => {
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('04', RUC_PN_VALIDO).valido).toBe(true);
   });
 
   it('valida RUC sociedad', async () => {
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('04', RUC_SOCIEDAD_VALIDO).valido).toBe(true);
   });
 
@@ -483,42 +483,42 @@ describe('Módulo 6: Contactos SRI — validarIdentificacion', () => {
     // 0*3+8*2+8*7+0*6+0*5+0*4+0*3+0*2 = 0+16+56+0+0+0+0+0 = 72
     // 72%11 = 6, 11-6 = 5 → digit[8] = 5 ✓
     const RUC_EXT = '0880000050001';
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('04', RUC_EXT).valido).toBe(true);
   });
 
   it('rechaza RUC sin final 001', async () => {
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('04', RUC_PN_VALIDO.substring(0, 10) + '002').valido).toBe(false);
   });
 
   it('valida pasaporte', async () => {
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('06', 'AB123456').valido).toBe(true);
   });
 
   it('valida consumidor final', async () => {
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('07', '9999999999999').valido).toBe(true);
   });
 
   it('rechaza consumidor final incorrecto', async () => {
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('07', '1234567890').valido).toBe(false);
   });
 
   it('rechaza tipo de identificación no reconocido', async () => {
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('99', '12345').valido).toBe(false);
   });
 
   it('valida identificación del exterior', async () => {
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('08', 'ABC12345').valido).toBe(true);
   });
 
   it('rechaza identificación exterior muy corta', async () => {
-    const { validarIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { validarIdentificacion } = await import('../src/services/sri-api/contactos');
     expect(validarIdentificacion('08', 'AB').valido).toBe(false);
   });
 });
@@ -539,7 +539,7 @@ describe('Módulo 6b: Contactos SRI — CRUD con mocks', () => {
   });
 
   it('getAll filtra por tenant y opciones', async () => {
-    const { getAll } = await import('../src/lib/sri-api/contactos');
+    const { getAll } = await import('../src/services/sri-api/contactos');
     const result = await getAll(TENANT, { esCliente: true, search: 'Test' });
     expect(result).toHaveLength(1);
     expect(mockDb.queryAll).toHaveBeenCalledWith(
@@ -549,50 +549,50 @@ describe('Módulo 6b: Contactos SRI — CRUD con mocks', () => {
   });
 
   it('create valída identificación antes de insertar', async () => {
-    const { create } = await import('../src/lib/sri-api/contactos');
+    const { create } = await import('../src/services/sri-api/contactos');
     await expect(create({ tenantId: TENANT, tipoIdentificacion: '05', identificacion: 'invalid', razonSocial: 'Test' }))
       .rejects.toThrow();
   });
 
   it('create rechaza duplicado por identificación', async () => {
-    const { create } = await import('../src/lib/sri-api/contactos');
+    const { create } = await import('../src/services/sri-api/contactos');
     await expect(create({ tenantId: TENANT, tipoIdentificacion: '04', identificacion: RUC_SOC, razonSocial: 'Test S.A.' }))
       .rejects.toThrow('Ya existe un contacto con');
   });
 
   it('create inserta contacto válido', async () => {
     mockDb.queryOne.mockResolvedValue(null);
-    const { create } = await import('../src/lib/sri-api/contactos');
+    const { create } = await import('../src/services/sri-api/contactos');
     await create({ tenantId: TENANT, tipoIdentificacion: '04', identificacion: RUC_SOC, razonSocial: 'Test S.A.', esCliente: true, esProveedor: false });
     expect(mockDb.insert).toHaveBeenCalledWith('contactos', expect.objectContaining({ identificacion: RUC_SOC, razon_social: 'Test S.A.' }));
   });
 
   it('getById retorna contacto', async () => {
-    const { getById } = await import('../src/lib/sri-api/contactos');
+    const { getById } = await import('../src/services/sri-api/contactos');
     const result = await getById('uuid-1');
     expect(result.razon_social).toBe('Test S.A.');
   });
 
   it('getById lanza error si no existe', async () => {
     mockDb.queryOne.mockResolvedValue(null);
-    const { getById } = await import('../src/lib/sri-api/contactos');
+    const { getById } = await import('../src/services/sri-api/contactos');
     await expect(getById('nonexistent')).rejects.toThrow('no encontrado');
   });
 
   it('getByIdentificacion busca por tipo y número', async () => {
-    const { getByIdentificacion } = await import('../src/lib/sri-api/contactos');
+    const { getByIdentificacion } = await import('../src/services/sri-api/contactos');
     const result = await getByIdentificacion(TENANT, '04', RUC_SOC);
     expect(result).toBeTruthy();
   });
 
   it('update modifica campos', async () => {
-    const { update } = await import('../src/lib/sri-api/contactos');
+    const { update } = await import('../src/services/sri-api/contactos');
     await update('uuid-1', { razonSocial: 'New Name', esCliente: false });
     expect(mockDb.update).toHaveBeenCalledWith('contactos', expect.objectContaining({ razon_social: 'New Name', es_cliente: false }), 'id = $1', ['uuid-1']);
   });
 
   it('remove desactiva contacto', async () => {
-    const { remove } = await import('../src/lib/sri-api/contactos');
+    const { remove } = await import('../src/services/sri-api/contactos');
     await remove('uuid-1');
     expect(mockDb.update).toHaveBeenCalledWith('contactos', { activo: false }, 'id = $1', ['uuid-1']);
   });
@@ -600,7 +600,7 @@ describe('Módulo 6b: Contactos SRI — CRUD con mocks', () => {
 
 describe('Módulo 6c: Contactos SRI — buscarEnSri', () => {
   it('retorna error para identificación que falla validación básica', async () => {
-    const { buscarEnSri } = await import('../src/lib/sri-api/contactos');
+    const { buscarEnSri } = await import('../src/services/sri-api/contactos');
     const result = await buscarEnSri('AB');
     expect(result.error).toBeTruthy();
   });
@@ -613,7 +613,7 @@ describe('Módulo 7: Reportes Fiscales (103/104)', () => {
 
   it('generate103 lanza error sin emisor', async () => {
     mockDb.queryOne.mockResolvedValue(null);
-    const { generate103 } = await import('../src/lib/sri-api/reportes-fiscales');
+    const { generate103 } = await import('../src/services/sri-api/reportes-fiscales');
     await expect(generate103(TENANT, 202601)).rejects.toThrow('No hay un emisor configurado');
   });
 
@@ -629,7 +629,7 @@ describe('Módulo 7: Reportes Fiscales (103/104)', () => {
     mockDb.queryOne.mockResolvedValueOnce(emisor);
     mockDb.queryAll.mockResolvedValue(comprobantes);
 
-    const { generate103 } = await import('../src/lib/sri-api/reportes-fiscales');
+    const { generate103 } = await import('../src/services/sri-api/reportes-fiscales');
     const result = await generate103(TENANT, 202601);
 
     expect(result.ivaVentas12).toBeCloseTo(12.00, 1);
@@ -640,7 +640,7 @@ describe('Módulo 7: Reportes Fiscales (103/104)', () => {
 
   it('generate104 lanza error sin emisor', async () => {
     mockDb.queryOne.mockResolvedValue(null);
-    const { generate104 } = await import('../src/lib/sri-api/reportes-fiscales');
+    const { generate104 } = await import('../src/services/sri-api/reportes-fiscales');
     await expect(generate104(TENANT, 202601)).rejects.toThrow('No hay un emisor configurado');
   });
 
@@ -656,7 +656,7 @@ describe('Módulo 7: Reportes Fiscales (103/104)', () => {
     mockDb.queryOne.mockResolvedValueOnce(emisor);
     mockDb.queryAll.mockResolvedValue(comprobantes);
 
-    const { generate104 } = await import('../src/lib/sri-api/reportes-fiscales');
+    const { generate104 } = await import('../src/services/sri-api/reportes-fiscales');
     const result = await generate104(TENANT, 202601);
 
     // ingresosVentas: all non-exportacion (both 1000 and 500 match)
@@ -668,7 +668,7 @@ describe('Módulo 7: Reportes Fiscales (103/104)', () => {
   it('saveReporte upserts en reportes_fiscales', async () => {
     mockDb.query.mockResolvedValue(undefined);
     mockDb.queryOne.mockResolvedValue({ id: 1, tipo: '103', periodo: 202601, estado: 'GENERADO' });
-    const { saveReporte } = await import('../src/lib/sri-api/reportes-fiscales');
+    const { saveReporte } = await import('../src/services/sri-api/reportes-fiscales');
     const result = await saveReporte(TENANT, '103', 202601, {
       periodo: 202601, ivaVentas12: 100, ivaVentas14: 0, ivaVentas15: 0, ivaVentas0: 50,
       exportacionesNetas: 0, totalVentasNetas: 150, ivaCompras12: 20, ivaCompras14: 0, ivaCompras15: 0,
@@ -681,7 +681,7 @@ describe('Módulo 7: Reportes Fiscales (103/104)', () => {
 
   it('updateEstado cambia estado a PRESENTADO', async () => {
     mockDb.queryOne.mockResolvedValue({ id: 1, estado: 'GENERADO' });
-    const { updateEstado } = await import('../src/lib/sri-api/reportes-fiscales');
+    const { updateEstado } = await import('../src/services/sri-api/reportes-fiscales');
     await updateEstado(1, 'PRESENTADO');
     expect(mockDb.update).toHaveBeenCalledWith('reportes_fiscales', expect.objectContaining({ estado: 'PRESENTADO' }), 'id = $1', [1]);
   });
@@ -699,7 +699,7 @@ describe('Módulo 7: Reportes Fiscales (103/104)', () => {
     mockDb.queryAll.mockResolvedValueOnce(comprobantes);
     mockDb.queryAll.mockResolvedValueOnce([]);
 
-    const { getResumen } = await import('../src/lib/sri-api/reportes-fiscales');
+    const { getResumen } = await import('../src/services/sri-api/reportes-fiscales');
     const result = await getResumen(TENANT, 202601);
     expect(result.totalFacturasEmitidas).toBe(1);
     expect(result.totalFacturasRecibidas).toBe(1);
@@ -716,7 +716,7 @@ describe('Módulo 8: ATS', () => {
 
   it('getAtsData lanza error sin emisor', async () => {
     mockDb.queryOne.mockResolvedValue(null);
-    const { getAtsData } = await import('../src/lib/sri-api/ats');
+    const { getAtsData } = await import('../src/services/sri-api/ats');
     await expect(getAtsData(TENANT, 202601)).rejects.toThrow('No hay un emisor configurado');
   });
 
@@ -732,7 +732,7 @@ describe('Módulo 8: ATS', () => {
     mockDb.queryOne.mockResolvedValueOnce(emisor);
     mockDb.queryAll.mockResolvedValue(comprobantes);
 
-    const { getAtsData } = await import('../src/lib/sri-api/ats');
+    const { getAtsData } = await import('../src/services/sri-api/ats');
     const data = await getAtsData(TENANT, 202601);
 
     expect(data.ventas).toHaveLength(1);
@@ -744,23 +744,23 @@ describe('Módulo 8: ATS', () => {
   });
 
   it('validateAts valida datos correctos', async () => {
-    const { validateAts } = await import('../src/lib/sri-api/ats');
+    const { validateAts } = await import('../src/services/sri-api/ats');
     const result = validateAts({
       periodo: 202601, razonSocial: 'Test S.A.', ruc: '0990000000001',
       establecimientos: [{ codigo: '001', direccion: 'Quito' }],
-      ventas: [{ tpIdCliente: '05', idCliente: CEDULA_VALIDA, razonSocial: 'Juan', tipoComprobante: 'FACTURA', numeroComprobantes: 1, baseImponible: 100, baseNoGraIva: 0, montoIva: 12, valorRetenidoIva: 0, valorRetenidoRenta: 0 }],
+      ventas: [{ tpIdCliente: '02', idCliente: CEDULA_VALIDA, razonSocial: 'Juan', tipoComprobante: 'FACTURA', numeroComprobantes: 1, baseImponible: 100, baseNoGraIva: 0, montoIva: 12, valorRetenidoIva: 0, valorRetenidoRenta: 0 }],
       compras: [], retenciones: [], anulados: [], totalVentas: 100, totalCompras: 0, totalRetenciones: 0,
     });
     expect(result.valido).toBe(true);
   });
 
   it('validateAts detecta errores', async () => {
-    const { validateAts } = await import('../src/lib/sri-api/ats');
+    const { validateAts } = await import('../src/services/sri-api/ats');
     const result = validateAts({
       periodo: 201912, razonSocial: '', ruc: '123',
       establecimientos: [],
-      ventas: [{ tpIdCliente: '05', idCliente: '', razonSocial: '', tipoComprobante: 'FACTURA', numeroComprobantes: 1, baseImponible: -10, baseNoGraIva: 0, montoIva: 0, valorRetenidoIva: 0, valorRetenidoRenta: 0 }],
-      compras: [{ tpIdProveedor: '04', idProveedor: '', razonSocial: '', tipoComprobante: 'FACTURA', numeroComprobantes: 1, baseImponible: -5, baseNoGraIva: 0, montoIva: 0, valorRetenidoIva: 0, valorRetenidoRenta: 0 }],
+      ventas: [{ tpIdCliente: '02', idCliente: '', razonSocial: '', tipoComprobante: 'FACTURA', numeroComprobantes: 1, baseImponible: -10, baseNoGraIva: 0, montoIva: 0, valorRetenidoIva: 0, valorRetenidoRenta: 0 }],
+      compras: [{ tpIdProveedor: '01', idProveedor: '', razonSocial: '', tipoComprobante: 'FACTURA', numeroComprobantes: 1, baseImponible: -5, baseNoGraIva: 0, montoIva: 0, valorRetenidoIva: 0, valorRetenidoRenta: 0 }],
       retenciones: [], anulados: [], totalVentas: 0, totalCompras: 0, totalRetenciones: 0,
     });
     expect(result.valido).toBe(false);
@@ -771,7 +771,7 @@ describe('Módulo 8: ATS', () => {
     const emisor = { ruc: '0990000000001', razon_social: 'Test S.A.', establecimiento: '001', direccion_matriz: 'Quito', activo: true };
     mockDb.queryOne.mockResolvedValueOnce(emisor);
     mockDb.queryAll.mockResolvedValue([]);
-    const { exportAtsXml } = await import('../src/lib/sri-api/ats');
+    const { exportAtsXml } = await import('../src/services/sri-api/ats');
     const xml = await exportAtsXml(TENANT, 202601);
     expect(xml).toContain('<?xml version="1.0"');
   });
@@ -781,7 +781,7 @@ describe('Módulo 8: ATS', () => {
     mockDb.queryOne.mockResolvedValueOnce(emisor);
     mockDb.queryAll.mockResolvedValue([]);
     mockDb.query.mockResolvedValue(undefined);
-    const { generateAts } = await import('../src/lib/sri-api/ats');
+    const { generateAts } = await import('../src/services/sri-api/ats');
     const data = await generateAts(TENANT, 202601);
     expect(data.ruc).toBe('0990000000001');
     expect(data.ventas).toHaveLength(0);
@@ -790,7 +790,7 @@ describe('Módulo 8: ATS', () => {
 
 describe('Módulo 9: POS - calcularPosTotals', () => {
   it('calcula totales con IVA 12% y 0%', async () => {
-    const { calcularPosTotals } = await import('../src/lib/sri-api/pos');
+    const { calcularPosTotals } = await import('../src/services/sri-api/pos');
     const result = calcularPosTotals([
       { codigo: '001', descripcion: 'Producto A', cantidad: 2, precioUnitario: 10, ivaPorcentaje: 12 },
       { codigo: '002', descripcion: 'Producto B', cantidad: 1, precioUnitario: 5, ivaPorcentaje: 0 },
@@ -802,7 +802,7 @@ describe('Módulo 9: POS - calcularPosTotals', () => {
   });
 
   it('aplica descuento global y propina', async () => {
-    const { calcularPosTotals } = await import('../src/lib/sri-api/pos');
+    const { calcularPosTotals } = await import('../src/services/sri-api/pos');
     const result = calcularPosTotals([
       { codigo: '001', descripcion: 'Item', cantidad: 1, precioUnitario: 100, ivaPorcentaje: 12 },
     ], 10, 5);
@@ -812,7 +812,7 @@ describe('Módulo 9: POS - calcularPosTotals', () => {
   });
 
   it('maneja items con descuento por item', async () => {
-    const { calcularPosTotals } = await import('../src/lib/sri-api/pos');
+    const { calcularPosTotals } = await import('../src/services/sri-api/pos');
     const result = calcularPosTotals([
       { codigo: '001', descripcion: 'Item', cantidad: 1, precioUnitario: 100, ivaPorcentaje: 12, descuento: 15 },
     ]);
@@ -821,7 +821,7 @@ describe('Módulo 9: POS - calcularPosTotals', () => {
   });
 
   it('agrupa IVA por tarifa', async () => {
-    const { calcularPosTotals } = await import('../src/lib/sri-api/pos');
+    const { calcularPosTotals } = await import('../src/services/sri-api/pos');
     const result = calcularPosTotals([
       { codigo: '001', descripcion: 'A', cantidad: 1, precioUnitario: 100, ivaPorcentaje: 12 },
       { codigo: '002', descripcion: 'B', cantidad: 1, precioUnitario: 50, ivaPorcentaje: 12 },
@@ -836,7 +836,7 @@ describe('Módulo 9: POS - calcularPosTotals', () => {
 
 describe('Módulo 10: eCommerce - calcularEcommerceTotals', () => {
   it('calcula totales igual que POS', async () => {
-    const { calcularEcommerceTotals } = await import('../src/lib/sri-api/ecommerce');
+    const { calcularEcommerceTotals } = await import('../src/services/sri-api/ecommerce');
     const result = calcularEcommerceTotals([
       { codigo: '001', descripcion: 'Producto A', cantidad: 2, precioUnitario: 10, ivaPorcentaje: 12 },
       { codigo: '002', descripcion: 'Producto B', cantidad: 1, precioUnitario: 5, ivaPorcentaje: 0 },
@@ -847,7 +847,7 @@ describe('Módulo 10: eCommerce - calcularEcommerceTotals', () => {
   });
 
   it('aplica descuento global', async () => {
-    const { calcularEcommerceTotals } = await import('../src/lib/sri-api/ecommerce');
+    const { calcularEcommerceTotals } = await import('../src/services/sri-api/ecommerce');
     const result = calcularEcommerceTotals([
       { codigo: '001', descripcion: 'Item', cantidad: 1, precioUnitario: 100, ivaPorcentaje: 12 },
     ], 10);
@@ -860,7 +860,7 @@ describe('Módulo 11: Guía Remisión', () => {
 
   it('buildGuiaXml lanza error si emisor no existe', async () => {
     mockDb.queryOne.mockResolvedValue(null);
-    const { buildGuiaXml } = await import('../src/lib/sri-api/guia-remision');
+    const { buildGuiaXml } = await import('../src/services/sri-api/guia-remision');
     await expect(buildGuiaXml({
       emisor: { ruc: '0990000000001', razonSocial: 'Test', direccionEstablecimiento: 'Quito' },
       destinatario: { razonSocial: 'Cliente', identificacion: CEDULA_VALIDA, tipoIdentificacion: '05' },
@@ -885,7 +885,7 @@ describe('Módulo 11: Guía Remisión', () => {
 
     mockXmlBuilder.buildGuiaRemision.mockReturnValue('<xml>guia</xml>');
 
-    const { buildGuiaXml } = await import('../src/lib/sri-api/guia-remision');
+    const { buildGuiaXml } = await import('../src/services/sri-api/guia-remision');
     const result = await buildGuiaXml({
       emisor: { ruc: '0990000000001', razonSocial: 'Test S.A.', direccionEstablecimiento: 'Quito',
         contribuyenteEspecial: undefined, obligadoContabilidad: 'NO' },

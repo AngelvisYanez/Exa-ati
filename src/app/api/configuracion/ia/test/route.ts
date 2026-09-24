@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { testLlmConnection } from '@/lib/sri-api/llm-client';
-import { getTenantLlmConfig } from '@/lib/sri-api/tenant-llm-config';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { testLlmConnection } from '@/services/sri-api/llm-client';
+import { getTenantLlmConfig } from '@/services/sri-api/tenant-llm-config';
 
 export async function POST(req: Request) {
   try {

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { getUserRuc } from '@/lib/sri-api/user-resolver';
-import { sriSoapClient } from '@/lib/sri-api/sri-soap-client';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { getUserRuc } from '@/services/sri-api/user-resolver';
+import { sriSoapClient } from '@/services/sri-api/sri-soap-client';
 
 export async function POST(req: Request) {
   try {

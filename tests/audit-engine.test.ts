@@ -3,13 +3,13 @@ import { describe, it, expect, vi } from 'vitest';
 describe('audit-engine', () => {
   describe('buildAuditAlerts', () => {
     it('retorna array vacío si no hay comprobantes', async () => {
-      const { buildAuditAlerts } = await import('../src/lib/sri-api/audit-engine');
+      const { buildAuditAlerts } = await import('../src/services/sri-api/audit-engine');
       const alerts = buildAuditAlerts([], '0999000000001', 365);
       expect(alerts).toHaveLength(0);
     });
 
     it('detecta clave duplicada', async () => {
-      const { buildAuditAlerts } = await import('../src/lib/sri-api/audit-engine');
+      const { buildAuditAlerts } = await import('../src/services/sri-api/audit-engine');
       const docs = [
         {
           clave_acceso: '0101202501099000000000110010010000000011234567812',
@@ -44,7 +44,7 @@ describe('audit-engine', () => {
     });
 
     it('detecta IVA inconsistente (no 15%)', async () => {
-      const { buildAuditAlerts } = await import('../src/lib/sri-api/audit-engine');
+      const { buildAuditAlerts } = await import('../src/services/sri-api/audit-engine');
       const docs = [
         {
           clave_acceso: '0101202501099000000000110010010000000011234567812',
@@ -66,7 +66,7 @@ describe('audit-engine', () => {
     });
 
     it('detecta comprobantes no autorizados', async () => {
-      const { buildAuditAlerts } = await import('../src/lib/sri-api/audit-engine');
+      const { buildAuditAlerts } = await import('../src/services/sri-api/audit-engine');
       const docs = [
         {
           clave_acceso: '0101202501099000000000110010010000000011234567812',
@@ -87,7 +87,7 @@ describe('audit-engine', () => {
     });
 
     it('detecta certificado próximo a vencer', async () => {
-      const { buildAuditAlerts } = await import('../src/lib/sri-api/audit-engine');
+      const { buildAuditAlerts } = await import('../src/services/sri-api/audit-engine');
       const alerts = buildAuditAlerts([], '0999000000001', 15);
       const certAlert = alerts.find(a => a.title?.toLowerCase().includes('firma'));
       expect(certAlert).toBeDefined();

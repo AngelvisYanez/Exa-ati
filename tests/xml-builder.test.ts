@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { xmlBuilder } from '../src/lib/sri-api/xml-builder';
+import { xmlBuilder } from '../src/services/sri-api/xml-builder';
 
 const infoTributariaBase = {
   ambiente: '1',

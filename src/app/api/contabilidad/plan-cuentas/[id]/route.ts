@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { embeddings } from '@/services/sri-api/embeddings';
 
 export async function GET(
   req: Request,
@@ -127,6 +128,11 @@ export async function PUT(
       [numId]
     );
 
+    if (process.env.OLLAMA_ENABLED === 'true') {
+      embeddings.store(tenantId, 'plan_cuenta', numId, embeddings.buildContent('plan_cuenta', updated))
+        .catch(e => console.error('[Embeddings] Error storing plan_cuenta:', e));
+    }
+
     return NextResponse.json({
       data: {
         id: updated.id,
@@ -176,6 +182,11 @@ export async function DELETE(
       'UPDATE plan_cuentas SET activo = false, updated_at = NOW() WHERE id = $1',
       [numId]
     );
+
+    if (process.env.OLLAMA_ENABLED === 'true') {
+      embeddings.remove(tenantId, 'plan_cuenta', numId)
+        .catch(e => console.error('[Embeddings] Error removing plan_cuenta:', e));
+    }
 
     return NextResponse.json({ message: 'Cuenta desactivada correctamente' });
   } catch (error: any) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { useAuth } from "@/contexts/AuthContext";
 import { sriClient } from "@/lib/sriClient";
 import { toast } from "sonner";
@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { apiFetch } from "@/lib/apiFetch";
 import {
   Plus, Trash2, Calculator, CreditCard, Banknote,
   Smartphone, Search, User, FileText, CheckCircle, XCircle
@@ -24,9 +26,9 @@ const TIPOS_ID = [
 ];
 
 const FORMAS_PAGO_POS = [
-  { value: '01', label: 'Efectivo', icon: Banknote, color: 'emerald' },
-  { value: '19', label: 'Tarjeta', icon: CreditCard, color: 'blue' },
-  { value: '20', label: 'Transferencia', icon: Smartphone, color: 'violet' },
+  { value: '01', label: 'Efectivo', icon: Banknote, color: 'success' },
+  { value: '19', label: 'Tarjeta', icon: CreditCard, color: 'sky' },
+  { value: '20', label: 'Transferencia', icon: Smartphone, color: 'brand' },
 ];
 
 interface LineItem {
@@ -114,7 +116,7 @@ export default function PosPage() {
     setEmitiendo(true);
     setResultado(null);
     try {
-      const res = await fetch('/api/sri/pos', {
+      const res = await apiFetch('/api/sri/pos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('sri_access_token')}` },
         body: JSON.stringify({
@@ -159,8 +161,11 @@ export default function PosPage() {
       <>
         <title>POS - EXA ATI</title>
         <Topbar title="Punto de Venta" />
-        <main className="p-6 w-full text-center text-slate-500">
-          Vincula tu RUC del SRI en Configuración para usar el POS.
+        <main className="ui-page flex-1 w-full">
+          <EmptyState
+            icon={<FileText className="w-5 h-5" />}
+            title="Vincula tu RUC del SRI en Configuración para usar el POS."
+          />
         </main>
       </>
     );
@@ -170,20 +175,20 @@ export default function PosPage() {
     <>
       <title>POS - EXA ATI</title>
       <Topbar title="Punto de Venta (POS)" />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         {resultado ? (
           <Card className="p-6 max-w-lg text-center">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
-                <CheckCircle className="w-8 h-8 text-emerald-600" />
+              <div className="size-14 rounded-full bg-success-pale flex items-center justify-center">
+                <CheckCircle className="size-8 text-success" />
               </div>
-              <h2 className="text-lg font-bold text-emerald-800">Factura Emitida</h2>
-              <div className="bg-slate-50 rounded-lg p-4 w-full text-left font-mono text-xs space-y-1">
-                <p><span className="text-slate-500">Clave:</span> <strong>{resultado.claveAcceso}</strong></p>
-                <p><span className="text-slate-500">Total:</span> <strong>${totales.total.toFixed(2)}</strong></p>
-                <p><span className="text-slate-500">Items:</span> <strong>{items.length}</strong></p>
+              <h2 className="text-lg font-bold text-success">Factura Emitida</h2>
+              <div className="bg-brand-gray-50 rounded-lg p-4 w-full text-left font-mono text-xs space-y-1">
+                <p><span className="text-brand-gray-500">Clave:</span> <strong>{resultado.claveAcceso}</strong></p>
+                <p><span className="text-brand-gray-500">Total:</span> <strong>${totales.total.toFixed(2)}</strong></p>
+                <p><span className="text-brand-gray-500">Items:</span> <strong>{items.length}</strong></p>
               </div>
-              <Button onClick={handleNuevaVenta} className="bg-brand-navy hover:bg-brand-navy-light text-white">
+              <Button onClick={handleNuevaVenta} className="bg-brand-red hover:bg-brand-red-bright text-white">
                 Nueva Venta
               </Button>
             </div>
@@ -193,7 +198,7 @@ export default function PosPage() {
             <div className="xl:col-span-2 flex flex-col gap-4">
               <Card className="p-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold uppercase text-slate-500 tracking-wider flex items-center gap-2">
+                  <h3 className="text-sm font-bold uppercase text-brand-gray-500 tracking-wider flex items-center gap-2">
                     <FileText className="w-4 h-4" /> Items
                   </h3>
                   <div className="flex items-center gap-2">
@@ -212,7 +217,7 @@ export default function PosPage() {
                   </div>
                 </div>
 
-                <div className="hidden md:grid grid-cols-12 gap-2 text-[10px] font-bold uppercase text-slate-400 mb-2 px-2">
+                <div className="hidden md:grid grid-cols-12 gap-2 text-[10px] font-bold uppercase text-brand-gray-400 mb-2 px-2">
                   <div className="col-span-2">Código</div>
                   <div className="col-span-4">Descripción</div>
                   <div className="col-span-1 text-right">Cant.</div>
@@ -226,7 +231,7 @@ export default function PosPage() {
                 {items.map((item) => {
                   const totalItem = item.cantidad * item.precioUnitario - (item.descuento || 0);
                   return (
-                    <div key={item.id} className="grid grid-cols-12 gap-1.5 mb-1.5 items-center bg-slate-50 rounded-lg p-2">
+                    <div key={item.id} className="grid grid-cols-12 gap-1.5 mb-1.5 items-center bg-brand-gray-50 rounded-lg p-2">
                       <div className="col-span-3 md:col-span-2">
                         <Input size={1} value={item.codigo} onChange={e => updateItem(item.id, 'codigo', e.target.value)}
                           placeholder="Código" className="h-7 text-xs" />
@@ -271,10 +276,10 @@ export default function PosPage() {
 
               <Card className="p-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <User className="w-4 h-4 text-slate-400" />
-                  <h3 className="text-sm font-bold uppercase text-slate-500 tracking-wider">Cliente</h3>
+                  <User className="w-4 h-4 text-brand-gray-400" />
+                  <h3 className="text-sm font-bold uppercase text-brand-gray-500 tracking-wider">Cliente</h3>
                   <button onClick={setClienteConsumidorFinal}
-                    className="ml-auto text-xs text-slate-400 hover:text-slate-600 underline cursor-pointer">
+                    className="ml-auto text-xs text-brand-gray-400 hover:text-brand-gray-600 underline cursor-pointer">
                     Consumidor Final
                   </button>
                 </div>
@@ -308,29 +313,29 @@ export default function PosPage() {
 
             <div className="flex flex-col gap-4">
               <Card className="p-4">
-                <h3 className="text-sm font-bold uppercase text-slate-500 tracking-wider mb-3 flex items-center gap-2">
+                <h3 className="text-sm font-bold uppercase text-brand-gray-500 tracking-wider mb-3 flex items-center gap-2">
                   <Calculator className="w-4 h-4" /> Totales
                 </h3>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between text-slate-600">
+                  <div className="flex justify-between text-brand-gray-600">
                     <span>Subtotal</span>
                     <span className="font-mono font-bold">${totales.subtotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-slate-600">
+                  <div className="flex justify-between text-brand-gray-600">
                     <span>Descuentos</span>
                     <span className="font-mono font-bold text-red-500">-${totales.descuentos.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-slate-600">
+                  <div className="flex justify-between text-brand-gray-600">
                     <span>IVA {items[0]?.ivaPorcentaje || 0}%</span>
                     <span className="font-mono font-bold">${totales.iva.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-slate-600 text-xs">Propina</span>
+                    <span className="text-brand-gray-600 text-xs">Propina</span>
                     <Input type="number" value={propina} onChange={e => setPropina(parseFloat(e.target.value) || 0)}
                       className="h-7 text-xs w-24 ml-auto text-right" min={0} step={0.25} />
                   </div>
                   <Separator />
-                  <div className="flex justify-between text-base font-bold text-slate-900">
+                  <div className="flex justify-between text-base font-bold text-brand-gray-900">
                     <span>TOTAL</span>
                     <span className="font-mono">${totales.total.toFixed(2)}</span>
                   </div>
@@ -338,7 +343,7 @@ export default function PosPage() {
               </Card>
 
               <Card className="p-4">
-                <h3 className="text-sm font-bold uppercase text-slate-500 tracking-wider mb-3">Pago</h3>
+                <h3 className="text-sm font-bold uppercase text-brand-gray-500 tracking-wider mb-3">Pago</h3>
                 <div className="grid grid-cols-3 gap-2">
                   {FORMAS_PAGO_POS.map(fp => {
                     const Icon = fp.icon;
@@ -346,8 +351,8 @@ export default function PosPage() {
                       <button key={fp.value} onClick={() => setFormaPago(fp.value)}
                         className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all cursor-pointer
                           ${formaPago === fp.value
-                            ? 'bg-brand-navy text-white border-brand-navy'
-                            : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
+                            ? 'bg-brand-red text-white border-brand-red'
+                            : 'bg-white text-brand-gray-600 border-brand-gray-200 hover:border-brand-gray-300'}`}>
                         <Icon className="w-5 h-5" />
                         <span className="text-[10px] font-bold">{fp.label}</span>
                       </button>
@@ -363,7 +368,7 @@ export default function PosPage() {
               </Card>
 
               <Button onClick={handleEmitir} disabled={emitiendo || !emisorId}
-                className="w-full bg-brand-navy hover:bg-brand-navy-light text-white py-6 text-base font-bold">
+                className="w-full bg-brand-red hover:bg-brand-red-bright text-white py-6 text-base font-bold">
                 {emitiendo ? 'Emitiendo...' : `Emitir Factura · $${totales.total.toFixed(2)}`}
               </Button>
             </div>

@@ -2,12 +2,13 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 
+import { apiFetch } from "@/lib/apiFetch";
 function NuevoReporteForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -30,7 +31,7 @@ function NuevoReporteForm() {
     setPreview(null);
     try {
       const periodoNum = parseInt(periodo.replace('-', ''), 10);
-      const res = await fetch(`/api/declaraciones/reportes`, {
+      const res = await apiFetch(`/api/declaraciones/reportes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tipo, periodo: periodoNum }),
@@ -67,7 +68,7 @@ function NuevoReporteForm() {
     <>
       <title>Nuevo Reporte - OFSERCONT IA</title>
       <Topbar title="Nuevo Reporte" backLink={{ href: "/declaraciones/reportes", label: "Reportes" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Generar Reporte Fiscal</h1>
 
         <Card className="p-5 border-brand-gray-200">
@@ -80,8 +81,8 @@ function NuevoReporteForm() {
                   onChange={(e) => setTipo(e.target.value)}
                   className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
                 >
-                  <option value="103">Formulario 103 - IVA</option>
-                  <option value="104">Formulario 104 - Renta</option>
+                  <option value="104">Formulario 104 - IVA</option>
+                  <option value="103">Formulario 103 - Retenciones</option>
                 </select>
               </div>
               <div className="flex flex-col gap-1.5">
@@ -99,7 +100,7 @@ function NuevoReporteForm() {
               type="button"
               onClick={handleGenerar}
               disabled={generando}
-              className="bg-brand-navy hover:bg-brand-navy-light text-white self-start"
+              className="bg-brand-red hover:bg-brand-red-bright text-white self-start"
             >
               {generando ? "Generando..." : "Generar Datos"}
             </Button>
@@ -111,7 +112,7 @@ function NuevoReporteForm() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold text-brand-gray-800">Previsualización</h2>
               <div className="flex gap-2">
-                <Button onClick={handleGuardar} disabled={submitting} className="bg-brand-navy hover:bg-brand-navy-light text-white">
+                <Button onClick={handleGuardar} disabled={submitting} className="bg-brand-red hover:bg-brand-red-bright text-white">
                   {submitting ? "Guardando..." : "Guardar Reporte"}
                 </Button>
                 <Button variant="outline" onClick={() => setPreview(null)}>Cancelar</Button>

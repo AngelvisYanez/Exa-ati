@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/sri-api/db';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
 
 export const dynamic = 'force-dynamic';
 

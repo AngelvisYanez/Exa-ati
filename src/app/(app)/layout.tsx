@@ -1,6 +1,6 @@
-import { Suspense } from "react";
-import LayoutShell from "@/components/LayoutShell";
-import SriConnectDialog from "@/components/SriConnectDialog";
+﻿import { Suspense } from "react";
+import LayoutShell from "@/components/layout/LayoutShell";
+import SriConnectDialog from "@/components/modals/SriConnectDialog";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (

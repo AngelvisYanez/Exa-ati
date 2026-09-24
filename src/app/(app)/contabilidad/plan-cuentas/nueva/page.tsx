@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 
+import { apiFetch } from "@/lib/apiFetch";
 interface CuentaRef {
   id: string;
   codigo: string;
@@ -38,7 +39,7 @@ export default function NuevaCuentaPage() {
   const [cuentaPadreId, setCuentaPadreId] = useState("");
 
   useEffect(() => {
-    fetch("/api/contabilidad/plan-cuentas")
+    apiFetch("/api/contabilidad/plan-cuentas")
       .then((r) => r.json())
       .then((data) => {
         const list = data.cuentas || data.data || [];
@@ -55,7 +56,7 @@ export default function NuevaCuentaPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/contabilidad/plan-cuentas", {
+      const res = await apiFetch("/api/contabilidad/plan-cuentas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -85,7 +86,7 @@ export default function NuevaCuentaPage() {
     <>
       <title>Nueva Cuenta - OFSERCONT IA</title>
       <Topbar title="Nueva Cuenta" backLink={{ href: "/contabilidad/plan-cuentas", label: "Plan de Cuentas" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Crear Cuenta Contable</h1>
 
         <Card className="p-5 border-brand-gray-200">
@@ -141,7 +142,7 @@ export default function NuevaCuentaPage() {
                   type="checkbox"
                   checked={esAuxiliar}
                   onChange={(e) => setEsAuxiliar(e.target.checked)}
-                  className="w-4 h-4 rounded border-brand-gray-300 text-brand-navy focus:ring-brand-navy/30"
+                  className="w-4 h-4 rounded border-brand-gray-300 text-brand-red focus:ring-brand-red/30"
                 />
                 <span className="text-xs font-medium text-brand-gray-700">Es Auxiliar</span>
               </label>
@@ -150,14 +151,14 @@ export default function NuevaCuentaPage() {
                   type="checkbox"
                   checked={permiteMovimiento}
                   onChange={(e) => setPermiteMovimiento(e.target.checked)}
-                  className="w-4 h-4 rounded border-brand-gray-300 text-brand-navy focus:ring-brand-navy/30"
+                  className="w-4 h-4 rounded border-brand-gray-300 text-brand-red focus:ring-brand-red/30"
                 />
                 <span className="text-xs font-medium text-brand-gray-700">Permite Movimiento</span>
               </label>
             </div>
 
             <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={submitting} className="bg-brand-navy hover:bg-brand-navy-light text-white">
+              <Button type="submit" disabled={submitting} className="bg-brand-red hover:bg-brand-red-bright text-white">
                 {submitting ? "Guardando..." : "Guardar Cuenta"}
               </Button>
               <Button type="button" variant="outline" onClick={() => router.back()}>

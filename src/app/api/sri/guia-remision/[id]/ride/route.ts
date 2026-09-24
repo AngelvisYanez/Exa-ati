@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { getDatosRide, generateRidePdf } from '@/lib/sri-api/ride-pdf';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { getDatosRide, generateRidePdf } from '@/services/sri-api/ride-pdf';
 
 export async function GET(
   req: Request,

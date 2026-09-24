@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { createPosInvoice } from '@/lib/sri-api/pos';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { createPosInvoice } from '@/services/sri-api/pos';
+import { forbiddenResponse, requireModule } from '@/services/sri-api/rbac';
 
 export async function POST(req: Request) {
   try {
     const user = await verifyAuth(req);
+    await requireModule(user, 'pos');
     const body = await req.json();
 
     if (!body.emisorId || !body.items || body.items.length === 0) {
@@ -51,6 +53,7 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('[POS Error]', error);
+    if (error.message?.includes('Acceso denegado')) return forbiddenResponse(error.message);
     return NextResponse.json(
       { success: false, message: error.message || 'Error interno al crear factura POS' },
       { status: error.message?.startsWith('No autorizado') ? 401 : 500 }
@@ -61,6 +64,7 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   try {
     const user = await verifyAuth(req);
+    await requireModule(user, 'pos');
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200);
     const page = parseInt(searchParams.get('page') || '1', 10);

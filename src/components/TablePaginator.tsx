@@ -66,7 +66,7 @@ export default function TablePaginator({
           <select
             value={pageSize}
             onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="text-xs font-semibold text-brand-gray-700 bg-white border border-brand-gray-200 rounded-lg px-2 py-1 outline-none focus:border-brand-navy cursor-pointer"
+            className="text-xs font-semibold text-brand-gray-700 bg-white border border-brand-gray-200 rounded-lg px-2 py-1 outline-none focus:border-brand-red cursor-pointer"
           >
             {pageSizeOptions.map((size) => (
               <option key={size} value={size}>
@@ -100,7 +100,7 @@ export default function TablePaginator({
               onClick={() => onPageChange(p)}
               className={`min-w-[32px] px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer
                 ${p === safePage
-                  ? "bg-brand-navy text-white border-brand-navy"
+                  ? "bg-brand-red text-white border-brand-red"
                   : "bg-white text-brand-gray-600 border-brand-gray-200 hover:bg-brand-gray-50"
                 }`}
             >

@@ -85,13 +85,13 @@ export default function Dialog({
   return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 bg-brand-navy/55 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-fade-in"
+      className="fixed inset-0 bg-brand-red/55 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-fade-in"
       onClick={(e) => {
         if (closeOnOverlay && e.target === overlayRef.current && onClose) onClose();
       }}
       role="dialog"
       aria-modal="true"
-      aria-labelledby={title ? "dialog-title" : undefined}
+      aria-labelledby="dialog-title"
       aria-describedby={descId}
     >
       <div
@@ -99,12 +99,21 @@ export default function Dialog({
         className={`bg-card border border-border rounded-2xl shadow-2xl w-full ${sizeClasses[size]} flex flex-col gap-4 text-left animate-scale-in`}
         onClick={(e) => e.stopPropagation()}
       >
+        {!title && !showClose && (
+          <h3 id="dialog-title" className="sr-only">
+            Diálogo
+          </h3>
+        )}
         {(title || showClose) && (
           <div className="flex items-start justify-between gap-3 p-6 pb-0">
             <div>
-              {title && (
+              {title ? (
                 <h3 id="dialog-title" className="text-base font-extrabold text-foreground leading-none">
                   {title}
+                </h3>
+              ) : (
+                <h3 id="dialog-title" className="sr-only">
+                  Diálogo
                 </h3>
               )}
               {description && (
@@ -117,10 +126,10 @@ export default function Dialog({
               <button
                 type="button"
                 onClick={onClose}
-                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-                aria-label="Cerrar"
+                className="shrink-0 size-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+                aria-label="Cerrar diálogo"
               >
-                ✕
+                <span aria-hidden>✕</span>
               </button>
             )}
           </div>

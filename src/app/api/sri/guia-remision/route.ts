@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { sendGuiaRemision, type GuiaRemisionData } from '@/lib/sri-api/guia-remision';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { sendGuiaRemision, type GuiaRemisionData } from '@/services/sri-api/guia-remision';
 
 export async function GET(req: Request) {
   try {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { claveAccesoService, Ambiente, TipoEmision } from '../src/lib/sri-api/clave-acceso';
+import { claveAccesoService, Ambiente, TipoEmision } from '../src/services/sri-api/clave-acceso';
 
 describe('claveAccesoService', () => {
   const validInput = {

@@ -1,9 +1,12 @@
+import { randomUUID } from 'crypto';
+
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { getUserRuc } from '@/lib/sri-api/user-resolver';
-import { sincronizarConSri } from '@/lib/sri-api/sync-service';
-import { xmlBuilder } from '@/lib/sri-api/xml-builder';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { getUserRuc } from '@/services/sri-api/user-resolver';
+import { sincronizarConSri } from '@/services/sri-api/sync-service';
+import { xmlBuilder } from '@/services/sri-api/xml-builder';
+import { recalcularPeriodoDesdeComprobantes } from '@/services/control-tributario/services/mensual.service';
 
 // Keyword-based automatic expense classifier
 function classifyExpense(razonSocial: string): string {
@@ -269,9 +272,10 @@ export async function POST(req: Request) {
             total_sin_impuesto, subtotal_sin_impuesto, total_iva, total_descuento, importe_total, propina, moneda,
             receptor_tipo_id, receptor_identificacion, receptor_razon_social,
             receptor_email, emisor_ruc, emisor_razon_social,
-            categoria, documentos_relacionados, tenant_id
-          ) VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            categoria, documentos_relacionados, tenant_id, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
           [
+            randomUUID(),
             localEmisorId,
             tipo,
             serie,
@@ -325,6 +329,12 @@ export async function POST(req: Request) {
         syncResult = await sincronizarConSri(user.tenantId, userRuc, {
           clavesAcceso: importedClaves,
           limite: importedClaves.length,
+        });
+
+        // Recalcular períodos afectados
+        const currentPeriod = parseInt(new Date().toISOString().slice(0, 7).replace('-', ''), 10);
+        await recalcularPeriodoDesdeComprobantes(user.tenantId, userRuc, currentPeriod).catch((e) => {
+          console.warn('[Import] Recalculación de período falló:', e.message);
         });
       } catch (syncErr: any) {
         console.warn('[Import] Sync post-import falló:', syncErr.message);

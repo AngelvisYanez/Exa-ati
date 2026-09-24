@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { encryption } from '@/lib/sri-api/encryption';
-import { isValidRuc } from '@/lib/sri-api/user-resolver';
-import { validateSriPortalCredentials } from '@/lib/sri-api/sri-portal-validator';
-import { sincronizarConSri } from '@/lib/sri-api/sync-service';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { encryption } from '@/services/sri-api/encryption';
+import { isValidRuc } from '@/services/sri-api/user-resolver';
+import { validateSriPortalCredentials } from '@/services/sri-api/sri-portal-validator';
+import { sincronizarConSri } from '@/services/sri-api/sync-service';
 
 export async function POST(req: Request) {
   try {

@@ -2,12 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Edit, Trash2, Percent } from "lucide-react";
 
+import { apiFetch } from "@/lib/apiFetch";
 interface Impuesto {
   id: string;
   codigo: string;
@@ -28,11 +32,11 @@ const FILTER_TIPOS = [
 ];
 
 const TIPO_BADGE: Record<string, string> = {
-  IVA: "bg-blue-50 text-blue-700 border-blue-200",
+  IVA: "bg-sky-50 text-brand-sky border-sky-200",
   ICE: "bg-amber-50 text-amber-700 border-amber-200",
-  RENTA: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  IVA_RET: "bg-purple-50 text-purple-700 border-purple-200",
-  IRBPNR: "bg-red-50 text-red-700 border-red-200",
+  RENTA: "bg-success-pale text-success border-success-light/40",
+  IVA_RET: "bg-purple-50 text-purple-700 border-brand-gray-200",
+  IRBPNR: "bg-brand-red-subtle text-brand-red border-brand-red-pale",
 };
 
 export default function ImpuestosPage() {
@@ -44,7 +48,7 @@ export default function ImpuestosPage() {
     try {
       setLoading(true);
       const params = filterTipo ? `?tipo=${filterTipo}` : "";
-      const res = await fetch(`/api/contabilidad/impuestos${params}`);
+      const res = await apiFetch(`/api/contabilidad/impuestos${params}`);
       if (!res.ok) throw new Error("Error al cargar");
       const data = await res.json();
       setImpuestos(data.impuestos || data.data || []);
@@ -60,7 +64,7 @@ export default function ImpuestosPage() {
   const handleDelete = async (id: string, nombre: string) => {
     if (!confirm(`¿Eliminar el impuesto "${nombre}"?`)) return;
     try {
-      const res = await fetch(`/api/contabilidad/impuestos?id=${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/contabilidad/impuestos?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Error al eliminar");
       toast.success("Impuesto eliminado");
       load();
@@ -73,7 +77,7 @@ export default function ImpuestosPage() {
     <>
       <title>Impuestos - OFSERCONT IA</title>
       <Topbar title="Impuestos" backLink={{ href: "/contabilidad", label: "Contabilidad" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Impuestos</h1>
@@ -90,7 +94,7 @@ export default function ImpuestosPage() {
               ))}
             </select>
             <Link href="/contabilidad/impuestos/nueva">
-              <Button size="sm" className="bg-brand-navy hover:bg-brand-navy-light text-white">
+              <Button size="sm" className="bg-brand-red hover:bg-brand-red-bright text-white">
                 <Plus className="w-3.5 h-3.5" /> Nuevo Impuesto
               </Button>
             </Link>
@@ -99,60 +103,64 @@ export default function ImpuestosPage() {
 
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
-            <div className="p-10 text-center text-sm text-brand-gray-500 animate-pulse">Cargando impuestos...</div>
+            <TableSkeleton rows={6} columns={5} />
           ) : impuestos.length === 0 ? (
-            <div className="p-10 text-center text-sm text-brand-gray-400">No hay impuestos registrados.</div>
+            <EmptyState
+              icon={<Percent className="w-5 h-5" />}
+              title="No hay impuestos registrados."
+              compact
+            />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[13px]">
-                <thead>
-                  <tr className="border-b border-brand-gray-100 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider bg-brand-gray-50/50">
-                    <th className="py-3 px-4 font-semibold">Código</th>
-                    <th className="py-3 px-4 font-semibold">Nombre</th>
-                    <th className="py-3 px-4 font-semibold">%</th>
-                    <th className="py-3 px-4 font-semibold">Tarifa</th>
-                    <th className="py-3 px-4 font-semibold">Tipo</th>
-                    <th className="py-3 px-4 font-semibold">Estado</th>
-                    <th className="py-3 px-4 font-semibold text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-brand-gray-50">
+              <Table className="w-full text-left border-collapse text-[13px]">
+                <TableHeader>
+                  <TableRow className="border-b border-brand-gray-100 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider bg-brand-gray-50/50">
+                    <TableHead className="py-3 px-4 font-semibold">Código</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Nombre</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">%</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Tarifa</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Tipo</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Estado</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-brand-gray-50">
                   {impuestos.map((imp) => (
-                    <tr key={imp.id} className="hover:bg-brand-gray-50/40 transition-colors">
-                      <td className="py-3 px-4 font-mono text-xs font-semibold text-brand-gray-600">{imp.codigo}</td>
-                      <td className="py-3 px-4 text-sm font-medium text-brand-gray-800">{imp.nombre}</td>
-                      <td className="py-3 px-4 text-sm font-semibold">{imp.porcentaje}%</td>
-                      <td className="py-3 px-4 text-xs text-brand-gray-600">{imp.tarifa}</td>
-                      <td className="py-3 px-4">
+                    <TableRow key={imp.id} className="hover:bg-brand-gray-50/40 transition-colors">
+                      <TableCell className="py-3 px-4 font-mono text-xs font-semibold text-brand-gray-600">{imp.codigo}</TableCell>
+                      <TableCell className="py-3 px-4 text-sm font-medium text-brand-gray-800">{imp.nombre}</TableCell>
+                      <TableCell className="py-3 px-4 text-sm font-semibold">{imp.porcentaje}%</TableCell>
+                      <TableCell className="py-3 px-4 text-xs text-brand-gray-600">{imp.tarifa}</TableCell>
+                      <TableCell className="py-3 px-4">
                         <Badge variant="outline" className={`text-[10px] ${TIPO_BADGE[imp.tipo] || ""}`}>
                           {imp.tipo}
                         </Badge>
-                      </td>
-                      <td className="py-3 px-4">
+                      </TableCell>
+                      <TableCell className="py-3 px-4">
                         {imp.activo ? (
-                          <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">Activo</span>
+                          <span className="text-[10px] font-semibold bg-success-pale text-success px-2 py-0.5 rounded-full">Activo</span>
                         ) : (
-                          <span className="text-[10px] font-semibold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactivo</span>
+                          <span className="text-[10px] font-semibold bg-brand-gray-100 text-brand-gray-500 px-2 py-0.5 rounded-full">Inactivo</span>
                         )}
-                      </td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="py-3 px-4 text-right whitespace-nowrap">
                         <Link
                           href={`/contabilidad/impuestos/${imp.id}`}
-                          className="inline-flex items-center gap-1 text-brand-navy hover:text-brand-navy-light text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1"
+                          className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1"
                         >
                           <Edit className="w-3 h-3" /> Editar
                         </Link>
                         <button
                           onClick={() => handleDelete(imp.id, imp.nombre)}
-                          className="inline-flex items-center gap-1 text-red-500 hover:text-red-700 text-xs font-semibold border border-red-100 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3 h-3" /> Eliminar
                         </button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>

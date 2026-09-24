@@ -1,24 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { FileText, FileSpreadsheet, BarChart3, History, ArrowRight } from "lucide-react";
 
 const sections = [
   {
-    href: "/declaraciones/reportes/nuevo?tipo=103",
-    title: "Formulario 103",
-    desc: "Declaración de IVA - formulario oficial SRI",
-    icon: FileText,
-    color: "bg-blue-50 text-blue-700 border-blue-200",
-  },
-  {
     href: "/declaraciones/reportes/nuevo?tipo=104",
     title: "Formulario 104",
-    desc: "Declaración de Impuesto a la Renta",
+    desc: "Declaración de IVA - formulario oficial SRI",
+    icon: FileText,
+    color: "bg-sky-50 text-brand-sky border-sky-200",
+  },
+  {
+    href: "/declaraciones/reportes/nuevo?tipo=103",
+    title: "Formulario 103",
+    desc: "Retenciones en la fuente - formulario oficial SRI",
     icon: FileSpreadsheet,
-    color: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    color: "bg-success-pale text-success border-success-light/40",
   },
   {
     href: "/declaraciones/ats",
@@ -41,13 +42,11 @@ export default function DeclaracionesPage() {
     <>
       <title>Declaraciones - OFSERCONT IA</title>
       <Topbar title="Declaraciones" />
-      <main className="p-3 flex-1 flex flex-col gap-5 w-full">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-brand-gray-800">Declaraciones Tributarias</h1>
-          <p className="text-sm text-brand-gray-500 mt-1">
-            Gestión de formularios SRI, ATS y reportes fiscales
-          </p>
-        </div>
+      <main className="ui-page flex-1">
+        <PageHeader
+          title="Declaraciones Tributarias"
+          description="Gestión de formularios SRI, ATS y reportes fiscales"
+        />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {sections.map((s) => {
@@ -63,7 +62,7 @@ export default function DeclaracionesPage() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-brand-gray-500 leading-relaxed">{s.desc}</p>
-                    <div className="flex items-center gap-1 text-xs font-bold text-brand-navy mt-3">
+                    <div className="flex items-center gap-1 text-xs font-bold text-brand-red mt-3">
                       Ingresar <ArrowRight className="w-3 h-3" />
                     </div>
                   </CardContent>

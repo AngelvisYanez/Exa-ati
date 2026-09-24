@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateTaxSummary } from '../src/lib/sri-api/tax-calculator';
+import { calculateTaxSummary } from '../src/services/sri-api/tax-calculator';
 
 describe('calculateTaxSummary', () => {
   const userRuc = '0999000000001';

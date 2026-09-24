@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSyncMessage } from '../src/lib/sri-api/sync-utils';
+import { buildSyncMessage } from '../src/services/sri-api/sync-utils';
 
 describe('buildSyncMessage', () => {
   const baseResult = {

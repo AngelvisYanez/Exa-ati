@@ -1,4 +1,4 @@
-﻿-- CreateSchema
+-- CreateSchema
 -- CreateTable
 CREATE TABLE `tenants` (
     `id` CHAR(36) NOT NULL,

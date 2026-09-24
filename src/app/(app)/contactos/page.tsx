@@ -2,13 +2,17 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "sonner";
 import { Plus, Edit, Trash2, Search, UserCheck } from "lucide-react";
 
+import { apiFetch } from "@/lib/apiFetch";
 interface Contacto {
   id: string;
   identificacion: string;
@@ -44,7 +48,7 @@ export default function ContactosPage() {
       if (tab === "clientes") params.set("tipo", "cliente");
       if (tab === "proveedores") params.set("tipo", "proveedor");
       if (search.trim()) params.set("q", search.trim());
-      const res = await fetch(`/api/contactos?${params}`);
+      const res = await apiFetch(`/api/contactos?${params}`);
       if (!res.ok) throw new Error("Error");
       const data = await res.json();
       setContactos(data.contactos || data.data || []);
@@ -60,7 +64,7 @@ export default function ContactosPage() {
   const handleDelete = async (id: string, nombre: string) => {
     if (!confirm(`¿Eliminar a "${nombre}"?`)) return;
     try {
-      const res = await fetch(`/api/contactos?id=${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/contactos?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Error");
       toast.success("Contacto eliminado");
       load();
@@ -72,7 +76,7 @@ export default function ContactosPage() {
   const handleValidarSri = async (identificacion: string) => {
     toast.info(`Validando ${identificacion} en el SRI...`);
     try {
-      const res = await fetch(`/api/sri/validar?identificacion=${identificacion}`);
+      const res = await apiFetch(`/api/sri/validar?identificacion=${identificacion}`);
       if (!res.ok) throw new Error("Error");
       const data = await res.json();
       if (data.valido) {
@@ -95,14 +99,14 @@ export default function ContactosPage() {
     <>
       <title>Contactos - OFSERCONT IA</title>
       <Topbar title="Contactos" />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Contactos</h1>
             <p className="text-xs text-brand-gray-500 mt-0.5">Clientes, proveedores y terceros registrados</p>
           </div>
           <Link href="/contactos/nuevo">
-            <Button size="sm" className="bg-brand-navy hover:bg-brand-navy-light text-white">
+            <Button size="sm" className="bg-brand-red hover:bg-brand-red-bright text-white">
               <Plus className="w-3.5 h-3.5" /> Nuevo Contacto
             </Button>
           </Link>
@@ -115,7 +119,7 @@ export default function ContactosPage() {
                 key={t.key}
                 onClick={() => setTab(t.key)}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
-                  tab === t.key ? "bg-white text-brand-navy shadow-sm" : "text-brand-gray-500 hover:text-brand-gray-700"
+                  tab === t.key ? "bg-white text-brand-red shadow-sm" : "text-brand-gray-500 hover:text-brand-gray-700"
                 }`}
               >
                 {t.label}
@@ -135,62 +139,66 @@ export default function ContactosPage() {
 
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
-            <div className="p-10 text-center text-sm text-brand-gray-500 animate-pulse">Cargando contactos...</div>
+            <TableSkeleton rows={6} columns={5} />
           ) : contactos.length === 0 ? (
-            <div className="p-10 text-center text-sm text-brand-gray-400">No se encontraron contactos.</div>
+            <EmptyState
+              icon={<UserCheck className="w-5 h-5" />}
+              title="No se encontraron contactos."
+              compact
+            />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[13px]">
-                <thead>
-                  <tr className="border-b border-brand-gray-100 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider bg-brand-gray-50/50">
-                    <th className="py-3 px-4 font-semibold">Identificación</th>
-                    <th className="py-3 px-4 font-semibold">Razón Social</th>
-                    <th className="py-3 px-4 font-semibold">Tipo ID</th>
-                    <th className="py-3 px-4 font-semibold">Tipo</th>
-                    <th className="py-3 px-4 font-semibold">Email</th>
-                    <th className="py-3 px-4 font-semibold">Teléfono</th>
-                    <th className="py-3 px-4 font-semibold text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-brand-gray-50">
+              <Table className="w-full text-left border-collapse text-[13px]">
+                <TableHeader>
+                  <TableRow className="border-b border-brand-gray-100 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider bg-brand-gray-50/50">
+                    <TableHead className="py-3 px-4 font-semibold">Identificación</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Razón Social</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Tipo ID</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Tipo</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Email</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Teléfono</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-brand-gray-50">
                   {contactos.map((c) => (
-                    <tr key={c.id} className="hover:bg-brand-gray-50/40 transition-colors">
-                      <td className="py-3 px-4 font-mono text-xs font-semibold text-brand-gray-600">{c.identificacion}</td>
-                      <td className="py-3 px-4 font-medium text-brand-gray-800">{c.razonSocial}</td>
-                      <td className="py-3 px-4 text-xs text-brand-gray-500">{TIPO_ID_LABEL[c.tipoIdentificacion] || c.tipoIdentificacion}</td>
-                      <td className="py-3 px-4">
+                    <TableRow key={c.id} className="hover:bg-brand-gray-50/40 transition-colors">
+                      <TableCell className="py-3 px-4 font-mono text-xs font-semibold text-brand-gray-600">{c.identificacion}</TableCell>
+                      <TableCell className="py-3 px-4 font-medium text-brand-gray-800">{c.razonSocial}</TableCell>
+                      <TableCell className="py-3 px-4 text-xs text-brand-gray-500">{TIPO_ID_LABEL[c.tipoIdentificacion] || c.tipoIdentificacion}</TableCell>
+                      <TableCell className="py-3 px-4">
                         <div className="flex gap-1">
-                          {c.esCliente && <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700 border-blue-200">Cliente</Badge>}
+                          {c.esCliente && <Badge variant="outline" className="text-[9px] bg-sky-50 text-brand-sky border-sky-200">Cliente</Badge>}
                           {c.esProveedor && <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">Proveedor</Badge>}
                         </div>
-                      </td>
-                      <td className="py-3 px-4 text-xs text-brand-gray-500">{c.email || "—"}</td>
-                      <td className="py-3 px-4 text-xs text-brand-gray-500">{c.telefono || "—"}</td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="py-3 px-4 text-xs text-brand-gray-500">{c.email || "—"}</TableCell>
+                      <TableCell className="py-3 px-4 text-xs text-brand-gray-500">{c.telefono || "—"}</TableCell>
+                      <TableCell className="py-3 px-4 text-right whitespace-nowrap">
                         <button
                           onClick={() => handleValidarSri(c.identificacion)}
-                          className="inline-flex items-center gap-1 text-brand-navy hover:text-brand-navy-light text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1 cursor-pointer"
+                          className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1 cursor-pointer"
                           title="Validar en SRI"
                         >
                           <UserCheck className="w-3 h-3" /> SRI
                         </button>
                         <Link
                           href={`/contactos/${c.id}`}
-                          className="inline-flex items-center gap-1 text-brand-navy hover:text-brand-navy-light text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1"
+                          className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1"
                         >
                           <Edit className="w-3 h-3" /> Editar
                         </Link>
                         <button
                           onClick={() => handleDelete(c.id, c.razonSocial)}
-                          className="inline-flex items-center gap-1 text-red-500 hover:text-red-700 text-xs font-semibold border border-red-100 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3 h-3" /> Eliminar
                         </button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>

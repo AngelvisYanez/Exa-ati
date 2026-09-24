@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   outputFileTracingRoot: process.cwd(),
   images: {
     qualities: [100, 70, 75],

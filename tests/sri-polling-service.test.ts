@@ -5,17 +5,17 @@ const { mockDb, mockAutorizar } = vi.hoisted(() => ({
   mockAutorizar: vi.fn(),
 }));
 
-vi.mock('../src/lib/sri-api/db', () => ({
+vi.mock('../src/services/sri-api/db', () => ({
   db: mockDb,
 }));
 
-vi.mock('../src/lib/sri-api/sri-soap-client', () => ({
+vi.mock('../src/services/sri-api/sri-soap-client', () => ({
   sriSoapClient: {
     autorizarComprobante: (...args: any[]) => mockAutorizar(...args),
   },
 }));
 
-vi.mock('../src/lib/sri-api/sri-error-handler', () => ({
+vi.mock('../src/services/sri-api/sri-error-handler', () => ({
   classifySriError: vi.fn(() => null),
 }));
 
@@ -25,7 +25,7 @@ describe('checkPendingAutorizaciones', () => {
   });
 
   it('retorna vacío si no hay pendientes', async () => {
-    const { checkPendingAutorizaciones } = await import('../src/lib/sri-api/sri-polling-service');
+    const { checkPendingAutorizaciones } = await import('../src/services/sri-api/sri-polling-service');
     mockDb.queryAll.mockResolvedValue([]);
     const result = await checkPendingAutorizaciones(50, 24);
     expect(result.procesados).toBe(0);
@@ -34,7 +34,7 @@ describe('checkPendingAutorizaciones', () => {
   });
 
   it('marca TIMEOUT_SRI si excede maxWaitHours', async () => {
-    const { checkPendingAutorizaciones } = await import('../src/lib/sri-api/sri-polling-service');
+    const { checkPendingAutorizaciones } = await import('../src/services/sri-api/sri-polling-service');
     const oldDate = new Date(Date.now() - 25 * 60 * 60 * 1000);
     mockDb.queryAll.mockResolvedValue([
       {
@@ -55,7 +55,7 @@ describe('checkPendingAutorizaciones', () => {
   });
 
   it('consulta autorización y actualiza si AUTORIZADO', async () => {
-    const { checkPendingAutorizaciones } = await import('../src/lib/sri-api/sri-polling-service');
+    const { checkPendingAutorizaciones } = await import('../src/services/sri-api/sri-polling-service');
     const recent = new Date(Date.now() - 60 * 60 * 1000);
     mockDb.queryAll.mockResolvedValue([
       {
@@ -85,7 +85,7 @@ describe('checkPendingAutorizaciones', () => {
   });
 
   it('consulta autorización y actualiza si NO AUTORIZADO', async () => {
-    const { checkPendingAutorizaciones } = await import('../src/lib/sri-api/sri-polling-service');
+    const { checkPendingAutorizaciones } = await import('../src/services/sri-api/sri-polling-service');
     const recent = new Date(Date.now() - 60 * 60 * 1000);
     mockDb.queryAll.mockResolvedValue([
       {
@@ -110,7 +110,7 @@ describe('checkPendingAutorizaciones', () => {
   });
 
   it('maneja error en procesarUnaClave como enProceso', async () => {
-    const { checkPendingAutorizaciones } = await import('../src/lib/sri-api/sri-polling-service');
+    const { checkPendingAutorizaciones } = await import('../src/services/sri-api/sri-polling-service');
     const recent = new Date(Date.now() - 60 * 60 * 1000);
     mockDb.queryAll.mockResolvedValue([
       {

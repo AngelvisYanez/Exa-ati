@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { embeddings } from '@/services/sri-api/embeddings';
+import { randomUUID } from 'crypto';
 
 export async function GET(req: NextRequest) {
   try {
@@ -62,7 +64,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const id = randomUUID();
     const result = await db.insert('productos', {
+      id,
       tenant_id: user.tenantId,
       codigo: body.codigo,
       nombre: body.nombre,
@@ -73,7 +77,19 @@ export async function POST(req: NextRequest) {
       activo: body.activo ?? true,
     });
 
-    return NextResponse.json({ success: true, id: result?.id }, { status: 201 });
+    const productoId = result?.id || id;
+    embeddings.maybeIndex(user.tenantId!, 'producto', productoId, {
+      id: productoId,
+      codigo: body.codigo,
+      nombre: body.nombre,
+      descripcion: body.descripcion || null,
+      precio_unitario: body.precioUnitario,
+      iva_porcentaje: body.ivaPorcentaje ?? 15,
+      stock: body.stock ?? 0,
+      activo: body.activo ?? true,
+    });
+
+    return NextResponse.json({ success: true, id: productoId }, { status: 201 });
   } catch (error: any) {
     console.error('[Productos Create Error]', error);
     return NextResponse.json(

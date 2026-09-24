@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { sincronizarConSri } from '@/lib/sri-api/sync-service';
-import { getUserRuc } from '@/lib/sri-api/user-resolver';
-import { persistSyncResult, type SyncModo } from '@/lib/sri-api/sync-utils';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { sincronizarConSri } from '@/services/sri-api/sync-service';
+import { getUserRuc } from '@/services/sri-api/user-resolver';
+import { persistSyncResult, type SyncModo } from '@/services/sri-api/sync-utils';
 
 export const maxDuration = 300;
 
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
         tenantId,
         result.message || `Sync ${modo}`,
         JSON.stringify({ ...result, detalle: result.detalle.slice(0, 50) }),
-        result.errores === 0 ? 1 : 0,
+        result.errores === 0,
       ]
     );
 

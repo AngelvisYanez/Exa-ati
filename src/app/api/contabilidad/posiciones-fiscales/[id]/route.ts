@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { embeddings } from '@/services/sri-api/embeddings';
 
 export async function GET(
   req: Request,
@@ -106,6 +107,19 @@ export async function PUT(
       [numId]
     );
 
+    if (process.env.OLLAMA_ENABLED === 'true') {
+      const lineas = await db.queryAll<any>(
+        `SELECT pfl.tipo_operacion, pfl.aplica_retencion,
+                i.nombre AS impuesto_nombre, i.porcentaje
+         FROM posiciones_fiscales_lineas pfl
+         LEFT JOIN impuestos i ON pfl.impuesto_id = i.id
+         WHERE pfl.posicion_fiscal_id = $1`,
+        [numId]
+      );
+      embeddings.store(tenantId, 'posicion_fiscal', numId, embeddings.buildContent('posicion_fiscal', { ...updated, lineas }))
+        .catch(e => console.error('[Embeddings] Error storing posicion_fiscal:', e));
+    }
+
     return NextResponse.json({
       data: {
         id: updated.id,
@@ -150,6 +164,11 @@ export async function DELETE(
       'UPDATE posiciones_fiscales SET activo = false, updated_at = NOW() WHERE id = $1',
       [numId]
     );
+
+    if (process.env.OLLAMA_ENABLED === 'true') {
+      embeddings.remove(tenantId, 'posicion_fiscal', numId)
+        .catch(e => console.error('[Embeddings] Error removing posicion_fiscal:', e));
+    }
 
     return NextResponse.json({ message: 'Posición fiscal desactivada correctamente' });
   } catch (error: any) {

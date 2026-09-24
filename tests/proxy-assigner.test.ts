@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { formatProxyUrl } from '../src/lib/scraping/proxy-assigner';
-import type { ProxyRecord } from '../src/lib/scraping/proxy-assigner';
+import { formatProxyUrl } from '../src/services/scraping/proxy-assigner';
+import type { ProxyRecord } from '../src/services/scraping/proxy-assigner';
 
 describe('formatProxyUrl', () => {
   it('construye URL sin autenticación', () => {

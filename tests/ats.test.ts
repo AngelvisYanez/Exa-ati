@@ -4,8 +4,8 @@ import {
   periodoDateBounds,
   validateAts,
   escapeXml,
-} from '../src/lib/sri-api/ats';
-import type { AtsData, AtsVenta, AtsCompra, AtsRetencion, AtsAnulado } from '../src/lib/sri-api/ats';
+} from '../src/services/sri-api/ats';
+import type { AtsData, AtsVenta, AtsCompra, AtsRetencion, AtsAnulado } from '../src/services/sri-api/ats';
 
 describe('parsePeriodo', () => {
   it('parsea 202406 como año 2024 mes 6', () => {
@@ -25,36 +25,25 @@ describe('parsePeriodo', () => {
 });
 
 describe('periodoDateBounds', () => {
-  it('retorna primer y último momento de junio 2024', () => {
-    const { desde, hasta } = periodoDateBounds(202406);
+  it('retorna inicio del mes y primer momento del mes siguiente (junio 2024)', () => {
+    const { desde, hastaExclusivo } = periodoDateBounds(202406);
 
-    expect(desde.getFullYear()).toBe(2024);
-    expect(desde.getMonth()).toBe(5); // 0-indexed
-    expect(desde.getDate()).toBe(1);
-    expect(desde.getHours()).toBe(0);
-    expect(desde.getMinutes()).toBe(0);
-    expect(desde.getSeconds()).toBe(0);
-    expect(desde.getMilliseconds()).toBe(0);
-
-    expect(hasta.getFullYear()).toBe(2024);
-    expect(hasta.getMonth()).toBe(5);
-    expect(hasta.getDate()).toBe(30);
-    expect(hasta.getHours()).toBe(23);
-    expect(hasta.getMinutes()).toBe(59);
-    expect(hasta.getSeconds()).toBe(59);
-    expect(hasta.getMilliseconds()).toBe(999);
+    expect(desde).toBe('2024-06-01');
+    expect(hastaExclusivo).toBe('2024-07-01');
   });
 
-  it('retorna primer y último momento de enero 2020', () => {
-    const { desde, hasta } = periodoDateBounds(202001);
+  it('retorna inicio del mes y primer momento del mes siguiente (enero 2020)', () => {
+    const { desde, hastaExclusivo } = periodoDateBounds(202001);
 
-    expect(desde.getFullYear()).toBe(2020);
-    expect(desde.getMonth()).toBe(0);
-    expect(desde.getDate()).toBe(1);
+    expect(desde).toBe('2020-01-01');
+    expect(hastaExclusivo).toBe('2020-02-01');
+  });
 
-    expect(hasta.getFullYear()).toBe(2020);
-    expect(hasta.getMonth()).toBe(0);
-    expect(hasta.getDate()).toBe(31);
+  it('retorna límites para diciembre cruzando de año', () => {
+    const { desde, hastaExclusivo } = periodoDateBounds(202412);
+
+    expect(desde).toBe('2024-12-01');
+    expect(hastaExclusivo).toBe('2025-01-01');
   });
 });
 
@@ -102,7 +91,7 @@ function validAtsData(overrides?: Partial<AtsData>): AtsData {
     establecimientos: [{ codigo: '001', direccion: 'Av. Test' }],
     ventas: [
       {
-        tpIdCliente: '05',
+        tpIdCliente: '01',
         idCliente: '1799999999001',
         razonSocial: 'CLIENTE TEST',
         tipoComprobante: 'FACTURA',
@@ -116,7 +105,7 @@ function validAtsData(overrides?: Partial<AtsData>): AtsData {
     ],
     compras: [
       {
-        tpIdProveedor: '04',
+        tpIdProveedor: '01',
         idProveedor: '1798888888001',
         razonSocial: 'PROVEEDOR TEST',
         tipoComprobante: 'FACTURA',
@@ -185,7 +174,7 @@ describe('validateAts', () => {
       validAtsData({
         ventas: [
           {
-            tpIdCliente: '05',
+            tpIdCliente: '01',
             idCliente: '1799999999001',
             razonSocial: 'CLIENTE TEST',
             tipoComprobante: 'FACTURA',
@@ -208,7 +197,7 @@ describe('validateAts', () => {
       validAtsData({
         ventas: [
           {
-            tpIdCliente: '05',
+            tpIdCliente: '01',
             idCliente: '',
             razonSocial: 'CLIENTE TEST',
             tipoComprobante: 'FACTURA',
@@ -231,7 +220,7 @@ describe('validateAts', () => {
       validAtsData({
         compras: [
           {
-            tpIdProveedor: '04',
+            tpIdProveedor: '01',
             idProveedor: '',
             razonSocial: 'PROVEEDOR TEST',
             tipoComprobante: 'FACTURA',
@@ -254,7 +243,7 @@ describe('validateAts', () => {
       validAtsData({
         compras: [
           {
-            tpIdProveedor: '04',
+            tpIdProveedor: '01',
             idProveedor: '1798888888001',
             razonSocial: 'PROVEEDOR TEST',
             tipoComprobante: 'FACTURA',

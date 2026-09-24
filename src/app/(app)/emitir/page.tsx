@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { sriClient } from "@/lib/sriClient";
+import { apiFetch } from "@/lib/apiFetch";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const TIPOS: ({ cod: string; label: string; desc: string; color: string; icon: React.ReactNode })[] = [
   { cod: '01', label: 'Factura', desc: 'Comprobante de venta', color: 'emerald',
@@ -26,11 +28,11 @@ const TIPOS: ({ cod: string; label: string; desc: string; color: string; icon: R
 ];
 
 const COLOR_MAP: Record<string, string> = {
-  emerald: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
+  emerald: 'border-success-light/40 bg-success-pale text-success hover:bg-success-pale',
   sky: 'border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100',
   amber: 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100',
-  red: 'border-red-200 bg-red-50 text-red-800 hover:bg-red-100',
-  blue: 'border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100',
+  red: 'border-brand-red-pale bg-brand-red-subtle text-brand-red hover:bg-red-100',
+  blue: 'border-sky-200 bg-sky-50 text-brand-sky hover:bg-sky-100',
   violet: 'border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100',
 };
 
@@ -106,6 +108,14 @@ const COD_MOTIVO_ND = [
 
 interface DetalleItem { codigoPrincipal: string; descripcion: string; cantidad: number; precioUnitario: number; descuento: number; iva: string; }
 interface Destinatario { identificacion: string; razonSocial: string; dirDestino: string; motivoTraslado: string; codDocSustento: string; numDocSustento: string; detalles: DetalleItem[]; }
+interface ProductoInventario { id: string; codigo: string; nombre: string; precio_unitario: string; iva_porcentaje: number; stock: string; activo: boolean; }
+interface ContactoResumen { id: string; tipoIdentificacion: string; identificacion: string; razonSocial: string; email?: string | null; telefono?: string | null; direccion?: string | null; }
+
+function ivaCodeFromPorcentaje(porcentaje: number): string {
+  if (porcentaje === 5) return '3';
+  if (porcentaje === 15) return '2';
+  return '0';
+}
 
 const L = (v: any) => v ?? 0;
 
@@ -131,6 +141,12 @@ export default function EmitirPage() {
   const [emisores, setEmisores] = useState<any[]>([]);
   const [loadingEmisores, setLoadingEmisores] = useState(true);
 
+  // Inventario
+  const [productos, setProductos] = useState<ProductoInventario[]>([]);
+
+  // Contactos (clientes o proveedores según el tipo de comprobante)
+  const [contactos, setContactos] = useState<ContactoResumen[]>([]);
+
   // Common fields
   const [ambiente, setAmbiente] = useState('2');
   const [fechaEmision, setFechaEmision] = useState(new Date().toISOString().split('T')[0]);
@@ -146,6 +162,7 @@ export default function EmitirPage() {
   // Factura-specific
   const [propina, setPropina] = useState(0);
   const [formaPago, setFormaPago] = useState('01');
+  const [plazo, setPlazo] = useState(0);
 
   // NC/ND-specific
   const [docModTipo, setDocModTipo] = useState('01');
@@ -220,7 +237,7 @@ export default function EmitirPage() {
         importeTotal: totales.total,
         propina: propina || undefined,
         totalConImpuestos,
-        pagos: [{ formaPago: formaPago, total: totales.total }],
+        pagos: [{ formaPago: formaPago, total: totales.total, ...(plazo > 0 ? { plazo, unidadTiempo: 'dias' } : {}) }],
         detalles: detalles.map(d => ({
           codigoPrincipal: d.codigoPrincipal, descripcion: d.descripcion, cantidad: d.cantidad, precioUnitario: d.precioUnitario, descuento: d.descuento,
           precioTotalSinImpuesto: d.cantidad * d.precioUnitario - d.descuento,
@@ -324,7 +341,7 @@ export default function EmitirPage() {
         totalDescuento: totales.desc,
         importeTotal: totales.total,
         totalConImpuestos,
-        pagos: [{ formaPago: formaPago, total: totales.total }],
+        pagos: [{ formaPago: formaPago, total: totales.total, ...(plazo > 0 ? { plazo, unidadTiempo: 'dias' } : {}) }],
         detalles: detalles.map(d => ({
           codigoPrincipal: d.codigoPrincipal, descripcion: d.descripcion, cantidad: d.cantidad, precioUnitario: d.precioUnitario, descuento: d.descuento,
           precioTotalSinImpuesto: d.cantidad * d.precioUnitario - d.descuento,
@@ -344,12 +361,81 @@ export default function EmitirPage() {
         setAmbiente(list[0].ambiente || '2');
       }
     }).catch(() => {}).finally(() => setLoadingEmisores(false));
+    apiFetch('/api/ecommerce/productos?activo=true')
+      .then(res => res.json())
+      .then(data => { if (Array.isArray(data.data)) setProductos(data.data); })
+      .catch(() => {});
   }, [hasSriLinked]);
 
+  function seleccionarProducto(i: number, codigo: string) {
+    const n = [...detalles];
+    const p = productos.find(pr => pr.codigo === codigo);
+    if (p) {
+      n[i] = { ...n[i], codigoPrincipal: p.codigo, descripcion: p.nombre, precioUnitario: parseFloat(p.precio_unitario) || 0, iva: ivaCodeFromPorcentaje(p.iva_porcentaje) };
+    } else {
+      n[i] = { ...n[i], codigoPrincipal: '', descripcion: '', precioUnitario: 0, iva: '2' };
+    }
+    setDetalles(n);
+  }
+
+  const receptorEsProveedor = selectedTipo ? ['03', '07'].includes(selectedTipo.cod) : false;
+  const tipoContacto = receptorEsProveedor ? 'proveedor' : 'cliente';
+
+  useEffect(() => {
+    if (!selectedTipo || !hasSriLinked) return;
+    let cancel = false;
+    apiFetch(`/api/contactos?tipo=${receptorEsProveedor ? 'proveedor' : 'cliente'}&activo=true`)
+      .then(res => res.json())
+      .then(data => { if (!cancel && Array.isArray(data.data)) setContactos(data.data); })
+      .catch(() => {});
+    return () => { cancel = true; };
+  }, [selectedTipo, hasSriLinked, receptorEsProveedor]);
+
+  function seleccionarContacto(identificacionSel: string) {
+    setIdentificacion(identificacionSel);
+    const c = contactos.find(x => x.identificacion === identificacionSel);
+    if (c) {
+      setTipoId(c.tipoIdentificacion);
+      setRazonSocial(c.razonSocial);
+      setDireccion(c.direccion || '');
+      setEmail(c.email || '');
+    }
+  }
+
+  async function guardarContactoSiNuevo() {
+    if (!identificacion.trim() || !razonSocial.trim() || tipoId === '07') return;
+    if (contactos.some(c => c.identificacion === identificacion.trim())) return;
+    try {
+      const res = await apiFetch('/api/contactos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipoIdentificacion: tipoId,
+          identificacion: identificacion.trim(),
+          razonSocial: razonSocial.trim(),
+          email: email || undefined,
+          direccion: direccion || undefined,
+          esCliente: !receptorEsProveedor,
+          esProveedor: receptorEsProveedor,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.data) setContactos(prev => [...prev, data.data]);
+        toast.success(`${receptorEsProveedor ? 'Proveedor' : 'Cliente'} guardado en contactos`);
+      }
+    } catch {}
+  }
+
   const handleEmitir = async () => {
+    if ((t === '01' || t === '03' || t === '04') && detalles.some(d => !d.codigoPrincipal || !d.descripcion)) {
+      toast.error('Todos los ítems deben ser productos/servicios registrados en el inventario');
+      return;
+    }
     setEmitiendo(true);
     setResultado(null);
     try {
+      await guardarContactoSiNuevo();
       const res = await sriClient.emitirGeneral({ tipo: selectedTipo.cod, emisorRuc, ambiente, datos: buildDatos() });
       setResultado(res);
       if (res.requierePolling) toast.info(`Enviado al SRI. Clave: ${res.claveAcceso}. El sistema lo consultará automáticamente.`);
@@ -359,8 +445,8 @@ export default function EmitirPage() {
     finally { setEmitiendo(false); }
   };
 
-  if (!hasSriLinked) return (<><title>Emitir - OFSERCONT IA</title><Topbar title="Emitir Comprobantes" /><main className="p-6 w-full text-center text-slate-500">Vincula tu RUC del SRI en Configuración para emitir comprobantes.</main></>);
-  if (!selectedTipo) return (<><title>Emitir - OFSERCONT IA</title><Topbar title="Emitir Comprobantes Electrónicos" /><main className="p-3 flex-1 flex flex-col gap-6 w-full"><p className="text-sm text-slate-500">Selecciona el tipo de comprobante a emitir:</p><div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">{TIPOS.map(t => (<button key={t.cod} onClick={() => setSelectedTipo(t)} className={`border rounded-xl p-5 flex flex-col gap-3 text-left transition-all cursor-pointer hover:shadow-md ${COLOR_MAP[t.color]}`}><div className="w-10 h-10 rounded-lg border flex items-center justify-center">{t.icon}</div><div><p className="text-sm font-bold">{t.label}</p><p className="text-xs text-slate-500 mt-0.5">{t.desc}</p></div><div className="text-[10px] font-bold flex items-center gap-1 mt-auto">Emitir →</div></button>))}</div></main></>);
+  if (!hasSriLinked) return (<><title>Emitir - OFSERCONT IA</title><Topbar title="Emitir Comprobantes" /><main className="ui-page flex-1 w-full"><EmptyState title="Vincula tu RUC del SRI en Configuración para emitir comprobantes." /></main></>);
+  if (!selectedTipo) return (<><title>Emitir - OFSERCONT IA</title><Topbar title="Emitir Comprobantes Electrónicos" /><main className="ui-page flex-1"><p className="text-sm text-brand-gray-500">Selecciona el tipo de comprobante a emitir:</p><div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">{TIPOS.map(t => (<button key={t.cod} onClick={() => setSelectedTipo(t)} className={`border rounded-xl p-5 flex flex-col gap-3 text-left transition-all cursor-pointer hover:shadow-md ${COLOR_MAP[t.color]}`}><div className="w-10 h-10 rounded-lg border flex items-center justify-center">{t.icon}</div><div><p className="text-sm font-bold">{t.label}</p><p className="text-xs text-brand-gray-500 mt-0.5">{t.desc}</p></div><div className="text-[10px] font-bold flex items-center gap-1 mt-auto">Emitir →</div></button>))}</div></main></>);
 
   const t = selectedTipo.cod;
   const totales = t === '01' || t === '03' || t === '04' ? calcTotal(detalles) : null;
@@ -369,7 +455,7 @@ export default function EmitirPage() {
     <>
       <title>Emitir {selectedTipo.label} - OFSERCONT IA</title>
       <Topbar title={`Emitir ${selectedTipo.label}`} />
-      <main className="p-3 flex-1 flex flex-col gap-5 w-full">
+      <main className="ui-page flex-1">
         <Button variant="outline" size="sm" className="self-start" onClick={() => { setSelectedTipo(null); setResultado(null); }}>← Cambiar tipo</Button>
         <Card className="p-5 flex flex-col gap-5">
 
@@ -377,7 +463,7 @@ export default function EmitirPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="flex flex-col gap-1.5"><Label>RUC Emisor *</Label>
               {loadingEmisores ? (
-                <Input value="Cargando..." disabled className="text-slate-400" />
+                <Input value="Cargando..." disabled className="text-brand-gray-400" />
               ) : (
                 <select value={emisorRuc} onChange={e => {
                   const sel = emisores.find(em => em.ruc === e.target.value);
@@ -395,53 +481,77 @@ export default function EmitirPage() {
             </div>
             <div className="flex flex-col gap-1.5"><Label>Fecha Emisión *</Label><Input type="date" value={fechaEmision} onChange={e => setFechaEmision(e.target.value)} /></div>
             <div className="flex flex-col gap-1.5"><Label>Secuencial (opcional)</Label><Input value={secuencial} onChange={e => setSecuencial(e.target.value)} placeholder="Auto si vacío" /></div>
-            <div className="flex flex-col gap-1.5"><Label>Moneda</Label><Input value="USD" disabled className="text-slate-400" /></div>
+            <div className="flex flex-col gap-1.5"><Label>Moneda</Label><Input value="USD" disabled className="text-brand-gray-400" /></div>
           </div>
 
           {/* === AMBIENTE === */}
-          <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-lg border">
-            <span className="text-xs font-bold uppercase text-slate-500">Ambiente</span>
+          <div className="flex items-center gap-4 p-3 bg-brand-gray-50 rounded-lg border">
+            <span className="text-xs font-bold uppercase text-brand-gray-500">Ambiente</span>
             <div className="flex gap-1">
               <button type="button" onClick={() => setAmbiente('1')}
-                className={`px-4 py-1.5 text-xs rounded-md border transition-all cursor-pointer ${ambiente === '1' ? 'bg-amber-100 border-amber-400 text-amber-800 font-semibold' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                className={`px-4 py-1.5 text-xs rounded-md border transition-all cursor-pointer ${ambiente === '1' ? 'bg-amber-100 border-amber-400 text-amber-800 font-semibold' : 'bg-white border-brand-gray-200 text-brand-gray-500 hover:bg-brand-gray-50'}`}>
                 Pruebas
               </button>
               <button type="button" onClick={() => setAmbiente('2')}
-                className={`px-4 py-1.5 text-xs rounded-md border transition-all cursor-pointer ${ambiente === '2' ? 'bg-emerald-100 border-emerald-400 text-emerald-800 font-semibold' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                className={`px-4 py-1.5 text-xs rounded-md border transition-all cursor-pointer ${ambiente === '2' ? 'bg-success-pale border-success-light text-success font-semibold' : 'bg-white border-brand-gray-200 text-brand-gray-500 hover:bg-brand-gray-50'}`}>
                 Producción
               </button>
             </div>
           </div>
 
           {/* === RECEPTOR / PROVEEDOR / SUJETO RETENIDO === */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div>
+            <div className="flex flex-col gap-1.5">
+              <Label>{tipoContacto === 'proveedor' ? 'Proveedor registrado' : 'Cliente registrado'}</Label>
+              <select value={contactos.some(c => c.identificacion === identificacion) ? identificacion : ''} onChange={e => seleccionarContacto(e.target.value)} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm">
+                <option value="">— Nuevo: ingresar datos manualmente —</option>
+                {contactos.map(c => (
+                  <option key={c.id} value={c.identificacion}>
+                    {c.identificacion} — {c.razonSocial}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-3">
             <div className="flex flex-col gap-1.5"><Label>Tipo ID</Label>
               <select value={tipoId} onChange={e => setTipoId(e.target.value)} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm">{TIPOS_ID.map(ti => <option key={ti.value} value={ti.value}>{ti.label}</option>)}</select>
             </div>
             <div className="flex flex-col gap-1.5"><Label>Identificación *</Label><Input value={identificacion} onChange={e => setIdentificacion(e.target.value)} placeholder="Número" /></div>
             <div className="flex flex-col gap-1.5 col-span-2"><Label>Razón Social *</Label><Input value={razonSocial} onChange={e => setRazonSocial(e.target.value)} placeholder="Nombre" /></div>
             <div className="flex flex-col gap-1.5"><Label>Email</Label><Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="correo@ejemplo.com" /></div>
+            </div>
           </div>
 
           {/* === FACTURA / LC / NC: DETALLES === */}
           {(t === '01' || t === '03' || t === '04') && (
             <div>
-              <div className="flex items-center justify-between mb-3"><h4 className="text-xs font-bold uppercase text-slate-500">Detalles</h4><Button variant="outline" size="xs" onClick={agregarDetalle}>+ Agregar</Button></div>
-              {detalles.map((d, i) => (
-                <div key={i} className="border border-slate-200 rounded-lg p-3 grid grid-cols-2 md:grid-cols-8 gap-2 mb-2">
-                  <div className="col-span-2"><Label className="text-[10px]">Código</Label><Input size={1} value={d.codigoPrincipal} onChange={e => { const n = [...detalles]; n[i].codigoPrincipal = e.target.value; setDetalles(n); }} /></div>
-                  <div className="col-span-2"><Label className="text-[10px]">Descripción</Label><Input size={1} value={d.descripcion} onChange={e => { const n = [...detalles]; n[i].descripcion = e.target.value; setDetalles(n); }} /></div>
+              <div className="flex items-center justify-between mb-3"><h4 className="text-xs font-bold uppercase text-brand-gray-500">Detalles</h4><Button variant="outline" size="xs" onClick={agregarDetalle}>+ Agregar</Button></div>
+              {detalles.map((d, i) => {
+                const sel = productos.find(p => p.codigo === d.codigoPrincipal);
+                return (
+                <div key={i} className="border border-brand-gray-200 rounded-lg p-3 grid grid-cols-2 md:grid-cols-8 gap-2 mb-2">
+                  <div className="col-span-4"><Label className="text-[10px]">Producto / Servicio (inventario)</Label>
+                    <select value={d.codigoPrincipal} onChange={e => seleccionarProducto(i, e.target.value)} className="h-8 rounded-lg border border-input bg-transparent px-2 text-xs w-full">
+                      <option value="">Seleccionar del inventario...</option>
+                      {productos.map(p => (
+                        <option key={p.id} value={p.codigo}>
+                          {p.codigo} — {p.nombre} (stock: {parseFloat(p.stock).toFixed(0)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div><Label className="text-[10px]">Cant.</Label><Input type="number" size={1} value={d.cantidad} onChange={e => { const n = [...detalles]; n[i].cantidad = parseFloat(e.target.value) || 0; setDetalles(n); }} /></div>
-                  <div><Label className="text-[10px]">P. Unit.</Label><Input type="number" size={1} value={d.precioUnitario} onChange={e => { const n = [...detalles]; n[i].precioUnitario = parseFloat(e.target.value) || 0; setDetalles(n); }} /></div>
+                  <div><Label className="text-[10px]">P. Unit.</Label><Input type="number" size={1} value={d.precioUnitario} disabled={!!sel} title={sel ? 'Precio definido en inventario' : ''} onChange={e => { const n = [...detalles]; n[i].precioUnitario = parseFloat(e.target.value) || 0; setDetalles(n); }} /></div>
                   <div><Label className="text-[10px]">Desc.</Label><Input type="number" size={1} value={d.descuento} onChange={e => { const n = [...detalles]; n[i].descuento = parseFloat(e.target.value) || 0; setDetalles(n); }} /></div>
                   <div><Label className="text-[10px]">IVA</Label>
-                    <select value={d.iva} onChange={e => { const n = [...detalles]; n[i].iva = e.target.value; setDetalles(n); }} className="h-8 rounded-lg border border-input bg-transparent px-1 text-xs w-full">{COD_IVA.map(iv => <option key={iv.value} value={iv.value}>{iv.label}</option>)}</select>
+                    <select value={d.iva} disabled={!!sel} title={sel ? 'IVA definido en inventario' : ''} onChange={e => { const n = [...detalles]; n[i].iva = e.target.value; setDetalles(n); }} className="h-8 rounded-lg border border-input bg-transparent px-1 text-xs w-full">{COD_IVA.map(iv => <option key={iv.value} value={iv.value}>{iv.label}</option>)}</select>
                   </div>
                   <div className="flex items-end"><Button variant="destructive" size="xs" onClick={() => eliminarDetalle(i)} disabled={detalles.length <= 1}>×</Button></div>
                 </div>
-              ))}
+                );
+              })}
               {totales && (
-                <div className="bg-slate-50 rounded-lg p-3 flex gap-6 text-xs font-mono mt-2">
+                <div className="bg-brand-gray-50 rounded-lg p-3 flex gap-6 text-xs font-mono mt-2">
                   <span>Sin Imp: <strong>${totales.sinImp.toFixed(2)}</strong></span>
                   <span>IVA: <strong>${totales.conIVA.toFixed(2)}</strong></span>
                   <span>Total: <strong>${totales.total.toFixed(2)}</strong></span>
@@ -452,18 +562,19 @@ export default function EmitirPage() {
 
           {/* === FACTURA-SPECIFIC: PROPINA + PAGO === */}
           {t === '01' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="flex flex-col gap-1.5"><Label>Propina</Label><Input type="number" value={propina} onChange={e => setPropina(parseFloat(e.target.value) || 0)} /></div>
               <div className="flex flex-col gap-1.5"><Label>Forma de Pago</Label>
                 <select value={formaPago} onChange={e => setFormaPago(e.target.value)} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm">{FORMA_PAGO.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}</select>
               </div>
+              <div className="flex flex-col gap-1.5"><Label>Plazo (días crédito)</Label><Input type="number" min={0} value={plazo} onChange={e => setPlazo(parseInt(e.target.value) || 0)} placeholder="0 = contado" /></div>
             </div>
           )}
 
           {/* === NC/ND: DOCUMENTO MODIFICADO === */}
           {(t === '04' || t === '05') && (
             <div>
-              <h4 className="text-xs font-bold uppercase text-slate-500 mb-3">Documento Modificado</h4>
+              <h4 className="text-xs font-bold uppercase text-brand-gray-500 mb-3">Documento Modificado</h4>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="flex flex-col gap-1.5"><Label>Tipo</Label>
                   <select value={docModTipo} onChange={e => setDocModTipo(e.target.value)} className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm">
@@ -483,7 +594,7 @@ export default function EmitirPage() {
               )}
               {t === '05' && (
                 <div className="mt-4">
-                  <div className="flex items-center justify-between mb-2"><h4 className="text-xs font-bold uppercase text-slate-500">Motivos de Débito</h4><Button variant="outline" size="xs" onClick={agregarMotivoND}>+ Motivo</Button></div>
+                  <div className="flex items-center justify-between mb-2"><h4 className="text-xs font-bold uppercase text-brand-gray-500">Motivos de Débito</h4><Button variant="outline" size="xs" onClick={agregarMotivoND}>+ Motivo</Button></div>
                   {motivosND.map((m, i) => (
                     <div key={i} className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-2">
                       <div className="flex flex-col gap-1.5"><Label className="text-[10px]">Razón</Label><Input value={m.razon} onChange={e => { const n = [...motivosND]; n[i].razon = e.target.value; setMotivosND(n); }} placeholder="Interés por mora" /></div>
@@ -502,11 +613,11 @@ export default function EmitirPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="flex flex-col gap-1.5"><Label>Período Fiscal</Label><Input type="month" value={periodoFiscal} onChange={e => setPeriodoFiscal(e.target.value)} /></div>
               </div>
-              <div className="flex items-center justify-between mb-3"><h4 className="text-xs font-bold uppercase text-slate-500">Retenciones</h4><Button variant="outline" size="xs" onClick={agregarRetencion}>+ Retención</Button></div>
+              <div className="flex items-center justify-between mb-3"><h4 className="text-xs font-bold uppercase text-brand-gray-500">Retenciones</h4><Button variant="outline" size="xs" onClick={agregarRetencion}>+ Retención</Button></div>
               {retenciones.map((r, i) => {
                 const tipoRet = COD_RETENCION.find(rt => rt.codigo === r.codigo);
                 return (
-                  <div key={i} className="border border-slate-200 rounded-lg p-3 grid grid-cols-2 md:grid-cols-5 gap-3 mb-2">
+                  <div key={i} className="border border-brand-gray-200 rounded-lg p-3 grid grid-cols-2 md:grid-cols-5 gap-3 mb-2">
                     <div className="flex flex-col gap-1"><Label className="text-[10px]">Tipo</Label>
                       <select value={r.codigo} onChange={e => handleRetencionChange(i, 'codigo', e.target.value)} className="h-8 rounded-lg border border-input bg-transparent px-2 text-xs">{COD_RETENCION.map(rt => <option key={rt.codigo} value={rt.codigo}>{rt.label}</option>)}</select>
                     </div>
@@ -536,7 +647,7 @@ export default function EmitirPage() {
           {/* === GUÍA DE REMISIÓN === */}
           {t === '06' && (
             <div>
-              <h4 className="text-xs font-bold uppercase text-slate-500 mb-3">Transportista</h4>
+              <h4 className="text-xs font-bold uppercase text-brand-gray-500 mb-3">Transportista</h4>
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
                 <div className="col-span-2"><Label>Tipo ID</Label>
                   <select value={transportista.tipoIdentificacion} onChange={e => setTransportista({ ...transportista, tipoIdentificacion: e.target.value })} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm">{TIPOS_ID.map(ti => <option key={ti.value} value={ti.value}>{ti.label}</option>)}</select>
@@ -549,10 +660,10 @@ export default function EmitirPage() {
                 <div><Label>Fecha inicio transporte</Label><Input type="date" value={fechaIniTransporte} onChange={e => setFechaIniTransporte(e.target.value)} /></div>
                 <div><Label>Fecha fin transporte</Label><Input type="date" value={fechaFinTransporte} onChange={e => setFechaFinTransporte(e.target.value)} /></div>
               </div>
-              <h4 className="text-xs font-bold uppercase text-slate-500 mb-3">Destinatarios</h4>
+              <h4 className="text-xs font-bold uppercase text-brand-gray-500 mb-3">Destinatarios</h4>
               <Button variant="outline" size="xs" onClick={agregarDestinatario} className="mb-2">+ Destinatario</Button>
               {destinatarios.map((d, i) => (
-                <div key={i} className="border border-slate-200 rounded-lg p-3 mb-2">
+                <div key={i} className="border border-brand-gray-200 rounded-lg p-3 mb-2">
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-2">
                     <div><Label className="text-[10px]">ID Destinatario</Label><Input size={1} value={d.identificacion} onChange={e => { const n = [...destinatarios]; n[i].identificacion = e.target.value; setDestinatarios(n); }} /></div>
                     <div><Label className="text-[10px]">Razón Social</Label><Input size={1} value={d.razonSocial} onChange={e => { const n = [...destinatarios]; n[i].razonSocial = e.target.value; setDestinatarios(n); }} /></div>
@@ -566,12 +677,12 @@ export default function EmitirPage() {
             </div>
           )}
 
-          <Button onClick={handleEmitir} disabled={emitiendo || !emisorRuc || !identificacion || !razonSocial} className="bg-brand-navy hover:bg-brand-navy-light text-white self-start px-8">
+          <Button onClick={handleEmitir} disabled={emitiendo || !emisorRuc || !identificacion || !razonSocial} className="bg-brand-red hover:bg-brand-red-bright text-white self-start px-8">
             {emitiendo ? 'Emitiendo...' : `Emitir ${selectedTipo.label}`}
           </Button>
         </Card>
 
-        {resultado && <Card className="p-4"><h4 className="text-xs font-bold text-slate-700 mb-2">Resultado:</h4><pre className="text-xs text-slate-600 whitespace-pre-wrap font-mono">{JSON.stringify(resultado, null, 2)}</pre></Card>}
+        {resultado && <Card className="p-4"><h4 className="text-xs font-bold text-brand-gray-700 mb-2">Resultado:</h4><pre className="text-xs text-brand-gray-600 whitespace-pre-wrap font-mono">{JSON.stringify(resultado, null, 2)}</pre></Card>}
       </main>
     </>
   );

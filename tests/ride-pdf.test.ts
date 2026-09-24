@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatNumero, getFormaPagoLabel, buildQrData } from '../src/lib/sri-api/ride-pdf';
+import { formatNumero, getFormaPagoLabel, buildQrData } from '../src/services/sri-api/ride-pdf';
 
 describe('formatNumero', () => {
   it('formatea número con separadores de miles', () => {

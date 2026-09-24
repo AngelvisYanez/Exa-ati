@@ -1,12 +1,19 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { claveAccesoService } from '@/lib/sri-api/clave-acceso';
-import { xmlBuilder } from '@/lib/sri-api/xml-builder';
-import { xmlSigner } from '@/lib/sri-api/xml-signer';
-import { xmlStorage } from '@/lib/sri-api/xml-storage';
-import { sriSoapClient } from '@/lib/sri-api/sri-soap-client';
-import { classifySriError } from '@/lib/sri-api/sri-error-handler';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { claveAccesoService } from '@/services/sri-api/clave-acceso';
+import { xmlBuilder } from '@/services/sri-api/xml-builder';
+import { xmlSigner } from '@/services/sri-api/xml-signer';
+import { xmlStorage } from '@/services/sri-api/xml-storage';
+import { sriSoapClient } from '@/services/sri-api/sri-soap-client';
+import { classifySriError } from '@/services/sri-api/sri-error-handler';
+import { saveAutorizadoXml } from '@/services/sri-api/comprobante-importer';
+import {
+  autoCrearCuentaPorCobrarDesdeFactura,
+  autoCrearCuentaPorPagarDesdeCompra,
+} from '@/services/sri-api/cuentas';
+import { pickEncryptedCertPassword } from '@/lib/emisor-cert';
+import { forbiddenResponse, requireModule } from '@/services/sri-api/rbac';
 
 const BUILDERS: Record<string, (data: any) => string> = {
   '01': xmlBuilder.buildFactura.bind(xmlBuilder),
@@ -22,6 +29,7 @@ const TIPOS_SOPORTADOS = Object.keys(BUILDERS);
 export async function POST(req: Request) {
   try {
     const user = await verifyAuth(req);
+    await requireModule(user, 'emitir');
     const body = await req.json();
 
     const { tipo, emisorRuc, ambiente: ambienteOverride, datos } = body;
@@ -38,28 +46,6 @@ export async function POST(req: Request) {
         { message: `Tipo de comprobante no soportado: ${tipo}. Soportados: ${TIPOS_SOPORTADOS.join(', ')}` },
         { status: 400 }
       );
-    }
-
-    const missingCols = [
-      'establecimiento VARCHAR(3) DEFAULT \'001\'',
-      'punto_emision VARCHAR(3) DEFAULT \'001\'',
-      'dir_matriz VARCHAR(500)',
-      'tipo_emision VARCHAR(2) DEFAULT \'1\'',
-      'agente_retencion VARCHAR(2)',
-      'contribuyente_rimpe VARCHAR(2)',
-      'obligado_contabilidad VARCHAR(2)',
-      'certificado_p12 BYTEA',
-      'password_certificado TEXT',
-      'certificado_password_encrypted TEXT',
-      'certificado_password VARCHAR(500)',
-      'certificado_nombre VARCHAR(500)',
-      'certificado_valido_hasta TIMESTAMP',
-      'cert_valido_hasta TIMESTAMP',
-      'notif_documentos BOOLEAN DEFAULT TRUE',
-      'notif_generacion BOOLEAN DEFAULT TRUE',
-    ];
-    for (const col of missingCols) {
-      await db.query(`ALTER TABLE emisores ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
     }
 
     const emisor = await db.queryOne<any>(
@@ -91,6 +77,15 @@ export async function POST(req: Request) {
     if (!emisor.establecimiento || !emisor.punto_emision) {
       return NextResponse.json(
         { message: `El emisor ${emisorRuc} no tiene configurados establecimiento y punto de emisión` },
+        { status: 400 }
+      );
+    }
+
+    if (!emisor.certificado_p12 || !pickEncryptedCertPassword(emisor)) {
+      return NextResponse.json(
+        {
+          message: `El emisor ${emisorRuc} no tiene certificado digital configurado. Súbelo en Configuración.`,
+        },
         { status: 400 }
       );
     }
@@ -190,8 +185,66 @@ export async function POST(req: Request) {
       ]
     );
 
-    if (result.estado === 'AUTORIZADO' && result.xmlAutorizado) {
+    if (result.estado === 'AUTORIZADO' && result.xmlAutorizado && comprobanteId?.id) {
+      await saveAutorizadoXml(
+        comprobanteId.id,
+        emisor.ruc,
+        claveAcceso,
+        fechaEmision,
+        result.xmlAutorizado
+      );
+    } else if (result.estado === 'AUTORIZADO' && result.xmlAutorizado) {
       xmlStorage.saveXml(emisor.ruc, claveAcceso, fechaEmision, 'autorizado', result.xmlAutorizado);
+    }
+
+    // Genera cuentas por cobrar/pagar cuando el documento se emite a crédito (plazo > 0)
+    if (user.tenantId) {
+      const plazo =
+        Number(datos.plazo) ||
+        Number(datos.pagos?.[0]?.plazo) ||
+        0;
+      const importeTotal = Number(datos.importeTotal || 0);
+
+      if (tipo === '01' && plazo > 0 && importeTotal > 0) {
+        await autoCrearCuentaPorCobrarDesdeFactura({
+          tenantId: user.tenantId,
+          emisorRuc: emisor.ruc,
+          comprobanteId: comprobanteId?.id || null,
+          claveAcceso,
+          serie: `${establecimiento}-${puntoEmision}`,
+          secuencial,
+          fechaEmision: new Date(datos.fechaEmision),
+          plazo,
+          importeTotal,
+          cliente: {
+            tipoIdentificacion: datos.tipoIdentificacionComprador,
+            identificacion: datos.identificacionComprador,
+            razonSocial: datos.razonSocialComprador,
+            email: datos.emailComprador,
+          },
+        }).catch((err: any) => {
+          console.error('[Auto CxC emitir]', err?.message);
+        });
+      } else if (tipo === '03' && plazo > 0 && importeTotal > 0) {
+        await autoCrearCuentaPorPagarDesdeCompra({
+          tenantId: user.tenantId,
+          emisorRuc: emisor.ruc,
+          comprobanteId: comprobanteId?.id || null,
+          claveAcceso,
+          serie: `${establecimiento}-${puntoEmision}`,
+          secuencial,
+          fechaEmision: new Date(datos.fechaEmision),
+          plazo,
+          importeTotal,
+          proveedor: {
+            tipoIdentificacion: datos.tipoIdentificacionProveedor,
+            identificacion: datos.identificacionProveedor,
+            razonSocial: datos.razonSocialProveedor,
+          },
+        }).catch((err: any) => {
+          console.error('[Auto CxP emitir]', err?.message);
+        });
+      }
     }
 
     const errorClassified = classifySriError(result.mensajes, result.estado === 'EN_PROCESO' ? 'autorizacion' : 'recepcion');
@@ -211,6 +264,7 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('[Emitir Error]', error);
+    if (error?.message?.includes('Acceso denegado')) return forbiddenResponse(error.message);
     return NextResponse.json(
       {
         success: false,

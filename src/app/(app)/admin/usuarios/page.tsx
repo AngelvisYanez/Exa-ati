@@ -2,12 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import Topbar from "@/components/Topbar";
+import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "sonner";
 import { Plus, Edit, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
 
+import { apiFetch } from "@/lib/apiFetch";
 interface Usuario {
   id: string;
   email: string;
@@ -27,9 +31,9 @@ const ROL_LABEL: Record<string, string> = {
 };
 
 const ROL_COLOR: Record<string, string> = {
-  USER: "bg-blue-50 text-blue-700 border-blue-200",
+  USER: "bg-sky-50 text-brand-sky border-sky-200",
   ADMIN: "bg-amber-50 text-amber-700 border-amber-200",
-  SUPERADMIN: "bg-purple-50 text-purple-700 border-purple-200",
+  SUPERADMIN: "bg-purple-50 text-purple-700 border-brand-gray-200",
 };
 
 export default function AdminUsuariosPage() {
@@ -37,6 +41,7 @@ export default function AdminUsuariosPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [rolFilter, setRolFilter] = useState("");
+  const [roles, setRoles] = useState<{ codigo: string; nombre: string }[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -50,7 +55,7 @@ export default function AdminUsuariosPage() {
       if (rolFilter) params.set("rol", rolFilter);
       params.set("page", String(page));
       params.set("pageSize", String(pageSize));
-      const res = await fetch(`/api/admin/usuarios?${params}`);
+      const res = await apiFetch(`/api/admin/usuarios?${params}`);
       if (!res.ok) throw new Error("Error");
       const data = await res.json();
       setUsuarios(data.data || []);
@@ -65,12 +70,28 @@ export default function AdminUsuariosPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    apiFetch("/api/admin/roles")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.data) {
+          setRoles(
+            data.data.map((r: { codigo: string; nombre: string }) => ({
+              codigo: r.codigo,
+              nombre: r.nombre,
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => { setPage(1); }, [search, rolFilter]);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`¿Eliminar al usuario "${name}"?`)) return;
     try {
-      const res = await fetch(`/api/admin/usuarios/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/admin/usuarios/${id}`, { method: "DELETE" });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || "Error");
@@ -86,14 +107,14 @@ export default function AdminUsuariosPage() {
     <>
       <title>Usuarios - Admin - OFSERCONT IA</title>
       <Topbar title="Usuarios" backLink={{ href: "/admin", label: "Admin" }} />
-      <main className="p-3 flex-1 flex flex-col gap-4 w-full">
+      <main className="ui-page flex-1">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Usuarios</h1>
             <p className="text-xs text-brand-gray-500 mt-0.5">{total} usuarios registrados</p>
           </div>
           <Link href="/admin/usuarios/nuevo">
-            <Button size="sm" className="bg-brand-navy hover:bg-brand-navy-light text-white">
+            <Button size="sm" className="bg-brand-red hover:bg-brand-red-bright text-white">
               <Plus className="w-3.5 h-3.5" /> Nuevo Usuario
             </Button>
           </Link>
@@ -106,9 +127,18 @@ export default function AdminUsuariosPage() {
             className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
           >
             <option value="">Todos los roles</option>
-            <option value="USER">USER</option>
-            <option value="ADMIN">ADMIN</option>
-            <option value="SUPERADMIN">SUPERADMIN</option>
+            {(roles.length > 0
+              ? roles
+              : [
+                  { codigo: "USER", nombre: "USER" },
+                  { codigo: "ADMIN", nombre: "ADMIN" },
+                  { codigo: "SUPERADMIN", nombre: "SUPERADMIN" },
+                ]
+            ).map((r) => (
+              <option key={r.codigo} value={r.codigo}>
+                {r.codigo}
+              </option>
+            ))}
           </select>
           <div className="relative flex-1 sm:max-w-sm w-full">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray-400" />
@@ -123,64 +153,64 @@ export default function AdminUsuariosPage() {
 
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
-            <div className="p-10 text-center text-sm text-brand-gray-500 animate-pulse">Cargando usuarios...</div>
+            <TableSkeleton rows={6} columns={5} />
           ) : usuarios.length === 0 ? (
-            <div className="p-10 text-center text-sm text-brand-gray-400">No se encontraron usuarios.</div>
+            <EmptyState title="No se encontraron usuarios." compact />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[13px]">
-                <thead>
-                  <tr className="border-b border-brand-gray-100 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider bg-brand-gray-50/50">
-                    <th className="py-3 px-4 font-semibold">Email</th>
-                    <th className="py-3 px-4 font-semibold">Nombre</th>
-                    <th className="py-3 px-4 font-semibold">Rol</th>
-                    <th className="py-3 px-4 font-semibold">Empresa</th>
-                    <th className="py-3 px-4 font-semibold">Estado</th>
-                    <th className="py-3 px-4 font-semibold">Creado</th>
-                    <th className="py-3 px-4 font-semibold text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-brand-gray-50">
+              <Table className="w-full text-left border-collapse text-[13px]">
+                <TableHeader>
+                  <TableRow className="border-b border-brand-gray-100 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider bg-brand-gray-50/50">
+                    <TableHead className="py-3 px-4 font-semibold">Email</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Nombre</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Rol</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Empresa</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Estado</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Creado</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-brand-gray-50">
                   {usuarios.map((u) => (
-                    <tr key={u.id} className="hover:bg-brand-gray-50/40 transition-colors">
-                      <td className="py-3 px-4 font-mono text-xs font-semibold text-brand-gray-600">{u.email}</td>
-                      <td className="py-3 px-4 font-medium text-brand-gray-800">{u.nombre || "—"}</td>
-                      <td className="py-3 px-4">
+                    <TableRow key={u.id} className="hover:bg-brand-gray-50/40 transition-colors">
+                      <TableCell className="py-3 px-4 font-mono text-xs font-semibold text-brand-gray-600">{u.email}</TableCell>
+                      <TableCell className="py-3 px-4 font-medium text-brand-gray-800">{u.nombre || "—"}</TableCell>
+                      <TableCell className="py-3 px-4">
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${ROL_COLOR[u.rol] || ROL_COLOR.USER}`}>
                           {ROL_LABEL[u.rol] || u.rol}
                         </span>
-                      </td>
-                      <td className="py-3 px-4 text-xs text-brand-gray-500">{u.tenantNombre || "—"}</td>
-                      <td className="py-3 px-4">
+                      </TableCell>
+                      <TableCell className="py-3 px-4 text-xs text-brand-gray-500">{u.tenantNombre || "—"}</TableCell>
+                      <TableCell className="py-3 px-4">
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
                           u.activo
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-red-50 text-red-700 border border-red-200"
+                            ? "bg-success-pale text-success border border-success-light/40"
+                            : "bg-brand-red-subtle text-brand-red border border-brand-red-pale"
                         }`}>
                           {u.activo ? "Activo" : "Inactivo"}
                         </span>
-                      </td>
-                      <td className="py-3 px-4 text-xs text-brand-gray-400">
+                      </TableCell>
+                      <TableCell className="py-3 px-4 text-xs text-brand-gray-400">
                         {u.createdAt ? new Date(u.createdAt).toLocaleDateString("es-EC") : "—"}
-                      </td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="py-3 px-4 text-right whitespace-nowrap">
                         <Link
                           href={`/admin/usuarios/${u.id}`}
-                          className="inline-flex items-center gap-1 text-brand-navy hover:text-brand-navy-light text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1"
+                          className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1"
                         >
                           <Edit className="w-3 h-3" /> Editar
                         </Link>
                         <button
                           onClick={() => handleDelete(u.id, u.email)}
-                          className="inline-flex items-center gap-1 text-red-500 hover:text-red-700 text-xs font-semibold border border-red-100 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3 h-3" /> Eliminar
                         </button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>

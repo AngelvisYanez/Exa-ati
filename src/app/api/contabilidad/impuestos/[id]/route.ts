@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { embeddings } from '@/services/sri-api/embeddings';
 
 export async function GET(
   req: Request,
@@ -118,6 +119,11 @@ export async function PUT(
       [numId]
     );
 
+    if (process.env.OLLAMA_ENABLED === 'true') {
+      embeddings.store(tenantId, 'impuesto', numId, embeddings.buildContent('impuesto', updated))
+        .catch(e => console.error('[Embeddings] Error storing impuesto:', e));
+    }
+
     return NextResponse.json({
       data: {
         id: updated.id,
@@ -169,6 +175,11 @@ export async function DELETE(
       'UPDATE impuestos SET activo = false, updated_at = NOW() WHERE id = $1',
       [numId]
     );
+
+    if (process.env.OLLAMA_ENABLED === 'true') {
+      embeddings.remove(tenantId, 'impuesto', numId)
+        .catch(e => console.error('[Embeddings] Error removing impuesto:', e));
+    }
 
     return NextResponse.json({ message: 'Impuesto desactivado correctamente' });
   } catch (error: any) {

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
-import { fetchTenantComprobantes } from '@/lib/sri-api/audit-engine';
-import { calculateTaxSummary } from '@/lib/sri-api/tax-calculator';
-import { getUserRuc } from '@/lib/sri-api/user-resolver';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { sendWhatsAppAlert } from '@/services/sri-api/whatsapp-service';
+import { db } from '@/services/sri-api/db';
+import { fetchTenantComprobantes } from '@/services/sri-api/audit-engine';
+import { calculateTaxSummary } from '@/services/sri-api/tax-calculator';
+import { getUserRuc } from '@/services/sri-api/user-resolver';
 
 export async function POST(req: Request) {
   try {
@@ -34,64 +35,33 @@ export async function POST(req: Request) {
     });
 
     const formattedMessage = `
-*OFSERCONT IA - NOTIFICACION SRI*
-Fecha: ${nowStr}
+🤖 *OFSERCONT IA | Notificación Tributaria* 
+🗓️ *Fecha:* ${nowStr}
 
-Hola *${emisor.razon_social}*, te enviamos el resumen de tu declaración de IVA:
+Hola *${emisor.razon_social}* 👋,
+Te enviamos el resumen actualizado para tu próxima declaración de IVA:
 
-*IVA Ventas*: $${summary.totalVentasIva.toFixed(2)}
-*Credito IVA Compras*: $${summary.totalComprasIva.toFixed(2)}
-*Retenciones Recibidas*: $${summary.totalRetencionesImporte.toFixed(2)}
--------------------------------
-*Total Neto IVA a Pagar*: *$${summary.ivaAPagarNeto.toFixed(2)}*
+📊 *RESUMEN DE IMPUESTOS*
+📈 *Ventas (IVA cobrado):* $${summary.totalVentasIva.toFixed(2)}
+📉 *Compras (Crédito Tributario):* $${summary.totalComprasIva.toFixed(2)}
+✂️ *Retenciones Recibidas:* $${summary.totalRetencionesImporte.toFixed(2)}
+━━━━━━━━━━━━━━━━━━━━
+💰 *Total Estimado a Pagar al SRI:* *$${summary.ivaAPagarNeto.toFixed(2)}*
 
-_Recuerda que tu declaración vence en los próximos días. Si deseas autorizar la presentación automática del formulario 104A del SRI responde "Sí, presenta" en este chat._
+⚠️ _Recuerda que tu declaración vence en los próximos días._
+
+🤖 *¿Deseas que me encargue de esto?*
+Responde *"Sí, presenta"* en este chat y yo me encargaré de subir automáticamente tu formulario 104 al SRI. ¡Fácil y rápido! 🚀
     `.trim();
 
-    const whatsappApiUrl = process.env.WHATSAPP_API_URL;
-    if (!whatsappApiUrl) {
-      return NextResponse.json(
-        {
-          message:
-            'WHATSAPP_API_URL no está configurada. Define la URL del gateway de WhatsApp en .env.local.',
-        },
-        { status: 503 }
-      );
-    }
+    const success = await sendWhatsAppAlert(tenantId, userRuc, formattedMessage, 'generacion');
 
-    const apiResponse = await fetch(whatsappApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(process.env.WHATSAPP_API_TOKEN
-          ? { Authorization: `Bearer ${process.env.WHATSAPP_API_TOKEN}` }
-          : {}),
-      },
-      body: JSON.stringify({
-        to: emisor.whatsapp_numero,
-        message: formattedMessage,
-        ruc: userRuc,
-      }),
-    });
-
-    if (!apiResponse.ok) {
-      const errText = await apiResponse.text().catch(() => 'Error desconocido');
+    if (!success) {
       return NextResponse.json(
-        { message: `Error del gateway WhatsApp: ${errText}` },
+        { message: 'El servicio gateway de WhatsApp no se encuentra activo en el puerto 8000. Ejecute "npm run worker:whatsapp" en su servidor local o configure WHATSAPP_API_URL en el archivo .env.' },
         { status: 502 }
       );
     }
-
-    await db.query(
-      `INSERT INTO auditoria (usuario_email, tenant_id, accion, recurso, descripcion, datos_nuevos, exitoso)
-       VALUES (?, ?, 'WHATSAPP_NOTIFICACION', 'whatsapp', ?, ?, 1)`,
-      [
-        userRuc,
-        tenantId,
-        `Notificación enviada a ${emisor.whatsapp_numero}`,
-        JSON.stringify({ recipient: emisor.whatsapp_numero, ivaAPagar: summary.ivaAPagarNeto }),
-      ]
-    );
 
     return NextResponse.json({
       success: true,

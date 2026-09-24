@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
+    "target": "ES2018",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
@@ -30,5 +30,12 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "workers", "public/workers"]
+  "exclude": [
+    "node_modules",
+    "workers",
+    "public/workers",
+    "scripts/tmp-*.ts",
+    "scripts/tmp-*.tsx",
+    "scripts/scratch"
+  ]
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { verifyAuth } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
 
 function requireSuperadmin(user: { rol: string }) {
   if (user.rol !== 'SUPERADMIN') {

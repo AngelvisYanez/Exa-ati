@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth, requireTenantId } from '@/lib/sri-api/auth-helper';
-import { db } from '@/lib/sri-api/db';
+import { randomUUID } from 'crypto';
+import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { db } from '@/services/sri-api/db';
+import { contactoSchema } from '@/lib/schemas/contacto';
+import { parseBody } from '@/lib/schemas/parse-body';
+import { embeddings } from '@/services/sri-api/embeddings';
 
 export async function GET(req: Request) {
   try {
@@ -78,19 +82,15 @@ export async function POST(req: Request) {
   try {
     const user = await verifyAuth(req);
     const tenantId = requireTenantId(user);
-    const body = await req.json();
+    const parsed = await parseBody(req, contactoSchema);
+    if ('error' in parsed) return parsed.error;
     const {
       tipoIdentificacion, identificacion, razonSocial, nombreComercial,
-      email, telefono, direccion, tipoContribuyenteSri, obligadoContabilidad,
-      agenteRetencion, esCliente, esProveedor,
-    } = body;
-
-    if (!tipoIdentificacion || !identificacion || !razonSocial) {
-      return NextResponse.json(
-        { message: 'tipoIdentificacion, identificacion y razonSocial son obligatorios' },
-        { status: 400 }
-      );
-    }
+      email, telefono, direccion, esCliente, esProveedor,
+    } = parsed.data;
+    const tipoContribuyenteSri = null;
+    const obligadoContabilidad = null;
+    const agenteRetencion = false;
 
     const existente = await db.queryOne(
       'SELECT id FROM contactos WHERE tenant_id = $1 AND tipo_identificacion = $2 AND identificacion = $3',
@@ -104,18 +104,21 @@ export async function POST(req: Request) {
       );
     }
 
+    const id = randomUUID();
     const result = await db.queryOne<any>(
-      `INSERT INTO contactos (tenant_id, tipo_identificacion, identificacion, razon_social, nombre_comercial,
+      `INSERT INTO contactos (id, tenant_id, tipo_identificacion, identificacion, razon_social, nombre_comercial,
         email, telefono, direccion, tipo_contribuyente_sri, obligado_contabilidad,
         agente_retencion, es_cliente, es_proveedor, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
        RETURNING *`,
       [
-        tenantId, tipoIdentificacion, identificacion, razonSocial, nombreComercial || null,
+        id, tenantId, tipoIdentificacion, identificacion, razonSocial, nombreComercial || null,
         email || null, telefono || null, direccion || null, tipoContribuyenteSri || null,
         obligadoContabilidad || null, agenteRetencion ?? false, esCliente ?? true, esProveedor ?? false,
       ]
     );
+
+    embeddings.maybeIndex(tenantId, 'contacto', result.id, result);
 
     return NextResponse.json({
       data: {

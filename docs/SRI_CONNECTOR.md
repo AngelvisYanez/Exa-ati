@@ -191,10 +191,11 @@ src/
   - Discrepancias IVA
 
 ### `notifications-engine.ts`
-- `procesarNotificaciones(tenantId, alertas)` → Genera notificaciones:
-  - Canales: `app` (BD), `email`, `whatsapp`
-  - Agrupa por tipo, evita duplicados recientes
-  - Inserta en tabla `notificaciones`
+- `buildNotificationCandidates(ruc, tenantId, emisor, range)` → Genera candidatos desde comprobantes/auditoría/cert/jobs
+- `syncAndListNotifications(...)` → Upsert en tabla `notificaciones`, entrega WhatsApp/Email si aplica, lista desde BD
+- `markNotificationsRead(tenantId, { ids | all })` → Persiste leídas
+- Canales: `App` (BD), `Email` (SMTP real si `SMTP_HOST`), `WhatsApp` (bridge conectado)
+- Agrupa por `dedupe_key`, evita duplicados, preserva estado `unread`
 
 ### `chat-context.ts`
 - `buildChatContext(usuario, mensaje)` → Construye contexto estructurado para LLM
