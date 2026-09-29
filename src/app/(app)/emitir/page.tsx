@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Topbar from "@/components/layout/Topbar";
 import { sriClient } from "@/lib/sriClient";
@@ -133,6 +133,23 @@ function calcTotal(detalles: DetalleItem[]): { sinImp: number; desc: number; con
 }
 
 export default function EmitirPage() {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <Topbar title="Emitir" />
+          <main className="ui-page flex-1 flex items-center justify-center text-sm text-brand-gray-400">
+            Cargando…
+          </main>
+        </>
+      }
+    >
+      <EmitirPageContent />
+    </Suspense>
+  );
+}
+
+function EmitirPageContent() {
   const { hasSriLinked } = useAuth();
   const searchParams = useSearchParams();
   const [selectedTipo, setSelectedTipo] = useState<any>(null);
