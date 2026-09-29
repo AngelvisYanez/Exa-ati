@@ -161,12 +161,23 @@ export async function listPlansFromDb(opts?: {
 export async function countTenantsOnPlan(codigo: string): Promise<number> {
   try {
     const row = await db.queryOne<{ c: string | number }>(
-      `SELECT COUNT(*) AS c FROM tenants WHERE plan_codigo = $1`,
+      `SELECT (
+         (SELECT COUNT(*) FROM tenants WHERE plan_codigo = $1) +
+         (SELECT COUNT(*) FROM cuentas WHERE plan_codigo = $1)
+       ) AS c`,
       [codigo]
     );
     return Number(row?.c ?? 0);
   } catch {
-    return 0;
+    try {
+      const row = await db.queryOne<{ c: string | number }>(
+        `SELECT COUNT(*) AS c FROM tenants WHERE plan_codigo = $1`,
+        [codigo]
+      );
+      return Number(row?.c ?? 0);
+    } catch {
+      return 0;
+    }
   }
 }
 

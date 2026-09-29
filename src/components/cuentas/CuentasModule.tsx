@@ -56,7 +56,7 @@ const ESTADOS = [
   { value: "ANULADO", label: "Anulado" },
 ];
 
-const METODOS_PAGO = [
+const METODOS_PAGO_FALLBACK = [
   "EFECTIVO", "TRANSFERENCIA", "TARJETA", "CHEQUE", "DEPOSITO", "BANCO", "OTRO",
 ];
 
@@ -130,6 +130,19 @@ export default function CuentasModule({ tipo }: Props) {
   const [pagoSaving, setPagoSaving] = useState(false);
   const [pagosVisible, setPagosVisible] = useState<CuentaRow | null>(null);
   const [pagos, setPagos] = useState<PagoRow[]>([]);
+  const [metodosPago, setMetodosPago] = useState<string[]>(METODOS_PAGO_FALLBACK);
+
+  useEffect(() => {
+    apiFetch("/api/metodos-pago?uso=operativo")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const list = (d?.data || [])
+          .map((m: { codigo: string }) => m.codigo)
+          .filter(Boolean);
+        if (list.length > 0) setMetodosPago(list);
+      })
+      .catch(() => {});
+  }, []);
 
   const loadResumen = useCallback(async () => {
     try {
@@ -624,7 +637,7 @@ export default function CuentasModule({ tipo }: Props) {
                   onChange={(e) => setPagoForm({ ...pagoForm, metodoPago: e.target.value })}
                   className="h-7 text-xs rounded-lg border border-input bg-transparent px-2 w-full"
                 >
-                  {METODOS_PAGO.map((m) => <option key={m} value={m}>{m}</option>)}
+                  {metodosPago.map((m) => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div className="col-span-2">

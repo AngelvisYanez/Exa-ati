@@ -24,6 +24,7 @@ export const MODULE_CODES = [
   "admin.empresas",
   "admin.planes",
   "admin.emails",
+  "admin.metodos-pago",
   "configuracion",
 ] as const;
 
@@ -42,6 +43,7 @@ const PATH_TO_MODULE: { prefix: string; modulo: ModuleCode }[] = [
   { prefix: "/administracion/empresas", modulo: "admin.empresas" },
   { prefix: "/administracion/planes", modulo: "admin.planes" },
   { prefix: "/administracion/emails", modulo: "admin.emails" },
+  { prefix: "/administracion/metodos-pago", modulo: "admin.metodos-pago" },
   { prefix: "/administracion", modulo: "admin" },
   { prefix: "/documentos", modulo: "documentos" },
   { prefix: "/comprobantes", modulo: "comprobantes" },
@@ -83,6 +85,7 @@ const API_PREFIX_TO_MODULE: { prefix: string; modulo: ModuleCode }[] = [
   { prefix: "/api/admin/modulos", modulo: "admin.roles" },
   { prefix: "/api/admin/planes", modulo: "admin.planes" },
   { prefix: "/api/admin/emails", modulo: "admin.emails" },
+  { prefix: "/api/admin/metodos-pago", modulo: "admin.metodos-pago" },
   { prefix: "/api/admin/tenants", modulo: "admin.empresas" },
   { prefix: "/api/admin", modulo: "admin" },
   { prefix: "/api/sri/emitir", modulo: "emitir" },

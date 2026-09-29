@@ -8,7 +8,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useRouter, usePathname } from "next/navigation";
 import {
   sriClient,
   getSession,
@@ -38,8 +37,6 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const router = useRouter();
-  const pathname = usePathname();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [hasSriLinked, setHasSriLinked] = useState(false);
   const [rucList, setRucList] = useState<{ ruc: string; razonSocial: string }[]>([]);
@@ -198,10 +195,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setHasSriLinked(false);
     setRucList([]);
     setActiveRucState(null);
-    if (!pathname?.startsWith("/iniciar-sesion") && !pathname?.startsWith("/registro")) {
-      router.push("/iniciar-sesion");
-    }
-  }, [router, pathname]);
+    window.location.href = "/";
+  }, []);
 
   const refreshSriStatus = useCallback(async () => {
     const session = getSession();

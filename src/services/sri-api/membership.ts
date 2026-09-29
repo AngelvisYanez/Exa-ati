@@ -315,6 +315,177 @@ export async function createEmpresaInCuenta(input: {
   return { tenantId, cuentaId };
 }
 
+export type AssignPlanInput = {
+  cuentaId: string | null;
+  planCodigo: string;
+  planPeriodo?: "mensual" | "anual";
+  planVigenteHasta?: Date | string | null;
+  planEstado?: "pendiente" | "activo" | "gracia" | "vencido" | "cancelado";
+  planOrigen?: string;
+  /** Si se pasa un tenant sin cuenta, se actualiza solo ese tenant (legacy). */
+  tenantIdFallback?: string | null;
+};
+
+/**
+ * Asigna plan a la cuenta de billing y refleja en todos sus tenants.
+ * Fuente de verdad: cuentas.plan_codigo.
+ */
+export async function assignPlanToCuenta(input: AssignPlanInput): Promise<{
+  cuentaId: string | null;
+  planCodigo: string;
+  tenantsUpdated: number;
+}> {
+  const planCodigo = String(input.planCodigo || DEFAULT_PLAN).trim();
+  const plan = await resolvePlan(planCodigo);
+  if (!plan.activo && plan.codigo === planCodigo) {
+    // resolvePlan puede devolver fallback; validar en DB si existe
+  }
+
+  const planRow = await db.queryOne<{ codigo: string; activo: boolean | number }>(
+    `SELECT codigo, activo FROM planes_suscripcion WHERE codigo = $1`,
+    [planCodigo]
+  ).catch(() => null);
+
+  if (planRow && !Boolean(planRow.activo)) {
+    throw new Error("El plan seleccionado está inactivo");
+  }
+  if (!planRow && plan.codigo !== planCodigo && planCodigo !== DEFAULT_PLAN) {
+    // Permitir códigos de fallback estático
+  }
+
+  const periodo = input.planPeriodo || "mensual";
+  const planEstado = input.planEstado || "activo";
+  const planOrigen = input.planOrigen || "manual";
+  const vigenteHasta =
+    input.planVigenteHasta === undefined
+      ? undefined
+      : input.planVigenteHasta
+        ? new Date(input.planVigenteHasta)
+        : null;
+
+  let cuentaId = input.cuentaId || null;
+  let tenantsUpdated = 0;
+
+  if (cuentaId) {
+    const fields = [
+      "plan_codigo = $1",
+      "plan_periodo = $2",
+      "plan_estado = $3",
+      "plan_origen = $4",
+      "updated_at = NOW()",
+    ];
+    const values: unknown[] = [planCodigo, periodo, planEstado, planOrigen];
+    if (vigenteHasta !== undefined) {
+      values.push(vigenteHasta);
+      fields.push(`plan_vigente_hasta = $${values.length}`);
+    }
+    values.push(cuentaId);
+    try {
+      await db.query(
+        `UPDATE cuentas SET ${fields.join(", ")} WHERE id = $${values.length}`,
+        values
+      );
+    } catch (err) {
+      console.warn("[membership] assignPlanToCuenta cuentas:", err);
+      await db.query(
+        `UPDATE cuentas SET plan_codigo = $1, plan_periodo = $2, updated_at = NOW() WHERE id = $3`,
+        [planCodigo, periodo, cuentaId]
+      );
+    }
+
+    try {
+      const tenantFields = [
+        "plan_codigo = $1",
+        "plan_periodo = $2",
+        "plan_estado = $3",
+        "plan_origen = $4",
+        "updated_at = NOW()",
+      ];
+      const tenantValues: unknown[] = [planCodigo, periodo, planEstado, planOrigen];
+      if (vigenteHasta !== undefined) {
+        tenantValues.push(vigenteHasta);
+        tenantFields.push(`plan_vigente_hasta = $${tenantValues.length}`);
+      }
+      tenantValues.push(cuentaId);
+      const result = await db.query(
+        `UPDATE tenants SET ${tenantFields.join(", ")} WHERE cuenta_id = $${tenantValues.length}`,
+        tenantValues
+      );
+      tenantsUpdated = (result as { rowCount?: number })?.rowCount ?? 0;
+    } catch {
+      await db.query(
+        `UPDATE tenants SET plan_codigo = $1, updated_at = NOW() WHERE cuenta_id = $2`,
+        [planCodigo, cuentaId]
+      );
+    }
+
+    const tenants = await db.queryAll<{ id: string }>(
+      `SELECT id FROM tenants WHERE cuenta_id = $1`,
+      [cuentaId]
+    ).catch(() => []);
+    for (const t of tenants) invalidatePlanCache(t.id);
+  } else if (input.tenantIdFallback) {
+    const tid = input.tenantIdFallback;
+    try {
+      const fields = ["plan_codigo = $1", "plan_periodo = $2", "updated_at = NOW()"];
+      const values: unknown[] = [planCodigo, periodo];
+      if (input.planEstado) {
+        values.push(planEstado);
+        fields.push(`plan_estado = $${values.length}`);
+      }
+      if (input.planOrigen) {
+        values.push(planOrigen);
+        fields.push(`plan_origen = $${values.length}`);
+      }
+      if (vigenteHasta !== undefined) {
+        values.push(vigenteHasta);
+        fields.push(`plan_vigente_hasta = $${values.length}`);
+      }
+      values.push(tid);
+      await db.query(
+        `UPDATE tenants SET ${fields.join(", ")} WHERE id = $${values.length}`,
+        values
+      );
+    } catch {
+      await db.query(
+        `UPDATE tenants SET plan_codigo = $1, updated_at = NOW() WHERE id = $2`,
+        [planCodigo, tid]
+      );
+    }
+    tenantsUpdated = 1;
+    invalidatePlanCache(tid);
+  }
+
+  return { cuentaId, planCodigo, tenantsUpdated };
+}
+
+/**
+ * Resuelve cuenta_id del usuario vía su tenant activo (o membresía).
+ */
+export async function getCuentaIdForUsuario(usuarioId: string): Promise<{
+  cuentaId: string | null;
+  tenantId: string | null;
+} | null> {
+  const user = await db.queryOne<{ tenant_id: string | null }>(
+    `SELECT tenant_id FROM usuarios WHERE id = $1`,
+    [usuarioId]
+  );
+  if (!user) return null;
+
+  let tenantId = user.tenant_id;
+  if (!tenantId) {
+    const memb = await db.queryOne<{ tenant_id: string }>(
+      `SELECT tenant_id FROM tenant_usuarios WHERE usuario_id = $1 AND activo = true LIMIT 1`,
+      [usuarioId]
+    ).catch(() => null);
+    tenantId = memb?.tenant_id || null;
+  }
+  if (!tenantId) return { cuentaId: null, tenantId: null };
+
+  const cuentaId = await getCuentaIdForTenant(tenantId);
+  return { cuentaId, tenantId };
+}
+
 export async function switchActiveTenant(input: {
   usuarioId: string;
   tenantId: string;

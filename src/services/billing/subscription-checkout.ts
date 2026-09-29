@@ -82,22 +82,43 @@ export async function startSubscriptionCheckout(input: {
   const responseUrl = `${config.appUrl}/api/billing/payphone/callback`;
   const cancellationUrl = `${config.appUrl}/registro/gracias?status=canceled`;
 
-  const pago = await db.insert<{ id: string }>(
-    "pagos_suscripcion",
-    {
-      tenant_id: input.tenantId,
-      cuenta_id: cuentaId,
-      usuario_id: input.userId,
-      plan_codigo: plan.codigo,
-      periodo: input.periodo,
-      monto_centavos: breakdown.amount,
-      moneda: plan.moneda || "USD",
-      estado: "pendiente",
-      client_transaction_id: clientTransactionId,
-      reference,
-    },
-    "id"
-  );
+  let pago: { id: string } | null = null;
+  try {
+    pago = await db.insert<{ id: string }>(
+      "pagos_suscripcion",
+      {
+        tenant_id: input.tenantId,
+        cuenta_id: cuentaId,
+        usuario_id: input.userId,
+        plan_codigo: plan.codigo,
+        periodo: input.periodo,
+        monto_centavos: breakdown.amount,
+        moneda: plan.moneda || "USD",
+        estado: "pendiente",
+        metodo_pago_codigo: "PAYPHONE",
+        client_transaction_id: clientTransactionId,
+        reference,
+      },
+      "id"
+    );
+  } catch {
+    pago = await db.insert<{ id: string }>(
+      "pagos_suscripcion",
+      {
+        tenant_id: input.tenantId,
+        cuenta_id: cuentaId,
+        usuario_id: input.userId,
+        plan_codigo: plan.codigo,
+        periodo: input.periodo,
+        monto_centavos: breakdown.amount,
+        moneda: plan.moneda || "USD",
+        estado: "pendiente",
+        client_transaction_id: clientTransactionId,
+        reference,
+      },
+      "id"
+    );
+  }
 
   if (!pago?.id) {
     throw new Error("No se pudo registrar el pago pendiente");

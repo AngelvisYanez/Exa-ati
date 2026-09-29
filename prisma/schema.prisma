@@ -177,6 +177,23 @@ model Modulo {
   @@map("modulos")
 }
 
+model MetodoPago {
+  codigo          String   @id @db.VarChar(30)
+  nombre          String   @db.VarChar(100)
+  descripcion     String?  @db.Text
+  orden           Int      @default(0)
+  activo          Boolean  @default(true)
+  esSistema       Boolean  @default(false) @map("es_sistema")
+  usoOperativo    Boolean  @default(true) @map("uso_operativo")
+  usoSuscripcion  Boolean  @default(false) @map("uso_suscripcion")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  pagosSuscripcion PagoSuscripcion[]
+
+  @@map("metodos_pago")
+}
+
 model PagoSuscripcion {
   id                   String    @id @default(uuid()) @db.Uuid
   tenantId             String    @map("tenant_id") @db.Uuid
@@ -188,6 +205,7 @@ model PagoSuscripcion {
   moneda               String    @default("USD") @db.VarChar(3)
   /** pendiente | preparado | aprobado | cancelado | fallido | expirado */
   estado               String    @default("pendiente") @db.VarChar(30)
+  metodoPagoCodigo     String?   @map("metodo_pago_codigo") @db.VarChar(30)
   clientTransactionId  String    @unique @map("client_transaction_id") @db.VarChar(64)
   payphonePaymentId    BigInt?   @map("payphone_payment_id")
   payphoneTxId         BigInt?   @map("payphone_tx_id")
@@ -201,14 +219,16 @@ model PagoSuscripcion {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  cuenta Cuenta?          @relation("CuentaPagos", fields: [cuentaId], references: [id], onDelete: SetNull)
-  plan   PlanSuscripcion  @relation(fields: [planCodigo], references: [codigo], onDelete: Restrict, onUpdate: Cascade)
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cuenta     Cuenta?          @relation("CuentaPagos", fields: [cuentaId], references: [id], onDelete: SetNull)
+  plan       PlanSuscripcion  @relation(fields: [planCodigo], references: [codigo], onDelete: Restrict, onUpdate: Cascade)
+  metodoPago MetodoPago?      @relation(fields: [metodoPagoCodigo], references: [codigo], onDelete: SetNull, onUpdate: Cascade)
   cuentaUltimoPago Cuenta[] @relation("CuentaUltimoPago")
 
   @@index([tenantId, createdAt])
   @@index([cuentaId, estado])
   @@index([estado])
+  @@index([metodoPagoCodigo])
   @@map("pagos_suscripcion")
 }
 

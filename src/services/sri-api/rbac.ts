@@ -91,7 +91,7 @@ export async function getModulosForRol(rolCodigo: string): Promise<string[]> {
     );
     if (all.length > 0) return all.map((m) => m.codigo);
     // Fallback si tablas aún no existen
-    return [...DEFAULT_USER_MODULES, "emitir", "pos", "ecommerce", "inventario", "admin", "admin.roles", "admin.empresas", "admin.planes"];
+    return [...DEFAULT_USER_MODULES, "emitir", "pos", "ecommerce", "inventario", "admin", "admin.roles", "admin.empresas", "admin.planes", "admin.metodos-pago", "admin.emails"];
   }
 
   const cached = modulosCache.get(rolCodigo);

@@ -37,6 +37,8 @@ const PG_FILES = [
   '008_payphone_suscripciones.sql',
   '009_multi_empresa_cuentas.sql',
   '010_suscripcion_ciclo_vida.sql',
+  '011_email_plantillas_registro.sql',
+  '012_metodos_pago_admin.sql',
 ];
 
 const MYSQL_FILES = [

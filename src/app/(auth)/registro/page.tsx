@@ -42,6 +42,9 @@ interface PlanCard {
   modulosCount: number;
 }
 
+const INPUT_CLASS =
+  "w-full h-11 sm:h-10 bg-brand-gray-50 border border-brand-gray-200 rounded-lg text-base sm:text-sm text-brand-gray-800 outline-none transition-colors duration-200 placeholder:text-brand-gray-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15";
+
 function money(n: number, moneda = "USD") {
   return new Intl.NumberFormat("es-EC", {
     style: "currency",
@@ -67,9 +70,9 @@ function fallbackPlans(): PlanCard[] {
 }
 
 const STEPS = [
-  { n: 1 as const, label: "Plan" },
-  { n: 2 as const, label: "Datos" },
-  { n: 3 as const, label: "Pago" },
+  { n: 1 as const, label: "Plan", short: "Elegir plan" },
+  { n: 2 as const, label: "Datos", short: "Tu cuenta" },
+  { n: 3 as const, label: "Pago", short: "Confirmar pago" },
 ];
 
 function RegisterWizard() {
@@ -149,6 +152,7 @@ function RegisterWizard() {
       ? Number(selectedPlan.precioAnual ?? selectedPlan.precioMensual * 10)
       : Number(selectedPlan.precioMensual)
     : 0;
+  const currentStepMeta = STEPS.find((s) => s.n === step) ?? STEPS[0];
 
   const goPlanNext = () => {
     if (!planCodigo) {
@@ -222,386 +226,504 @@ function RegisterWizard() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-2xl border border-brand-gray-200 p-6 sm:p-8 flex flex-col gap-6 animate-fade-in-up">
-      <div className="text-center flex flex-col items-center gap-3">
-        <BrandLogo variant="onLight" priority className="h-9 w-auto" />
-        <div>
-          <h1 className="text-xl font-extrabold text-brand-gray-800">Crear cuenta</h1>
-          <p className="text-sm text-brand-gray-500 mt-1">
-            Plan → datos → pago. Activamos tu panel al confirmar el cobro.
-          </p>
+    <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm sm:shadow-lg border border-brand-gray-200/80 flex flex-col animate-fade-in-up overflow-hidden">
+      <header className="px-4 pt-5 pb-4 sm:px-8 sm:pt-7 sm:pb-5 border-b border-brand-gray-100">
+        <div className="flex flex-col items-center gap-3 text-center sm:gap-3.5">
+          <BrandLogo variant="onLight" priority className="h-8 sm:h-9 w-auto" />
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-brand-gray-900 tracking-tight">
+              Crear cuenta
+            </h1>
+            <p className="text-sm text-brand-gray-500 mt-1 max-w-md mx-auto leading-snug">
+              Elige plan, completa tus datos y activa el panel al confirmar el pago.
+            </p>
+          </div>
         </div>
-      </div>
 
-      <ol className="flex items-center justify-between gap-1 sm:gap-2" aria-label="Pasos del registro">
-        {STEPS.map((s, i) => {
-          const active = step === s.n;
-          const done = step > s.n;
-          return (
-            <li key={s.n} className="flex-1 flex items-center gap-1 sm:gap-2 min-w-0">
-              <div
-                className={`flex items-center gap-1.5 sm:gap-2 min-w-0 ${
-                  active || done ? "text-brand-red" : "text-brand-gray-400"
-                }`}
-              >
-                <span
-                  className={`size-7 shrink-0 rounded-full text-xs font-bold flex items-center justify-center border ${
-                    done
-                      ? "bg-brand-red text-white border-brand-red"
-                      : active
-                        ? "bg-brand-red/10 text-brand-red border-brand-red"
-                        : "bg-brand-gray-50 border-brand-gray-200"
+        {/* Mobile: progress + current step */}
+        <div className="mt-5 sm:hidden" aria-hidden={false}>
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <p className="text-xs font-semibold text-brand-gray-700">
+              Paso {step} de {STEPS.length}
+              <span className="text-brand-gray-400 font-medium"> · {currentStepMeta.short}</span>
+            </p>
+            <p className="text-[11px] tabular-nums text-brand-gray-400 font-medium">
+              {Math.round((step / STEPS.length) * 100)}%
+            </p>
+          </div>
+          <div
+            className="h-1.5 rounded-full bg-brand-gray-100 overflow-hidden"
+            role="progressbar"
+            aria-valuenow={step}
+            aria-valuemin={1}
+            aria-valuemax={3}
+            aria-label={`Paso ${step} de ${STEPS.length}`}
+          >
+            <div
+              className="h-full rounded-full bg-brand-red transition-[width] duration-200 ease-out"
+              style={{ width: `${(step / STEPS.length) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Desktop / tablet: full stepper */}
+        <ol
+          className="hidden sm:flex items-center justify-between gap-2 mt-6"
+          aria-label="Pasos del registro"
+        >
+          {STEPS.map((s, i) => {
+            const active = step === s.n;
+            const done = step > s.n;
+            return (
+              <li key={s.n} className="flex-1 flex items-center gap-2 min-w-0">
+                <div
+                  className={`flex items-center gap-2 min-w-0 ${
+                    active || done ? "text-brand-red" : "text-brand-gray-400"
                   }`}
                 >
-                  {done ? <Check className="size-3.5" /> : s.n}
-                </span>
-                <span className="text-[11px] sm:text-xs font-bold truncate">{s.label}</span>
-              </div>
-              {i < STEPS.length - 1 ? (
-                <div
-                  className={`h-px flex-1 ${done ? "bg-brand-red" : "bg-brand-gray-200"}`}
-                  aria-hidden
-                />
-              ) : null}
-            </li>
-          );
-        })}
-      </ol>
-
-      {error ? (
-        <div
-          role="alert"
-          className="bg-brand-red-subtle border border-brand-red-pale rounded-lg p-3 text-xs text-brand-red font-semibold animate-slide-down flex items-center gap-2"
-        >
-          <div className="size-1.5 rounded-full bg-brand-red shrink-0" aria-hidden />
-          {error}
-        </div>
-      ) : null}
-
-      {step === 1 ? (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2">
-            {(["mensual", "anual"] as const).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPeriodo(p)}
-                className={`text-xs font-bold px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
-                  periodo === p
-                    ? "bg-brand-red text-white border-brand-red"
-                    : "bg-white text-brand-gray-600 border-brand-gray-200"
-                }`}
-              >
-                {p === "mensual" ? "Mensual" : "Anual"}
-              </button>
-            ))}
-          </div>
-
-          {loadingPlans ? (
-            <div className="flex justify-center py-10 text-brand-gray-400">
-              <Loader2 className="w-6 h-6 animate-spin" />
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-3">
-              {plans.map((plan) => {
-                const p =
-                  periodo === "anual"
-                    ? Number(plan.precioAnual ?? plan.precioMensual * 10)
-                    : Number(plan.precioMensual);
-                const selected = planCodigo === plan.codigo;
-                return (
-                  <button
-                    key={plan.codigo}
-                    type="button"
-                    onClick={() => setPlanCodigo(plan.codigo)}
-                    className={`text-left rounded-xl border p-4 flex flex-col gap-2 cursor-pointer transition-all ${
-                      selected
-                        ? "ring-2 ring-brand-red border-brand-red bg-brand-red/[0.03]"
-                        : "border-brand-gray-200 hover:border-brand-gray-300"
+                  <span
+                    className={`size-8 shrink-0 rounded-full text-xs font-bold flex items-center justify-center border transition-colors duration-200 ${
+                      done
+                        ? "bg-brand-red text-white border-brand-red"
+                        : active
+                          ? "bg-brand-red/10 text-brand-red border-brand-red"
+                          : "bg-brand-gray-50 border-brand-gray-200 text-brand-gray-500"
                     }`}
+                    aria-current={active ? "step" : undefined}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <h2 className="font-bold text-sm text-brand-gray-900">{plan.nombre}</h2>
-                      {selected ? <Check className="size-4 text-brand-red shrink-0" /> : null}
-                    </div>
-                    <p className="text-[11px] text-brand-gray-500 leading-relaxed line-clamp-3">
-                      {plan.descripcion}
-                    </p>
-                    <p className="text-lg font-extrabold tabular-nums mt-auto">
-                      {money(p, plan.moneda)}
-                      <span className="text-[10px] font-semibold text-brand-gray-400">
-                        /{periodo === "anual" ? "año" : "mes"}
-                      </span>
-                    </p>
-                    <p className="text-[10px] text-brand-gray-500">
-                      Hasta {plan.maxEmpresas} empresa(s) · {plan.modulosCount} módulos
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                    {done ? <Check className="size-3.5" strokeWidth={2.5} /> : s.n}
+                  </span>
+                  <span className="text-xs font-semibold truncate">{s.label}</span>
+                </div>
+                {i < STEPS.length - 1 ? (
+                  <div
+                    className={`h-px flex-1 min-w-4 ${done ? "bg-brand-red" : "bg-brand-gray-200"}`}
+                    aria-hidden
+                  />
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      </header>
 
-          <button
-            type="button"
-            onClick={goPlanNext}
-            className="w-full bg-gradient-to-r from-brand-red to-brand-red-mid hover:from-brand-red-mid hover:to-brand-red-bright text-white py-2.5 rounded-lg text-sm font-bold transition-all duration-200 cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2 mt-1"
+      <div className="px-4 py-5 sm:px-8 sm:py-6 flex flex-col gap-5">
+        {error ? (
+          <div
+            role="alert"
+            className="bg-brand-red-subtle border border-brand-red-pale rounded-lg p-3 text-sm text-brand-red font-medium flex items-start gap-2"
           >
-            Continuar
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
-      ) : null}
+            <div className="size-1.5 rounded-full bg-brand-red shrink-0 mt-1.5" aria-hidden />
+            <span className="leading-snug">{error}</span>
+          </div>
+        ) : null}
 
-      {step === 2 ? (
-        <form onSubmit={handleSubmit(onDatosSubmit)} className="flex flex-col gap-4" noValidate>
-          <p className="text-xs text-brand-gray-500">
-            Plan elegido:{" "}
-            <strong className="text-brand-gray-800">
-              {selectedPlan?.nombre} · {money(price, selectedPlan?.moneda)}/
-              {periodo === "anual" ? "año" : "mes"}
-            </strong>
-          </p>
-
-          <FieldGroup>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field data-invalid={!!errors.nombre || undefined}>
-                <FieldLabel htmlFor="register-nombre">Nombre completo</FieldLabel>
-                <div className="relative group">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400" aria-hidden />
-                  <input
-                    id="register-nombre"
-                    type="text"
-                    autoComplete="name"
-                    className="w-full pl-9 pr-3 h-10 bg-brand-gray-50 border border-brand-gray-200 rounded-lg text-sm outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/15"
-                    placeholder="Tu nombre"
-                    {...register("nombre")}
-                  />
-                </div>
-                <FieldError errors={[errors.nombre]} />
-              </Field>
-
-              <Field data-invalid={!!errors.email || undefined}>
-                <FieldLabel htmlFor="register-email">Correo electrónico</FieldLabel>
-                <div className="relative group">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400" aria-hidden />
-                  <input
-                    id="register-email"
-                    type="email"
-                    autoComplete="email"
-                    className="w-full pl-9 pr-3 h-10 bg-brand-gray-50 border border-brand-gray-200 rounded-lg text-sm outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/15"
-                    placeholder="tu@email.com"
-                    {...register("email")}
-                  />
-                </div>
-                <FieldError errors={[errors.email]} />
-              </Field>
+        {step === 1 ? (
+          <div className="flex flex-col gap-5">
+            <div
+              className="grid grid-cols-2 p-1 rounded-xl bg-brand-gray-50 border border-brand-gray-200"
+              role="group"
+              aria-label="Periodo de facturación"
+            >
+              {(["mensual", "anual"] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPeriodo(p)}
+                  aria-pressed={periodo === p}
+                  className={`min-h-11 sm:min-h-10 rounded-lg text-sm font-semibold cursor-pointer transition-colors duration-200 ${
+                    periodo === p
+                      ? "bg-white text-brand-gray-900 shadow-sm border border-brand-gray-200"
+                      : "text-brand-gray-500 hover:text-brand-gray-700 border border-transparent"
+                  }`}
+                >
+                  {p === "mensual" ? "Mensual" : "Anual"}
+                </button>
+              ))}
             </div>
 
-            <Field data-invalid={!!errors.razonSocial || undefined}>
-              <FieldLabel htmlFor="register-empresa">Razón social / empresa</FieldLabel>
-              <div className="relative group">
-                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400" aria-hidden />
-                <input
-                  id="register-empresa"
-                  type="text"
-                  className="w-full pl-9 pr-3 h-10 bg-brand-gray-50 border border-brand-gray-200 rounded-lg text-sm outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/15"
-                  placeholder="Nombre de tu negocio"
-                  {...register("razonSocial")}
-                />
+            {loadingPlans ? (
+              <div className="flex justify-center py-12 text-brand-gray-400">
+                <Loader2 className="size-6 animate-spin" aria-label="Cargando planes" />
               </div>
-              <FieldError errors={[errors.razonSocial]} />
-            </Field>
+            ) : (
+              <div
+                className="grid gap-3 md:grid-cols-3"
+                role="radiogroup"
+                aria-label="Planes disponibles"
+              >
+                {plans.map((plan) => {
+                  const p =
+                    periodo === "anual"
+                      ? Number(plan.precioAnual ?? plan.precioMensual * 10)
+                      : Number(plan.precioMensual);
+                  const selected = planCodigo === plan.codigo;
+                  return (
+                    <button
+                      key={plan.codigo}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setPlanCodigo(plan.codigo)}
+                      className={`text-left rounded-xl border p-4 min-h-[7.5rem] flex flex-col gap-2 cursor-pointer transition-colors duration-200 touch-manipulation ${
+                        selected
+                          ? "border-brand-red bg-brand-red-subtle/40 ring-1 ring-brand-red"
+                          : "border-brand-gray-200 bg-white hover:border-brand-gray-300 active:bg-brand-gray-50"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <h2 className="font-bold text-sm sm:text-[15px] text-brand-gray-900">
+                            {plan.nombre}
+                          </h2>
+                          <p className="text-xs text-brand-gray-500 leading-relaxed mt-1 line-clamp-2 sm:line-clamp-3">
+                            {plan.descripcion}
+                          </p>
+                        </div>
+                        <span
+                          className={`size-5 shrink-0 rounded-full border-2 flex items-center justify-center mt-0.5 ${
+                            selected
+                              ? "border-brand-red bg-brand-red"
+                              : "border-brand-gray-300 bg-white"
+                          }`}
+                          aria-hidden
+                        >
+                          {selected ? (
+                            <Check className="size-3 text-white" strokeWidth={3} />
+                          ) : null}
+                        </span>
+                      </div>
+                      <p className="text-xl font-bold tabular-nums text-brand-gray-900 mt-auto pt-1">
+                        {money(p, plan.moneda)}
+                        <span className="text-xs font-semibold text-brand-gray-400 ml-0.5">
+                          /{periodo === "anual" ? "año" : "mes"}
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-brand-gray-500">
+                        Hasta {plan.maxEmpresas} empresa{plan.maxEmpresas === 1 ? "" : "s"} ·{" "}
+                        {plan.modulosCount} módulos
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field data-invalid={!!errors.ruc || undefined}>
-                <FieldLabel htmlFor="register-ruc">RUC (opcional)</FieldLabel>
-                <input
-                  id="register-ruc"
-                  type="text"
-                  inputMode="numeric"
-                  className="w-full px-3 h-10 bg-brand-gray-50 border border-brand-gray-200 rounded-lg text-sm outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/15"
-                  placeholder="13 dígitos"
-                  {...register("ruc")}
-                />
-                <FieldError errors={[errors.ruc]} />
-              </Field>
-              <Field data-invalid={!!errors.telefono || undefined}>
-                <FieldLabel htmlFor="register-tel">Teléfono</FieldLabel>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400" aria-hidden />
-                  <input
-                    id="register-tel"
-                    type="tel"
-                    className="w-full pl-9 pr-3 h-10 bg-brand-gray-50 border border-brand-gray-200 rounded-lg text-sm outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/15"
-                    placeholder="09xxxxxxxx"
-                    {...register("telefono")}
-                  />
-                </div>
-                <FieldError errors={[errors.telefono]} />
-              </Field>
-              <Field data-invalid={!!errors.ciudad || undefined}>
-                <FieldLabel htmlFor="register-ciudad">Ciudad</FieldLabel>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400" aria-hidden />
-                  <input
-                    id="register-ciudad"
-                    type="text"
-                    className="w-full pl-9 pr-3 h-10 bg-brand-gray-50 border border-brand-gray-200 rounded-lg text-sm outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/15"
-                    placeholder="Quito"
-                    {...register("ciudad")}
-                  />
-                </div>
-                <FieldError errors={[errors.ciudad]} />
-              </Field>
+            {/* CTA fijo en móvil: los planes empujan el botón fuera del primer viewport */}
+            <div className="sm:hidden h-14" aria-hidden />
+            <div className="fixed inset-x-0 bottom-0 z-20 sm:static sm:inset-auto sm:z-auto border-t border-brand-gray-100 sm:border-0 bg-white/95 backdrop-blur-sm sm:bg-transparent sm:backdrop-blur-none px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-0 sm:py-0 sm:pb-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] sm:shadow-none">
+              <button
+                type="button"
+                onClick={goPlanNext}
+                className="w-full min-h-11 sm:min-h-10 bg-brand-red hover:bg-brand-red-bright text-white rounded-lg text-sm font-bold transition-colors duration-200 cursor-pointer active:scale-[0.99] flex items-center justify-center gap-2 touch-manipulation"
+              >
+                Continuar
+                <ChevronRight className="size-4" />
+              </button>
             </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field data-invalid={!!errors.password || undefined}>
-                <FieldLabel htmlFor="register-password">Contraseña</FieldLabel>
-                <div className="relative group">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400" aria-hidden />
-                  <input
-                    id="register-password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="new-password"
-                    className="w-full pl-9 pr-10 h-10 bg-brand-gray-50 border border-brand-gray-200 rounded-lg text-sm outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/15"
-                    placeholder="Mínimo 6 caracteres"
-                    {...register("password")}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-brand-gray-400 hover:text-brand-gray-600 cursor-pointer"
-                    aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                  >
-                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  </button>
-                </div>
-                <FieldError errors={[errors.password]} />
-              </Field>
-              <Field data-invalid={!!errors.confirmPassword || undefined}>
-                <FieldLabel htmlFor="register-confirm">Confirmar contraseña</FieldLabel>
-                <div className="relative group">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400" aria-hidden />
-                  <input
-                    id="register-confirm"
-                    type="password"
-                    autoComplete="new-password"
-                    className="w-full pl-9 pr-3 h-10 bg-brand-gray-50 border border-brand-gray-200 rounded-lg text-sm outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/15"
-                    placeholder="Repite tu contraseña"
-                    {...register("confirmPassword")}
-                  />
-                </div>
-                <FieldError errors={[errors.confirmPassword]} />
-              </Field>
-            </div>
-          </FieldGroup>
-
-          <input type="hidden" {...register("planCodigo")} />
-          <input type="hidden" {...register("periodo")} />
-
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="px-4 py-2.5 rounded-lg text-sm font-bold border border-brand-gray-200 text-brand-gray-600 hover:bg-brand-gray-50 cursor-pointer flex items-center gap-1"
-            >
-              <ChevronLeft className="size-4" />
-              Atrás
-            </button>
-            <button
-              type="submit"
-              disabled={creating}
-              className="flex-1 bg-gradient-to-r from-brand-red to-brand-red-mid text-white py-2.5 rounded-lg text-sm font-bold disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-            >
-              {creating ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Creando cuenta…
-                </>
-              ) : (
-                <>
-                  Continuar al pago
-                  <ChevronRight className="size-4" />
-                </>
-              )}
-            </button>
           </div>
-        </form>
-      ) : null}
+        ) : null}
 
-      {step === 3 ? (
-        <div className="flex flex-col gap-4">
-          <div className="rounded-xl border border-brand-gray-200 bg-brand-gray-50 p-4 text-sm">
-            <p className="font-bold text-brand-gray-800">Resumen</p>
-            <p className="text-xs text-brand-gray-500 mt-1">
-              {selectedPlan?.nombre} · {periodo} ·{" "}
-              {checkout
-                ? money(checkout.amount, selectedPlan?.moneda)
-                : money(price, selectedPlan?.moneda)}
-            </p>
-            {checkout?.pagoId ? (
-              <p className="text-[11px] text-brand-gray-400 mt-2 font-mono">
-                Orden pendiente: {checkout.pagoId}
+        {step === 2 ? (
+          <form onSubmit={handleSubmit(onDatosSubmit)} className="flex flex-col gap-5" noValidate>
+            <div className="rounded-xl border border-brand-gray-200 bg-brand-gray-50 px-3.5 py-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs sm:text-sm text-brand-gray-600">
+                Plan:{" "}
+                <strong className="text-brand-gray-900 font-semibold">
+                  {selectedPlan?.nombre}
+                </strong>
               </p>
-            ) : null}
+              <p className="text-xs sm:text-sm font-bold tabular-nums text-brand-gray-900">
+                {money(price, selectedPlan?.moneda)}/
+                {periodo === "anual" ? "año" : "mes"}
+              </p>
+            </div>
+
+            <FieldGroup>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field data-invalid={!!errors.nombre || undefined}>
+                  <FieldLabel htmlFor="register-nombre">Nombre completo</FieldLabel>
+                  <div className="relative group">
+                    <User
+                      className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400 group-focus-within:text-brand-red transition-colors"
+                      aria-hidden
+                    />
+                    <input
+                      id="register-nombre"
+                      type="text"
+                      autoComplete="name"
+                      className={`${INPUT_CLASS} pl-9 pr-3`}
+                      placeholder="Tu nombre"
+                      {...register("nombre")}
+                    />
+                  </div>
+                  <FieldError errors={[errors.nombre]} />
+                </Field>
+
+                <Field data-invalid={!!errors.email || undefined}>
+                  <FieldLabel htmlFor="register-email">Correo electrónico</FieldLabel>
+                  <div className="relative group">
+                    <Mail
+                      className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400 group-focus-within:text-brand-red transition-colors"
+                      aria-hidden
+                    />
+                    <input
+                      id="register-email"
+                      type="email"
+                      autoComplete="email"
+                      inputMode="email"
+                      className={`${INPUT_CLASS} pl-9 pr-3`}
+                      placeholder="tu@email.com"
+                      {...register("email")}
+                    />
+                  </div>
+                  <FieldError errors={[errors.email]} />
+                </Field>
+              </div>
+
+              <Field data-invalid={!!errors.razonSocial || undefined}>
+                <FieldLabel htmlFor="register-empresa">Razón social / empresa</FieldLabel>
+                <div className="relative group">
+                  <Building2
+                    className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400 group-focus-within:text-brand-red transition-colors"
+                    aria-hidden
+                  />
+                  <input
+                    id="register-empresa"
+                    type="text"
+                    autoComplete="organization"
+                    className={`${INPUT_CLASS} pl-9 pr-3`}
+                    placeholder="Nombre de tu negocio"
+                    {...register("razonSocial")}
+                  />
+                </div>
+                <FieldError errors={[errors.razonSocial]} />
+              </Field>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <Field data-invalid={!!errors.ruc || undefined}>
+                  <FieldLabel htmlFor="register-ruc">RUC (opcional)</FieldLabel>
+                  <input
+                    id="register-ruc"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    className={`${INPUT_CLASS} px-3 font-mono`}
+                    placeholder="13 dígitos"
+                    {...register("ruc")}
+                  />
+                  <FieldError errors={[errors.ruc]} />
+                </Field>
+                <Field data-invalid={!!errors.telefono || undefined}>
+                  <FieldLabel htmlFor="register-tel">Teléfono</FieldLabel>
+                  <div className="relative">
+                    <Phone
+                      className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400"
+                      aria-hidden
+                    />
+                    <input
+                      id="register-tel"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      className={`${INPUT_CLASS} pl-9 pr-3`}
+                      placeholder="09xxxxxxxx"
+                      {...register("telefono")}
+                    />
+                  </div>
+                  <FieldError errors={[errors.telefono]} />
+                </Field>
+                <Field
+                  data-invalid={!!errors.ciudad || undefined}
+                  className="sm:col-span-2 lg:col-span-1"
+                >
+                  <FieldLabel htmlFor="register-ciudad">Ciudad</FieldLabel>
+                  <div className="relative">
+                    <MapPin
+                      className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400"
+                      aria-hidden
+                    />
+                    <input
+                      id="register-ciudad"
+                      type="text"
+                      autoComplete="address-level2"
+                      className={`${INPUT_CLASS} pl-9 pr-3`}
+                      placeholder="Quito"
+                      {...register("ciudad")}
+                    />
+                  </div>
+                  <FieldError errors={[errors.ciudad]} />
+                </Field>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field data-invalid={!!errors.password || undefined}>
+                  <FieldLabel htmlFor="register-password">Contraseña</FieldLabel>
+                  <div className="relative group">
+                    <Lock
+                      className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400 group-focus-within:text-brand-red transition-colors"
+                      aria-hidden
+                    />
+                    <input
+                      id="register-password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      className={`${INPUT_CLASS} pl-9 pr-11`}
+                      placeholder="Mínimo 6 caracteres"
+                      {...register("password")}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 size-9 flex items-center justify-center text-brand-gray-400 hover:text-brand-gray-600 cursor-pointer rounded-md"
+                      aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    >
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
+                  <FieldError errors={[errors.password]} />
+                </Field>
+                <Field data-invalid={!!errors.confirmPassword || undefined}>
+                  <FieldLabel htmlFor="register-confirm">Confirmar contraseña</FieldLabel>
+                  <div className="relative group">
+                    <Lock
+                      className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-gray-400 group-focus-within:text-brand-red transition-colors"
+                      aria-hidden
+                    />
+                    <input
+                      id="register-confirm"
+                      type="password"
+                      autoComplete="new-password"
+                      className={`${INPUT_CLASS} pl-9 pr-3`}
+                      placeholder="Repite tu contraseña"
+                      {...register("confirmPassword")}
+                    />
+                  </div>
+                  <FieldError errors={[errors.confirmPassword]} />
+                </Field>
+              </div>
+            </FieldGroup>
+
+            <input type="hidden" {...register("planCodigo")} />
+            <input type="hidden" {...register("periodo")} />
+
+            <div className="sm:hidden h-20" aria-hidden />
+            <div className="fixed inset-x-0 bottom-0 z-20 sm:static sm:inset-auto sm:z-auto border-t border-brand-gray-100 sm:border-0 bg-white/95 backdrop-blur-sm sm:bg-transparent sm:backdrop-blur-none px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-0 sm:pt-1 sm:pb-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] sm:shadow-none">
+              <div className="flex flex-row gap-2 sm:gap-3 max-w-3xl mx-auto">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="min-h-11 sm:min-h-10 px-3 sm:px-4 rounded-lg text-sm font-bold border border-brand-gray-200 text-brand-gray-600 hover:bg-brand-gray-50 cursor-pointer flex items-center justify-center gap-1.5 touch-manipulation bg-white shrink-0"
+                >
+                  <ChevronLeft className="size-4" />
+                  Atrás
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="flex-1 min-h-11 sm:min-h-10 bg-brand-red hover:bg-brand-red-bright text-white rounded-lg text-sm font-bold disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 touch-manipulation transition-colors duration-200"
+                >
+                  {creating ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Creando cuenta…
+                    </>
+                  ) : (
+                    <>
+                      Continuar al pago
+                      <ChevronRight className="size-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        ) : null}
+
+        {step === 3 ? (
+          <div className="flex flex-col gap-5">
+            <div className="rounded-xl border border-brand-gray-200 bg-brand-gray-50 p-4">
+              <p className="text-sm font-bold text-brand-gray-900">Resumen</p>
+              <p className="text-sm text-brand-gray-600 mt-1.5 leading-snug">
+                {selectedPlan?.nombre} · {periodo} ·{" "}
+                <span className="font-semibold tabular-nums text-brand-gray-900">
+                  {checkout
+                    ? money(checkout.amount, selectedPlan?.moneda)
+                    : money(price, selectedPlan?.moneda)}
+                </span>
+              </p>
+              {checkout?.pagoId ? (
+                <p className="text-xs text-brand-gray-400 mt-2.5 font-mono break-all">
+                  Orden pendiente: {checkout.pagoId}
+                </p>
+              ) : null}
+            </div>
+
+            {!payConfigured || !checkout ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900 leading-snug">
+                No hay métodos de pago disponibles todavía. Vuelve a{" "}
+                <Link href="/suscripcion" className="font-bold underline underline-offset-2">
+                  Suscripción
+                </Link>{" "}
+                cuando PayPhone esté configurado.
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  disabled={paying !== null}
+                  onClick={() => startPay("card")}
+                  className="flex flex-col items-start gap-2 rounded-xl border border-brand-gray-200 p-4 min-h-[6.5rem] hover:border-brand-red active:bg-brand-gray-50 cursor-pointer disabled:opacity-50 text-left touch-manipulation transition-colors duration-200"
+                >
+                  <CreditCard className="size-5 text-brand-red" />
+                  <span className="text-sm font-bold text-brand-gray-900">Tarjeta</span>
+                  <span className="text-xs text-brand-gray-500 leading-snug">
+                    Visa, Mastercard y más vía PayPhone
+                  </span>
+                  {paying === "card" ? (
+                    <Loader2 className="size-4 animate-spin text-brand-gray-400" />
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  disabled={paying !== null}
+                  onClick={() => startPay("payphone")}
+                  className="flex flex-col items-start gap-2 rounded-xl border border-brand-gray-200 p-4 min-h-[6.5rem] hover:border-brand-red active:bg-brand-gray-50 cursor-pointer disabled:opacity-50 text-left touch-manipulation transition-colors duration-200"
+                >
+                  <Phone className="size-5 text-brand-red" />
+                  <span className="text-sm font-bold text-brand-gray-900">Saldo PayPhone</span>
+                  <span className="text-xs text-brand-gray-500 leading-snug">
+                    Paga con tu billetera PayPhone
+                  </span>
+                  {paying === "payphone" ? (
+                    <Loader2 className="size-4 animate-spin text-brand-gray-400" />
+                  ) : null}
+                </button>
+              </div>
+            )}
+
+            <p className="text-xs text-brand-gray-400 text-center leading-relaxed px-2">
+              Tras el cobro verás la página de gracias con tu número de orden.
+            </p>
           </div>
+        ) : null}
+      </div>
 
-          {!payConfigured || !checkout ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              No hay métodos de pago disponibles todavía. Vuelve a{" "}
-              <Link href="/suscripcion" className="font-bold underline">
-                Suscripción
-              </Link>{" "}
-              cuando PayPhone esté configurado.
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                disabled={paying !== null}
-                onClick={() => startPay("card")}
-                className="flex flex-col items-start gap-2 rounded-xl border border-brand-gray-200 p-4 hover:border-brand-red cursor-pointer disabled:opacity-50 text-left"
-              >
-                <CreditCard className="size-5 text-brand-red" />
-                <span className="text-sm font-bold text-brand-gray-800">Tarjeta</span>
-                <span className="text-[11px] text-brand-gray-500">
-                  Visa, Mastercard y más vía PayPhone
-                </span>
-                {paying === "card" ? <Loader2 className="size-4 animate-spin" /> : null}
-              </button>
-              <button
-                type="button"
-                disabled={paying !== null}
-                onClick={() => startPay("payphone")}
-                className="flex flex-col items-start gap-2 rounded-xl border border-brand-gray-200 p-4 hover:border-brand-red cursor-pointer disabled:opacity-50 text-left"
-              >
-                <Phone className="size-5 text-brand-red" />
-                <span className="text-sm font-bold text-brand-gray-800">Saldo PayPhone</span>
-                <span className="text-[11px] text-brand-gray-500">
-                  Paga con tu billetera PayPhone
-                </span>
-                {paying === "payphone" ? <Loader2 className="size-4 animate-spin" /> : null}
-              </button>
-            </div>
-          )}
-
-          <p className="text-[11px] text-brand-gray-400 text-center">
-            Tras el cobro verás la página de gracias con tu número de orden.
-          </p>
-        </div>
-      ) : null}
-
-      <p className="text-center text-sm text-brand-gray-500">
-        ¿Ya tienes cuenta?{" "}
-        <Link
-          href="/iniciar-sesion"
-          className="text-brand-red font-semibold hover:text-brand-red-bright transition-colors underline-offset-2 hover:underline"
-        >
-          Inicia sesión
-        </Link>
-      </p>
+      <footer
+        className={`px-4 py-4 sm:px-8 sm:py-5 border-t border-brand-gray-100 bg-brand-gray-50 ${
+          step < 3 ? "pb-24 sm:pb-5" : ""
+        }`}
+      >
+        <p className="text-center text-sm text-brand-gray-500">
+          ¿Ya tienes cuenta?{" "}
+          <Link
+            href="/iniciar-sesion"
+            className="text-brand-red font-semibold hover:text-brand-red-bright transition-colors underline-offset-2 hover:underline"
+          >
+            Inicia sesión
+          </Link>
+        </p>
+      </footer>
     </div>
   );
 }
@@ -610,8 +732,8 @@ export default function RegisterPage() {
   return (
     <Suspense
       fallback={
-        <div className="bg-white rounded-2xl p-8 flex justify-center">
-          <Loader2 className="w-6 h-6 animate-spin text-brand-gray-400" />
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-brand-gray-200 p-8 flex justify-center min-h-48 items-center">
+          <Loader2 className="size-6 animate-spin text-brand-gray-400" aria-label="Cargando" />
         </div>
       }
     >

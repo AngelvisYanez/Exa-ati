@@ -13,7 +13,7 @@ interface ModuleGateProps {
 }
 
 /**
- * Protege páginas del cliente: redirige a / si el rol no tiene el módulo.
+ * Protege páginas del cliente: redirige al panel si el rol no tiene el módulo.
  */
 export function ModuleGate({
   module,
@@ -38,7 +38,7 @@ export function ModuleGate({
       return;
     }
     if (!allowed) {
-      router.replace("/");
+      router.replace("/panel");
     }
   }, [isLoading, user, allowed, router]);
 

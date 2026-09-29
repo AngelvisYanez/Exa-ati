@@ -358,6 +358,12 @@ const navGroups: NavGroup[] = [
             roles: ["SUPERADMIN"],
           },
           {
+            href: "/administracion/metodos-pago",
+            label: "Métodos de pago",
+            module: "admin.metodos-pago",
+            roles: ["SUPERADMIN"],
+          },
+          {
             href: "/administracion/emails",
             label: "Emails",
             module: "admin.emails",

@@ -31,14 +31,16 @@ export function proxy(request: NextRequest) {
     pathname === "/precios";
 
   if (isPublic) {
-    // Autenticado en login/registro → panel
+    // Autenticado en login/registro/home → dashboard
     if (
       token &&
-      (pathname === "/iniciar-sesion" || pathname === "/registro")
+      (pathname === "/" ||
+        pathname === "/iniciar-sesion" ||
+        pathname === "/registro")
     ) {
       return NextResponse.redirect(new URL("/panel", request.url));
     }
-    // Autenticado en landing/precios puede seguir viendo marketing
+    // Autenticado en precios puede seguir viendo marketing
     return NextResponse.next();
   }
 

@@ -40,19 +40,19 @@ function GraciasContent() {
   }, [ok, seconds, router, isAuthenticated]);
 
   return (
-    <div className="bg-white rounded-2xl shadow-2xl border border-brand-gray-200 p-8 flex flex-col items-center gap-5 text-center animate-fade-in-up max-w-lg mx-auto">
+    <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm sm:shadow-lg border border-brand-gray-200/80 p-5 sm:p-8 flex flex-col items-center gap-5 text-center animate-fade-in-up max-w-lg mx-auto w-full">
       <BrandLogo variant="onLight" className="h-8 w-auto" />
 
       {ok ? (
-        <CheckCircle2 className="w-14 h-14 text-success" />
+        <CheckCircle2 className="size-12 sm:size-14 text-success" />
       ) : fail ? (
-        <AlertTriangle className="w-14 h-14 text-amber-600" />
+        <AlertTriangle className="size-12 sm:size-14 text-amber-600" />
       ) : (
-        <XCircle className="w-14 h-14 text-brand-red" />
+        <XCircle className="size-12 sm:size-14 text-brand-red" />
       )}
 
-      <div>
-        <h1 className="text-xl font-extrabold text-brand-gray-900">
+      <div className="min-w-0 w-full">
+        <h1 className="text-lg sm:text-xl font-bold text-brand-gray-900 tracking-tight">
           {ok ? "¡Gracias por tu compra!" : fail ? "No se pudo confirmar" : "Pago cancelado"}
         </h1>
         <p className="text-sm text-brand-gray-500 mt-2 leading-relaxed">
@@ -63,28 +63,26 @@ function GraciasContent() {
       </div>
 
       {orden ? (
-        <div className="w-full rounded-xl border border-brand-gray-200 bg-brand-gray-50 px-4 py-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-brand-gray-400">
-            Número de orden
-          </p>
+        <div className="w-full rounded-xl border border-brand-gray-200 bg-brand-gray-50 px-4 py-3 text-left">
+          <p className="text-xs font-semibold text-brand-gray-500">Número de orden</p>
           <p className="text-sm font-mono font-bold text-brand-gray-800 mt-1 break-all">
             {orden}
           </p>
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2 justify-center">
+      <div className="flex flex-col-reverse sm:flex-row flex-wrap gap-2 justify-center w-full sm:w-auto">
         {ok ? (
           <>
             <Link
               href="/panel"
-              className="inline-flex items-center gap-2 bg-brand-red hover:bg-brand-red-bright text-white text-sm font-bold px-4 py-2.5 rounded-lg"
+              className="inline-flex items-center justify-center gap-2 min-h-11 sm:min-h-10 bg-brand-red hover:bg-brand-red-bright text-white text-sm font-bold px-4 py-2.5 rounded-lg touch-manipulation"
             >
               Ir al panel
             </Link>
             <Link
               href="/"
-              className="inline-flex items-center gap-2 border border-brand-gray-200 text-brand-gray-700 text-sm font-bold px-4 py-2.5 rounded-lg hover:bg-brand-gray-50"
+              className="inline-flex items-center justify-center gap-2 min-h-11 sm:min-h-10 border border-brand-gray-200 text-brand-gray-700 text-sm font-bold px-4 py-2.5 rounded-lg hover:bg-brand-gray-50 touch-manipulation"
             >
               <Home className="size-4" />
               Inicio
@@ -94,13 +92,13 @@ function GraciasContent() {
           <>
             <Link
               href="/registro"
-              className="inline-flex items-center gap-2 bg-brand-red hover:bg-brand-red-bright text-white text-sm font-bold px-4 py-2.5 rounded-lg"
+              className="inline-flex items-center justify-center gap-2 min-h-11 sm:min-h-10 bg-brand-red hover:bg-brand-red-bright text-white text-sm font-bold px-4 py-2.5 rounded-lg touch-manipulation"
             >
               Volver al registro
             </Link>
             <Link
               href="/suscripcion"
-              className="inline-flex items-center gap-2 border border-brand-gray-200 text-brand-gray-700 text-sm font-bold px-4 py-2.5 rounded-lg hover:bg-brand-gray-50"
+              className="inline-flex items-center justify-center gap-2 min-h-11 sm:min-h-10 border border-brand-gray-200 text-brand-gray-700 text-sm font-bold px-4 py-2.5 rounded-lg hover:bg-brand-gray-50 touch-manipulation"
             >
               Ir a suscripción
             </Link>
@@ -109,7 +107,7 @@ function GraciasContent() {
       </div>
 
       {ok ? (
-        <p className="text-[11px] text-brand-gray-400">
+        <p className="text-xs text-brand-gray-400">
           Redirigiendo al {isAuthenticated ? "panel" : "inicio"} en {seconds}s…
         </p>
       ) : null}

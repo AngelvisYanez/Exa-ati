@@ -81,6 +81,15 @@ Aplicar en PostgreSQL antes de usar en producción:
 - `prisma/migrations/009_multi_empresa_cuentas.sql` (cuenta billing + tenant_usuarios; 1 empresa = 1 tenant)
 - `prisma/migrations/010_suscripcion_ciclo_vida.sql` (plan_estado, FKs, índices)
 - `prisma/migrations/011_email_plantillas_registro.sql` (plantillas email + plan_estado pendiente + admin.emails)
+- `prisma/migrations/012_metodos_pago_admin.sql` (catálogo métodos pago CxC/suscripción + FK en pagos_suscripcion + admin.metodos-pago)
+
+### Admin billing / planes
+- [x] CRUD planes de suscripción (`/administracion/planes`)
+- [x] CRUD métodos de pago operativo + suscripción (`/administracion/metodos-pago`)
+- [x] Asignar/cambiar plan a usuario vía cuenta de billing
+- [x] Sync plan cuenta ↔ tenants al editar empresa
+- [x] Dashboard admin con KPIs y gráficos de ingresos (`/api/admin/billing-stats`)
+- [x] Aplicar migración `012_metodos_pago_admin.sql` en Neon (exa-ati)
 
 ### Notificaciones (funcional)
 - [x] Persistencia en tabla `notificaciones` (sin lista efímera / mock)
