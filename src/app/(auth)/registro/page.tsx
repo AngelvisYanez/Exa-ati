@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,6 +24,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import BrandLogo from "@/components/brand/BrandLogo";
 import { apiFetch } from "@/lib/apiFetch";
 import { FALLBACK_PLANS, SYSTEM_PLAN_CODES } from "@/lib/plans";
 import { sriClient } from "@/lib/sriClient";
@@ -224,14 +224,7 @@ function RegisterWizard() {
   return (
     <div className="bg-white rounded-2xl shadow-2xl border border-brand-gray-200 p-6 sm:p-8 flex flex-col gap-6 animate-fade-in-up">
       <div className="text-center flex flex-col items-center gap-3">
-        <Image
-          src="/exa-ati-light.png"
-          alt="exa — Asistente Tributario Inteligente"
-          width={180}
-          height={36}
-          priority
-          className="h-9 w-auto"
-        />
+        <BrandLogo variant="onLight" priority className="h-9 w-auto" />
         <div>
           <h1 className="text-xl font-extrabold text-brand-gray-800">Crear cuenta</h1>
           <p className="text-sm text-brand-gray-500 mt-1">

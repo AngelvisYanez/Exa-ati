@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowUpRight, Mail, MapPin, Phone } from "lucide-react";
+import BrandLogo from "@/components/brand/BrandLogo";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import { getSiteUrl } from "@/lib/marketing";
 
@@ -91,21 +91,9 @@ export default function MarketingLayout({
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 pt-14 pb-8">
           <div className="grid gap-10 lg:grid-cols-12">
             <div className="lg:col-span-5">
-              <div className="flex items-center gap-3">
-                <Image
-                  src="/exa-mark.png"
-                  alt=""
-                  width={44}
-                  height={44}
-                  className="size-10 rounded-xl bg-white p-1.5"
-                />
-                <div>
-                  <p className="text-lg font-extrabold tracking-tight">EXA ATI</p>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
-                    Asistente Tributario Inteligente
-                  </p>
-                </div>
-              </div>
+              <Link href="/" className="inline-flex" aria-label="EXA ATI — inicio">
+                <BrandLogo variant="onDark" className="h-10 sm:h-11 w-auto" />
+              </Link>
               <p className="mt-5 max-w-sm text-sm leading-relaxed text-white/65">
                 OFSERCONT IA — facturación electrónica, cobros, sync SRI,
                 control tributario y contabilidad para emprendedores y

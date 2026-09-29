@@ -54,7 +54,7 @@ export function buildOrganizationJsonLd(siteUrl: string) {
     name: "EXA ATI",
     alternateName: ["OFSERCONT IA", "exa — Asistente Tributario Inteligente"],
     url: siteUrl,
-    logo: `${siteUrl}/exa-ati-light.png`,
+    logo: `${siteUrl}/exa-ati-on-light.png`,
     description:
       "Plataforma de facturación electrónica, cobros, sync SRI y contabilidad para emprendedores y contadores en Ecuador.",
     areaServed: {

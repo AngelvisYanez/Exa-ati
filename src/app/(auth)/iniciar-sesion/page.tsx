@@ -2,7 +2,6 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,6 +11,7 @@ import { loginSchema, type LoginInput } from "@/lib/schemas/auth";
 import { toast } from "sonner";
 import { Building2, Check, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 type CompanyItem = {
   ruc: string;
@@ -104,14 +104,7 @@ function LoginPageInner() {
     return (
       <div className="bg-white rounded-2xl shadow-2xl border border-brand-gray-200 p-8 flex flex-col gap-6 animate-fade-in-up">
         <div className="text-center flex flex-col items-center gap-4">
-          <Image
-            src="/exa-ati-light.png"
-            alt="exa — Asistente Tributario Inteligente"
-            width={180}
-            height={36}
-            priority
-            className="h-9 w-auto"
-          />
+          <BrandLogo variant="onLight" priority className="h-9 w-auto" />
           <p className="text-sm text-brand-gray-500">
             {companies.length === 0
               ? "No tienes empresas vinculadas al SRI"
@@ -181,14 +174,7 @@ function LoginPageInner() {
     <div className="bg-white rounded-2xl shadow-2xl border border-brand-gray-200 p-8 flex flex-col gap-6 animate-fade-in-up max-w-lg mx-auto">
       <div className="text-center flex flex-col items-center gap-4">
         <div className="relative flex flex-col items-center gap-3">
-          <Image
-            src="/exa-ati-light.png"
-            alt="exa — Asistente Tributario Inteligente"
-            width={180}
-            height={36}
-            priority
-            className="h-9 w-auto"
-          />
+          <BrandLogo variant="onLight" priority className="h-9 w-auto" />
         </div>
         <p className="text-sm text-brand-gray-500">Inicia sesión en tu cuenta</p>
       </div>

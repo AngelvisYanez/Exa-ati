@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSidebar } from "@/contexts/SidebarContext";
+import BrandLogo from "@/components/brand/BrandLogo";
 import {
   LayoutGrid,
   FileText,
@@ -651,12 +652,8 @@ export default function Sidebar() {
               className="size-7 object-contain"
             />
           ) : (
-            <Image
-              src="/exa-ati-light.png"
-              alt="exa — Asistente Tributario Inteligente"
-              width={160}
-              height={32}
-              quality={100}
+            <BrandLogo
+              variant="onLight"
               priority
               className="h-8 w-auto max-w-[168px] object-contain object-left"
             />

@@ -2,10 +2,10 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { CheckCircle2, XCircle, AlertTriangle, Loader2, Home } from "lucide-react";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 const REDIRECT_SECONDS = 8;
 
@@ -41,13 +41,7 @@ function GraciasContent() {
 
   return (
     <div className="bg-white rounded-2xl shadow-2xl border border-brand-gray-200 p-8 flex flex-col items-center gap-5 text-center animate-fade-in-up max-w-lg mx-auto">
-      <Image
-        src="/exa-ati-light.png"
-        alt="exa"
-        width={160}
-        height={32}
-        className="h-8 w-auto"
-      />
+      <BrandLogo variant="onLight" className="h-8 w-auto" />
 
       {ok ? (
         <CheckCircle2 className="w-14 h-14 text-success" />

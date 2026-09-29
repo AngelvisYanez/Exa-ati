@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, Menu, Phone, X } from "lucide-react";
+import BrandLogo from "@/components/brand/BrandLogo";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -51,11 +51,8 @@ export default function MarketingHeader() {
           )}
         >
           <Link href="/" className="flex items-center shrink-0" aria-label="EXA ATI — inicio">
-            <Image
-              src="/exa-ati-light.png"
-              alt="EXA ATI — Asistente Tributario Inteligente"
-              width={720}
-              height={128}
+            <BrandLogo
+              variant="onLight"
               priority
               className="h-7 sm:h-8 w-auto"
             />
