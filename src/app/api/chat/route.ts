@@ -21,6 +21,7 @@ import {
 import { normalizeChatHtml } from '@/lib/chat-html';
 import { buildFiscalProjection, formatFiscalProjectionHtml } from '@/services/sri-api/tax-calculator';
 import { ejecutarTrabajoScraping } from '@/services/scraping/job-runner';
+import { assertCanAddEmisor } from '@/services/sri-api/rbac';
 
 function chatHtmlPayload(html: string, text?: string) {
   const normalized = normalizeChatHtml(html);
@@ -407,6 +408,20 @@ export async function POST(req: Request) {
             [encryptedPass, existing.id]
           );
         } else {
+          try {
+            await assertCanAddEmisor(tenantId);
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Límite de empresas';
+            return NextResponse.json({
+              success: true,
+              sender: 'ai',
+              ...chatHtmlPayload(
+                `<strong>No se pudo vincular el RUC.</strong><br/>${message}`,
+                message
+              ),
+              time: new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }),
+            });
+          }
           await db.insert('emisores', {
             ruc: finalRuc,
             razon_social: `Contribuyente ${finalRuc}`,

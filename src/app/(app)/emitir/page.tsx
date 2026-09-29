@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Topbar from "@/components/layout/Topbar";
 import { sriClient } from "@/lib/sriClient";
 import { apiFetch } from "@/lib/apiFetch";
@@ -133,9 +134,17 @@ function calcTotal(detalles: DetalleItem[]): { sinImp: number; desc: number; con
 
 export default function EmitirPage() {
   const { hasSriLinked } = useAuth();
+  const searchParams = useSearchParams();
   const [selectedTipo, setSelectedTipo] = useState<any>(null);
   const [emitiendo, setEmitiendo] = useState(false);
   const [resultado, setResultado] = useState<any>(null);
+
+  useEffect(() => {
+    const tipo = searchParams.get("tipo");
+    if (!tipo || selectedTipo) return;
+    const match = TIPOS.find((t) => t.cod === tipo);
+    if (match) setSelectedTipo(match);
+  }, [searchParams, selectedTipo]);
 
   // Emisores vinculados
   const [emisores, setEmisores] = useState<any[]>([]);
@@ -361,7 +370,7 @@ export default function EmitirPage() {
         setAmbiente(list[0].ambiente || '2');
       }
     }).catch(() => {}).finally(() => setLoadingEmisores(false));
-    apiFetch('/api/ecommerce/productos?activo=true')
+    apiFetch('/api/comercio/productos?activo=true')
       .then(res => res.json())
       .then(data => { if (Array.isArray(data.data)) setProductos(data.data); })
       .catch(() => {});

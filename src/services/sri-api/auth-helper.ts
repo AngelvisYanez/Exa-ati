@@ -55,16 +55,14 @@ export function parseIntegrationApiKeys(): IntegrationKeyEntry[] {
       .split(';')
       .map((part) => part.trim())
       .filter(Boolean)
-      .map((part) => {
+      .flatMap((part): IntegrationKeyEntry[] => {
         const eq = part.indexOf('=');
-        if (eq <= 0) return null;
-        return {
-          key: part.slice(0, eq).trim(),
-          tenantId: part.slice(eq + 1).trim(),
-          rol: 'ADMIN',
-        };
-      })
-      .filter((e): e is IntegrationKeyEntry => Boolean(e?.key && e?.tenantId));
+        if (eq <= 0) return [];
+        const key = part.slice(0, eq).trim();
+        const tenantId = part.slice(eq + 1).trim();
+        if (!key || !tenantId) return [];
+        return [{ key, tenantId, rol: 'ADMIN' }];
+      });
   }
 
   const singleKey = process.env.EXA_INTEGRATION_API_KEY?.trim();

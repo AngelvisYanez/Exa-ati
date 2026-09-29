@@ -7,7 +7,9 @@ import { loginSchema } from '@/lib/schemas/auth';
 import { parseBody } from '@/lib/schemas/parse-body';
 import { setAuthCookies, apiError } from '@/lib/auth-cookies';
 import { rateLimit, clientKey } from '@/lib/rate-limit';
-import { getModulosForRol } from '@/services/sri-api/rbac';
+import { getEffectiveModules } from '@/services/sri-api/rbac';
+import { resolvePlan } from '@/services/sri-api/plans-service';
+import { listEmpresasForUser } from '@/services/sri-api/membership';
 
 export async function POST(req: Request) {
   const limited = rateLimit(clientKey(req, 'login'), { limit: 15, windowMs: 60_000 });
@@ -89,7 +91,13 @@ export async function POST(req: Request) {
       { expiresIn: '7d' }
     );
 
-    const modulos = await getModulosForRol(user.rol);
+    const { modulos, planCodigo } = await getEffectiveModules(
+      user.rol,
+      user.tenant_id
+    );
+    const plan = await resolvePlan(planCodigo);
+    const empresas = await listEmpresasForUser(user.id);
+    const activa = empresas.find((e) => e.tenantId === user.tenant_id);
 
     const response = NextResponse.json({
       accessToken,
@@ -103,6 +111,19 @@ export async function POST(req: Request) {
         rol: user.rol,
         tenantId: user.tenant_id,
         ruc: user.ruc,
+        planCodigo: plan.codigo,
+        planNombre: plan.nombre,
+        maxEmpresas: plan.maxEmpresas,
+        precioMensual: plan.precioMensual,
+        moneda: plan.moneda,
+        empresaActiva: activa
+          ? { id: activa.tenantId, nombre: activa.nombre, ruc: activa.ruc }
+          : null,
+        empresas: empresas.map((e) => ({
+          id: e.tenantId,
+          nombre: e.nombre,
+          ruc: e.ruc,
+        })),
         modulos,
       },
     });

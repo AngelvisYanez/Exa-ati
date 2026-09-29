@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import Topbar from "@/components/layout/Topbar";
 import {
   DateRange,
@@ -45,7 +45,7 @@ const MassDownloadModal = dynamic(
 
 import type { SyncResultSummary } from "@/components/modals/SyncProgressDialog";
 
-export default function Documentos() {
+function Documentos() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { hasSriLinked, activeRuc, refreshSriStatus, isLoading: authLoading } = useAuth();
@@ -1183,5 +1183,19 @@ export default function Documentos() {
         }}
       />
     </>
+  );
+}
+
+export default function DocumentosPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-dvh items-center justify-center text-sm text-brand-gray-500">
+          Cargando documentos…
+        </div>
+      }
+    >
+      <Documentos />
+    </Suspense>
   );
 }

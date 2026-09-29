@@ -355,7 +355,7 @@ export default function Topbar({ title, period = "Período actual", backLink, la
                   type="button"
                   onClick={() => {
                     localStorage.removeItem('sri_access_token');
-                    window.location.href = '/login';
+                    window.location.href = '/iniciar-sesion';
                   }}
                   className="w-full flex items-center gap-3 px-4 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
                 >

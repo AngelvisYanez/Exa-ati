@@ -5,6 +5,7 @@ import { encryption } from '@/services/sri-api/encryption';
 import { isValidRuc } from '@/services/sri-api/user-resolver';
 import { validateSriPortalCredentials } from '@/services/sri-api/sri-portal-validator';
 import { sincronizarConSri } from '@/services/sri-api/sync-service';
+import { assertCanAddEmisor } from '@/services/sri-api/rbac';
 
 export async function POST(req: Request) {
   try {
@@ -37,8 +38,12 @@ export async function POST(req: Request) {
 
     const encryptedPassword = await encryption.encrypt(sriPassword);
 
-    const existing = await db.queryOne<any>(
-      `SELECT id, tenant_id FROM emisores WHERE ruc = $1`,
+    const existing = await db.queryOne<{
+      id: string;
+      tenant_id: string | null;
+      activo: boolean;
+    }>(
+      `SELECT id, tenant_id, activo FROM emisores WHERE ruc = $1`,
       [ruc]
     );
 
@@ -50,6 +55,16 @@ export async function POST(req: Request) {
     }
 
     if (existing) {
+      const needsSlot =
+        !existing.activo || existing.tenant_id !== tenantId;
+      if (needsSlot) {
+        try {
+          await assertCanAddEmisor(tenantId);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Límite de empresas';
+          return NextResponse.json({ message }, { status: 403 });
+        }
+      }
       await db.query(
         `UPDATE emisores SET
           clave_sri_encrypted = $1,
@@ -60,6 +75,12 @@ export async function POST(req: Request) {
         [encryptedPassword, tenantId, existing.id]
       );
     } else {
+      try {
+        await assertCanAddEmisor(tenantId);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Límite de empresas';
+        return NextResponse.json({ message }, { status: 403 });
+      }
       await db.insert('emisores', {
         ruc,
         razon_social: `Contribuyente ${ruc}`,

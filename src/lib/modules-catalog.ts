@@ -22,6 +22,8 @@ export const MODULE_CODES = [
   "admin",
   "admin.roles",
   "admin.empresas",
+  "admin.planes",
+  "admin.emails",
   "configuracion",
 ] as const;
 
@@ -36,14 +38,16 @@ export function isModuleCode(value: string): value is ModuleCode {
  * Coincide el prefijo más largo.
  */
 const PATH_TO_MODULE: { prefix: string; modulo: ModuleCode }[] = [
-  { prefix: "/admin/roles", modulo: "admin.roles" },
-  { prefix: "/admin/empresas", modulo: "admin.empresas" },
-  { prefix: "/admin", modulo: "admin" },
+  { prefix: "/administracion/roles", modulo: "admin.roles" },
+  { prefix: "/administracion/empresas", modulo: "admin.empresas" },
+  { prefix: "/administracion/planes", modulo: "admin.planes" },
+  { prefix: "/administracion/emails", modulo: "admin.emails" },
+  { prefix: "/administracion", modulo: "admin" },
   { prefix: "/documentos", modulo: "documentos" },
   { prefix: "/comprobantes", modulo: "comprobantes" },
   { prefix: "/emitir", modulo: "emitir" },
-  { prefix: "/pos", modulo: "pos" },
-  { prefix: "/ecommerce", modulo: "ecommerce" },
+  { prefix: "/punto-de-venta", modulo: "pos" },
+  { prefix: "/comercio", modulo: "ecommerce" },
   { prefix: "/inventario", modulo: "inventario" },
   { prefix: "/guias-remision", modulo: "guias-remision" },
   { prefix: "/contabilidad", modulo: "contabilidad" },
@@ -54,20 +58,18 @@ const PATH_TO_MODULE: { prefix: string; modulo: ModuleCode }[] = [
   { prefix: "/control-tributario", modulo: "control-tributario" },
   { prefix: "/declaraciones", modulo: "declaraciones" },
   { prefix: "/nomina", modulo: "nomina" },
-  { prefix: "/chat", modulo: "chat" },
+  { prefix: "/asistente", modulo: "chat" },
   { prefix: "/auditoria", modulo: "auditoria-ia" },
   { prefix: "/notificaciones", modulo: "notificaciones" },
   { prefix: "/configuracion", modulo: "configuracion" },
-  { prefix: "/", modulo: "dashboard" },
+  { prefix: "/suscripcion", modulo: "configuracion" },
+  { prefix: "/facturacion", modulo: "configuracion" },
+  { prefix: "/panel", modulo: "dashboard" },
 ];
 
 export function moduleFromPath(pathname: string): ModuleCode | null {
   const path = pathname.split("?")[0] || "/";
   for (const entry of PATH_TO_MODULE) {
-    if (entry.prefix === "/") {
-      if (path === "/" || path === "") return entry.modulo;
-      continue;
-    }
     if (path === entry.prefix || path.startsWith(entry.prefix + "/")) {
       return entry.modulo;
     }
@@ -79,11 +81,13 @@ export function moduleFromPath(pathname: string): ModuleCode | null {
 const API_PREFIX_TO_MODULE: { prefix: string; modulo: ModuleCode }[] = [
   { prefix: "/api/admin/roles", modulo: "admin.roles" },
   { prefix: "/api/admin/modulos", modulo: "admin.roles" },
+  { prefix: "/api/admin/planes", modulo: "admin.planes" },
+  { prefix: "/api/admin/emails", modulo: "admin.emails" },
   { prefix: "/api/admin/tenants", modulo: "admin.empresas" },
   { prefix: "/api/admin", modulo: "admin" },
   { prefix: "/api/sri/emitir", modulo: "emitir" },
   { prefix: "/api/sri/pos", modulo: "pos" },
-  { prefix: "/api/ecommerce", modulo: "ecommerce" },
+  { prefix: "/api/comercio", modulo: "ecommerce" },
   { prefix: "/api/inventario", modulo: "inventario" },
   { prefix: "/api/guias-remision", modulo: "guias-remision" },
   { prefix: "/api/contabilidad", modulo: "contabilidad" },
@@ -112,13 +116,16 @@ export function moduleFromApiPath(pathname: string): ModuleCode | null {
   return null;
 }
 
-/** Módulos que USER tenía por defecto (items sin roles en sidebar). */
+/** Módulos que USER tiene por defecto (operaciones diarias). */
 export const DEFAULT_USER_MODULES: ModuleCode[] = [
   "dashboard",
   "documentos",
-  "comprobantes",
-  "contabilidad",
+  "emitir",
+  "pos",
+  "inventario",
   "contactos",
+  "cuentas-por-cobrar",
+  "cuentas-por-pagar",
   "chat",
   "notificaciones",
   "configuracion",

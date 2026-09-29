@@ -39,28 +39,40 @@ async function req(path, options = {}) {
 async function main() {
   console.log(`API smoke → ${BASE}\n`);
 
-  // Health: login page renders
+  // Health: login page renders (ruta canónica en español)
   {
-    const { status, text } = await req("/login");
-    if (status === 200 && (text.includes("Inicia sesión") || text.includes("login") || text.includes("OFSERCONT") || text.includes("EXA"))) {
-      ok("GET /login", `status ${status}`);
+    const { status, text } = await req("/iniciar-sesion");
+    if (
+      status === 200 &&
+      (text.includes("Inicia sesión") ||
+        text.includes("Iniciar sesión") ||
+        text.includes("OFSERCONT") ||
+        text.includes("EXA"))
+    ) {
+      ok("GET /iniciar-sesion", `status ${status}`);
     } else {
-      fail("GET /login", `status ${status}, body length ${text.length}`);
+      fail("GET /iniciar-sesion", `status ${status}, body length ${text.length}`);
     }
   }
 
   // Middleware: protected page without cookie → redirect to login
   {
-    const { status, headers } = await req("/");
+    const { status, headers } = await req("/panel");
     const loc = headers.get("location") || "";
     if (status === 307 || status === 302 || status === 303) {
-      if (loc.includes("/login")) ok("middleware redirects / → /login", `status ${status}`);
-      else fail("middleware redirects / → /login", `location=${loc}`);
+      if (loc.includes("/iniciar-sesion") || loc.includes("/login")) {
+        ok("middleware redirects /panel → /iniciar-sesion", `status ${status}`);
+      } else {
+        fail("middleware redirects /panel → /iniciar-sesion", `location=${loc}`);
+      }
     } else if (status === 200) {
       // Client-side auth may still render shell; cookie gate might not apply if matcher missed
-      fail("middleware redirects / → /login", `got 200 (expected redirect). Check middleware cookie gate.`);
+      fail(
+        "middleware redirects /panel → /iniciar-sesion",
+        `got 200 (expected redirect). Check middleware cookie gate.`
+      );
     } else {
-      fail("middleware redirects / → /login", `status ${status}`);
+      fail("middleware redirects /panel → /iniciar-sesion", `status ${status}`);
     }
   }
 
@@ -157,11 +169,27 @@ async function main() {
     }
   }
 
-  // Register page
+  // Register page (ruta canónica en español)
   {
-    const { status } = await req("/register");
-    if (status === 200) ok("GET /register", `status ${status}`);
-    else fail("GET /register", `status ${status}`);
+    const { status } = await req("/registro");
+    if (status === 200) ok("GET /registro", `status ${status}`);
+    else fail("GET /registro", `status ${status}`);
+  }
+
+  // Billing prepare sin auth
+  {
+    const { status } = await req("/api/billing/payphone/prepare", {
+      method: "POST",
+      body: JSON.stringify({ planCodigo: "emprendedor", periodo: "mensual" }),
+    });
+    if (status === 401) {
+      ok("POST /api/billing/payphone/prepare no auth → 401", `status ${status}`);
+    } else {
+      fail(
+        "POST /api/billing/payphone/prepare no auth → 401",
+        `status ${status}`
+      );
+    }
   }
 
   // Authenticated happy path (ephemeral user)

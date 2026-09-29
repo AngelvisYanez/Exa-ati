@@ -32,6 +32,11 @@ const PG_FILES = [
   '003_asientos_inventario.sql',
   'add_whatsapp_notif_columns.sql',
   '006_hot_table_indexes.sql',
+  '006_tenant_plan.sql',
+  '007_planes_suscripcion.sql',
+  '008_payphone_suscripciones.sql',
+  '009_multi_empresa_cuentas.sql',
+  '010_suscripcion_ciclo_vida.sql',
 ];
 
 const MYSQL_FILES = [

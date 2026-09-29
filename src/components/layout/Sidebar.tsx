@@ -32,6 +32,7 @@ import {
   Landmark,
   HandCoins,
   Wallet,
+  CreditCard,
 } from "lucide-react";
 
 type NavLeaf = {
@@ -61,7 +62,7 @@ const navGroups: NavGroup[] = [
     items: [
       {
         kind: "link",
-        href: "/",
+        href: "/panel",
         label: "Dashboard",
         module: "dashboard",
         icon: <LayoutGrid className="w-[17px] h-[17px]" strokeWidth={1.8} />,
@@ -95,7 +96,7 @@ const navGroups: NavGroup[] = [
       },
       {
         kind: "link",
-        href: "/pos",
+        href: "/punto-de-venta",
         label: "Punto de Venta",
         module: "pos",
         roles: ["SUPERADMIN", "ADMIN"],
@@ -103,7 +104,7 @@ const navGroups: NavGroup[] = [
       },
       {
         kind: "link",
-        href: "/ecommerce",
+        href: "/comercio",
         label: "eCommerce",
         module: "ecommerce",
         roles: ["SUPERADMIN", "ADMIN"],
@@ -289,10 +290,17 @@ const navGroups: NavGroup[] = [
     items: [
       {
         kind: "link",
-        href: "/chat",
-        label: "Chat IA",
+        href: "/asistente",
+        label: "Asistente IA",
         module: "chat",
         icon: <MessageSquare className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        kind: "link",
+        href: "/suscripcion",
+        label: "Planes",
+        module: "configuracion",
+        icon: <CreditCard className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
       {
         kind: "link",
@@ -325,37 +333,49 @@ const navGroups: NavGroup[] = [
         icon: <Shield className="w-[17px] h-[17px]" strokeWidth={1.8} />,
         children: [
           {
-            href: "/admin",
+            href: "/administracion",
             label: "Resumen",
             module: "admin",
             roles: ["ADMIN", "SUPERADMIN"],
           },
           {
-            href: "/admin/usuarios",
+            href: "/administracion/usuarios",
             label: "Usuarios",
             module: "admin",
             roles: ["ADMIN", "SUPERADMIN"],
           },
           {
-            href: "/admin/roles",
+            href: "/administracion/roles",
             label: "Roles",
             module: "admin.roles",
             roles: ["ADMIN", "SUPERADMIN"],
           },
           {
-            href: "/admin/empresas",
+            href: "/administracion/planes",
+            label: "Planes",
+            module: "admin.planes",
+            roles: ["SUPERADMIN"],
+          },
+          {
+            href: "/administracion/emails",
+            label: "Emails",
+            module: "admin.emails",
+            roles: ["SUPERADMIN"],
+          },
+          {
+            href: "/administracion/empresas",
             label: "Empresas",
             module: "admin.empresas",
             roles: ["SUPERADMIN"],
           },
           {
-            href: "/admin/auditoria",
+            href: "/administracion/auditoria",
             label: "Auditoría",
             module: "admin",
             roles: ["ADMIN", "SUPERADMIN"],
           },
           {
-            href: "/admin/pruebas",
+            href: "/administracion/pruebas",
             label: "Pruebas Diagnóstico",
             module: "admin",
             roles: ["ADMIN", "SUPERADMIN"],
@@ -632,7 +652,7 @@ export default function Sidebar() {
             />
           ) : (
             <Image
-              src="/exa-ati.png"
+              src="/exa-ati-light.png"
               alt="exa — Asistente Tributario Inteligente"
               width={160}
               height={32}

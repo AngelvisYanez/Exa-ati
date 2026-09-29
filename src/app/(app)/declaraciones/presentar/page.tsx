@@ -588,7 +588,7 @@ export default function PresentarDeclaracionPage() {
                 Ver historial
               </Link>
               <Link
-                href="/"
+                href="/panel"
                 className="flex-1 bg-brand-red text-white font-bold text-[13px] py-2.5 rounded-xl hover:bg-brand-red-bright transition-colors cursor-pointer flex items-center justify-center"
               >
                 Volver al Dashboard

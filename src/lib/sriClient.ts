@@ -6,6 +6,12 @@ const USER_KEY = 'sri_user';
 
 let refreshPromise: Promise<boolean> | null = null;
 
+export interface SessionEmpresa {
+  id: string;
+  nombre: string;
+  ruc: string | null;
+}
+
 export interface SessionUser {
   id: string;
   email: string;
@@ -13,6 +19,19 @@ export interface SessionUser {
   tenantId: string | null;
   ruc?: string;
   nombre?: string;
+  /** Plan de suscripción de la cuenta: emprendedor | contador | despacho */
+  planCodigo?: string;
+  planNombre?: string;
+  planPeriodo?: string;
+  planEstado?: string;
+  planOrigen?: string | null;
+  planVigenteHasta?: string | null;
+  daysRemaining?: number | null;
+  maxEmpresas?: number;
+  precioMensual?: number;
+  moneda?: string;
+  empresaActiva?: SessionEmpresa | null;
+  empresas?: SessionEmpresa[];
   modulos?: string[];
 }
 
@@ -215,10 +234,63 @@ export const sriClient = {
     return data;
   },
 
-  async register(email: string, password: string, rol = 'USER', nombre?: string) {
+  async register(
+    email: string,
+    password: string,
+    rol = 'USER',
+    nombre?: string,
+    extra?: {
+      razonSocial?: string;
+      ruc?: string;
+      telefono?: string;
+      ciudad?: string;
+      planCodigo?: string;
+      periodo?: 'mensual' | 'anual';
+    }
+  ) {
     return request('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, rol, nombre }),
+      body: JSON.stringify({
+        email,
+        password,
+        rol,
+        nombre,
+        razonSocial: extra?.razonSocial,
+        ruc: extra?.ruc,
+        telefono: extra?.telefono,
+        ciudad: extra?.ciudad,
+        planCodigo: extra?.planCodigo,
+        periodo: extra?.periodo,
+      }),
+    });
+  },
+
+  /** Lista empresas (tenants) de la cuenta del usuario. */
+  async listEmpresas() {
+    return request('/auth/empresas');
+  },
+
+  /** Cambia la empresa activa (nuevo JWT con tenantId). */
+  async switchEmpresa(tenantId: string) {
+    const data = await request('/auth/empresas', {
+      method: 'PUT',
+      body: JSON.stringify({ tenantId }),
+    });
+    if (data.accessToken && data.user) {
+      setSession({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        user: data.user,
+      });
+    }
+    return data;
+  },
+
+  /** Crea otra empresa bajo la misma cuenta (cupo del plan). */
+  async createEmpresa(nombre: string, ruc?: string | null) {
+    return request('/auth/empresas', {
+      method: 'POST',
+      body: JSON.stringify({ nombre, ruc: ruc || null }),
     });
   },
 
@@ -390,7 +462,7 @@ export const sriClient = {
   },
 
   async getMobileQr() {
-    return request('/sri/mobile-qr');
+    return request('/sri/movil-qr');
   },
 
   async chat(
@@ -398,7 +470,7 @@ export const sriClient = {
     history: { role: 'user' | 'assistant'; content: string }[] = [],
     opts?: { confirmTool?: string; toolArgs?: Record<string, unknown> }
   ) {
-    return request('/chat', {
+    return request('/asistente', {
       method: 'POST',
       body: JSON.stringify({
         message,

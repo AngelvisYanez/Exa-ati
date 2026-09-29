@@ -31,6 +31,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         id: tenant.id,
         nombre: tenant.nombre,
         ruc: tenant.ruc,
+        planCodigo: tenant.plan_codigo || 'emprendedor',
         activo: Boolean(tenant.activo),
         usuariosCount: parseInt(tenant.usuarios_count || '0'),
         emisoresCount: parseInt(tenant.emisores_count || '0'),
@@ -53,7 +54,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     requireSuperadmin(user);
     const { id } = await params;
     const body = await req.json();
-    const { nombre, ruc, activo } = body;
+    const { nombre, ruc, activo, planCodigo } = body;
 
     const existing = await db.queryOne('SELECT id FROM tenants WHERE id = $1', [id]);
     if (!existing) {
@@ -67,12 +68,29 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }
     }
 
+    if (planCodigo !== undefined && planCodigo !== null) {
+      const plan = await db.queryOne<{ codigo: string; activo: boolean | number }>(
+        `SELECT codigo, activo FROM planes_suscripcion WHERE codigo = $1`,
+        [String(planCodigo)]
+      );
+      if (!plan) {
+        return NextResponse.json({ message: 'Plan de suscripción no encontrado' }, { status: 400 });
+      }
+      if (!Boolean(plan.activo)) {
+        return NextResponse.json({ message: 'El plan seleccionado está inactivo' }, { status: 400 });
+      }
+    }
+
     const fields: string[] = [];
     const values: any[] = [];
 
     if (nombre !== undefined) { fields.push('nombre = $' + (fields.length + 1)); values.push(nombre); }
     if (ruc !== undefined) { fields.push('ruc = $' + (fields.length + 1)); values.push(ruc || null); }
     if (activo !== undefined) { fields.push('activo = $' + (fields.length + 1)); values.push(activo); }
+    if (planCodigo !== undefined) {
+      fields.push('plan_codigo = $' + (fields.length + 1));
+      values.push(planCodigo || 'emprendedor');
+    }
 
     if (fields.length === 0) {
       return NextResponse.json({ message: 'No hay campos para actualizar' }, { status: 400 });
@@ -81,15 +99,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     fields.push('updated_at = NOW()');
 
     const result = await db.queryOne<any>(
-      `UPDATE tenants SET ${fields.join(', ')} WHERE id = $${fields.length + 1} RETURNING *`,
+      `UPDATE tenants SET ${fields.join(', ')} WHERE id = $${values.length + 1} RETURNING *`,
       [...values, id]
     );
+
+    // Invalidar caché de plan del tenant
+    const { invalidatePlanCache } = await import('@/services/sri-api/rbac');
+    invalidatePlanCache(id);
 
     return NextResponse.json({
       data: {
         id: result.id,
         nombre: result.nombre,
         ruc: result.ruc,
+        planCodigo: result.plan_codigo || 'emprendedor',
         activo: Boolean(result.activo),
         updatedAt: result.updated_at,
       },

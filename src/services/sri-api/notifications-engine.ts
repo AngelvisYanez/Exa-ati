@@ -471,20 +471,19 @@ async function deliverExternal(
     );
     if (!usuario?.email) return;
 
-    const nodemailer = await import('nodemailer');
-    const transporter = nodemailer.default.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: process.env.SMTP_USER
-        ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-        : undefined,
-    });
-
-    await transporter.sendMail({
+    const { sendTemplatedEmail, appBaseUrl } = await import('@/services/email/templates');
+    const linkAccion = candidate.actionHref
+      ? `${appBaseUrl()}${candidate.actionHref}`
+      : '';
+    await sendTemplatedEmail({
+      codigo: 'notificacion_sistema',
       to: usuario.email,
-      subject: `[OFSERCONT] ${candidate.title}`,
-      text: `${candidate.body}\n\n${candidate.actionHref ? `Acción: ${process.env.NEXT_PUBLIC_APP_URL || ''}${candidate.actionHref}` : ''}\n\nEmisor: ${emisor?.razon_social || userRuc}`,
+      vars: {
+        titulo: candidate.title,
+        cuerpo: `${candidate.body}${emisor?.razon_social || userRuc ? `\n\nEmisor: ${emisor?.razon_social || userRuc}` : ''}`,
+        link_accion: linkAccion,
+        texto_accion: candidate.actionLabel || 'Ver detalle',
+      },
     });
 
     await db.query(`UPDATE notificaciones SET delivered_at = NOW(), updated_at = NOW() WHERE id = ?`, [

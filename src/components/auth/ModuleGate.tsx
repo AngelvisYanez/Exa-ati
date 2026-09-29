@@ -34,7 +34,7 @@ export function ModuleGate({
   useEffect(() => {
     if (isLoading) return;
     if (!user) {
-      router.replace("/login");
+      router.replace("/iniciar-sesion");
       return;
     }
     if (!allowed) {

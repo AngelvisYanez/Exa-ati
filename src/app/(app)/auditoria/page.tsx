@@ -319,7 +319,7 @@ export default function AuditoriaPage() {
                           <p className="text-[12.5px] text-brand-gray-700">{alert.suggestion}</p>
                         </div>
                         <div className="flex gap-2 mt-3">
-                          <Link href="/chat" className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-brand-red text-white hover:bg-brand-red-bright transition-colors">
+                          <Link href="/asistente" className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-brand-red text-white hover:bg-brand-red-bright transition-colors">
                             Consultar al Agente IA
                           </Link>
                           <Link href="/documentos" className="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-brand-gray-200 text-brand-gray-700 hover:bg-white transition-colors">

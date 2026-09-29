@@ -195,7 +195,7 @@ export const dbPrisma = {
       throw new Error(`No data provided for insert into table "${table}"`);
     }
 
-    const isUuidTable = ['usuarios', 'tenants', 'emisores', 'comprobantes', 'tenant_settings', 'notificaciones'].includes(table);
+    const isUuidTable = ['usuarios', 'tenants', 'emisores', 'comprobantes', 'tenant_settings', 'notificaciones', 'pagos_suscripcion', 'cuentas'].includes(table);
     if (isUuidTable && !data.id) {
       data.id = randomUUID();
     }

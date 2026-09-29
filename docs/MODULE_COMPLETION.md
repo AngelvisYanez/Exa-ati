@@ -75,6 +75,12 @@ Aplicar en PostgreSQL antes de usar en producción:
 - `prisma/migrations/003_asientos_inventario.sql` (asientos/kardex)
 - `prisma/migrations/004_roles_modulos.sql` (roles personalizados + módulos)
 - `prisma/migrations/005_notificaciones.sql` (notificaciones persistentes + `notif_email`)
+- `prisma/migrations/006_tenant_plan.sql` (plan de suscripción: emprendedor / contador / despacho)
+- `prisma/migrations/007_planes_suscripcion.sql` (tabla planes + precios + módulos + re-seed roles)
+- `prisma/migrations/008_payphone_suscripciones.sql` (pagos PayPhone + vigencia del plan)
+- `prisma/migrations/009_multi_empresa_cuentas.sql` (cuenta billing + tenant_usuarios; 1 empresa = 1 tenant)
+- `prisma/migrations/010_suscripcion_ciclo_vida.sql` (plan_estado, FKs, índices)
+- `prisma/migrations/011_email_plantillas_registro.sql` (plantillas email + plan_estado pendiente + admin.emails)
 
 ### Notificaciones (funcional)
 - [x] Persistencia en tabla `notificaciones` (sin lista efímera / mock)

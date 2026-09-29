@@ -11,10 +11,14 @@ import {
   ShoppingCart,
   Truck,
   Shield,
+  HandCoins,
+  Package,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Module {
   id: string;
+  moduleCode: string;
   title: string;
   description: string;
   icon: React.ElementType;
@@ -26,8 +30,9 @@ interface Module {
 const MODULES: Module[] = [
   {
     id: "documentos",
+    moduleCode: "documentos",
     title: "Documentos",
-    description: "Gestiona y sincroniza tus comprobantes electrónicos con el SRI",
+    description: "Consulta y organiza tus comprobantes electrónicos",
     icon: FileText,
     href: "/documentos",
     color: "text-brand-sky",
@@ -35,24 +40,47 @@ const MODULES: Module[] = [
   },
   {
     id: "emitir",
-    title: "Emisión Rápida",
-    description: "Emite facturas, retenciones, notas de crédito y débito al SRI",
+    moduleCode: "emitir",
+    title: "Emitir",
+    description: "Facturas, retenciones y notas en minutos",
     icon: FilePlus,
     href: "/emitir",
     color: "text-success",
     bgColor: "bg-success-pale",
   },
   {
+    id: "cxc",
+    moduleCode: "cuentas-por-cobrar",
+    title: "Cuentas por Cobrar",
+    description: "Quién te debe y qué está por vencer",
+    icon: HandCoins,
+    href: "/cuentas-por-cobrar",
+    color: "text-emerald-700",
+    bgColor: "bg-emerald-50",
+  },
+  {
+    id: "inventario",
+    moduleCode: "inventario",
+    title: "Inventario",
+    description: "Stock y productos para facturar",
+    icon: Package,
+    href: "/inventario",
+    color: "text-brand-gray-700",
+    bgColor: "bg-brand-gray-100",
+  },
+  {
     id: "contabilidad",
+    moduleCode: "contabilidad",
     title: "Contabilidad",
     description: "Plan de cuentas, impuestos y posiciones fiscales",
     icon: BookOpen,
     href: "/contabilidad",
-    color: "text-purple-600",
-    bgColor: "bg-purple-50",
+    color: "text-brand-sky",
+    bgColor: "bg-sky-50",
   },
   {
     id: "declaraciones",
+    moduleCode: "declaraciones",
     title: "Declaraciones",
     description: "Presenta IVA, ATS y formularios 103/104 ante el SRI",
     icon: FileCheck,
@@ -62,26 +90,29 @@ const MODULES: Module[] = [
   },
   {
     id: "chat",
+    moduleCode: "chat",
     title: "Asistente IA",
-    description: "Consulta tus obligaciones tributarias con inteligencia artificial",
+    description: "Pregunta por ventas, cobros u obligaciones",
     icon: MessageSquare,
-    href: "/chat",
+    href: "/asistente",
     color: "text-brand-red",
     bgColor: "bg-brand-red-subtle",
   },
   {
     id: "ecommerce",
+    moduleCode: "ecommerce",
     title: "eCommerce",
-    description: "Administra ventas online y facturación electrónica",
+    description: "Ventas online con facturación electrónica",
     icon: ShoppingCart,
-    href: "/ecommerce",
+    href: "/comercio",
     color: "text-sky-600",
     bgColor: "bg-sky-50",
   },
   {
     id: "guias",
+    moduleCode: "guias-remision",
     title: "Guías de Remisión",
-    description: "Crea y gestiona guías de remisión para tus envíos",
+    description: "Crea y gestiona guías para tus envíos",
     icon: Truck,
     href: "/guias-remision",
     color: "text-orange-600",
@@ -89,8 +120,9 @@ const MODULES: Module[] = [
   },
   {
     id: "auditoria",
+    moduleCode: "auditoria-ia",
     title: "Auditoría IA",
-    description: "Auditoría inteligente de comprobantes y riesgos fiscales",
+    description: "Riesgos fiscales en tus comprobantes",
     icon: Shield,
     href: "/auditoria",
     color: "text-brand-red",
@@ -99,11 +131,15 @@ const MODULES: Module[] = [
 ];
 
 export default function FeaturedModules() {
+  const { hasModule, user } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollPos, setScrollPos] = useState(0);
   const [maxScroll, setMaxScroll] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
+
+  const visible = MODULES.filter((m) => hasModule(m.moduleCode));
+  const isEmprendedor = (user?.planCodigo || "emprendedor") === "emprendedor";
 
   const updateScroll = () => {
     const el = scrollRef.current;
@@ -122,10 +158,10 @@ export default function FeaturedModules() {
       el.removeEventListener("scroll", updateScroll);
       window.removeEventListener("resize", updateScroll);
     };
-  }, []);
+  }, [visible.length]);
 
   useEffect(() => {
-    if (!isAutoPlaying) return;
+    if (!isAutoPlaying || visible.length <= 1) return;
     intervalRef.current = setInterval(() => {
       const el = scrollRef.current;
       if (!el) return;
@@ -138,7 +174,7 @@ export default function FeaturedModules() {
       }
     }, 4000);
     return () => clearInterval(intervalRef.current);
-  }, [isAutoPlaying]);
+  }, [isAutoPlaying, visible.length]);
 
   const scroll = (dir: "left" | "right") => {
     const el = scrollRef.current;
@@ -149,25 +185,30 @@ export default function FeaturedModules() {
 
   const atStart = scrollPos <= 0;
   const atEnd = scrollPos >= maxScroll - 1;
+  const totalSlides = visible.length;
+  const slideIndex = maxScroll > 0 ? Math.round(scrollPos / (230 + 12)) : 0;
 
-  const totalSlides = MODULES.length;
-  const slideIndex = maxScroll > 0
-    ? Math.round(scrollPos / (230 + 12))
-    : 0;
+  if (visible.length === 0) return null;
 
   return (
     <div className="bg-white border border-brand-gray-200 rounded-xl p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-base font-semibold tracking-tight">Módulos Destacados</h3>
+          <h3 className="text-base font-semibold tracking-tight">
+            {isEmprendedor ? "Atajos de tu negocio" : "Módulos destacados"}
+          </h3>
           <p className="text-xs text-brand-gray-500 mt-0.5">
-            Acceso rápido a las principales funcionalidades del sistema.
+            {isEmprendedor
+              ? "Factura, cobra y consulta tu actividad del día."
+              : "Acceso rápido según tu plan y permisos."}
           </p>
         </div>
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={() => scroll("left")}
             disabled={atStart}
+            aria-label="Anterior"
             className="w-8 h-8 rounded-lg border border-brand-gray-200 flex items-center justify-center text-brand-gray-500 hover:bg-brand-gray-50 hover:text-brand-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
           >
             <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -175,8 +216,10 @@ export default function FeaturedModules() {
             </svg>
           </button>
           <button
+            type="button"
             onClick={() => scroll("right")}
             disabled={atEnd}
+            aria-label="Siguiente"
             className="w-8 h-8 rounded-lg border border-brand-gray-200 flex items-center justify-center text-brand-gray-500 hover:bg-brand-gray-50 hover:text-brand-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
           >
             <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -194,7 +237,7 @@ export default function FeaturedModules() {
           className="flex gap-3 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2 -mb-2"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          {MODULES.map((mod) => {
+          {visible.map((mod) => {
             const Icon = mod.icon;
             return (
               <Link
@@ -208,23 +251,14 @@ export default function FeaturedModules() {
                   <Icon className="w-5 h-5" />
                 </div>
                 <div className="flex-1 flex flex-col gap-1">
-                  <span className="text-sm font-bold text-brand-gray-900">
-                    {mod.title}
-                  </span>
+                  <span className="text-sm font-bold text-brand-gray-900">{mod.title}</span>
                   <span className="text-[11px] text-brand-gray-500 leading-relaxed">
                     {mod.description}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 text-[11px] font-semibold text-brand-red group-hover:gap-2 transition-all">
-                  Ir al módulo
-                  <svg
-                    width="12"
-                    height="12"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
+                  Ir
+                  <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
                 </div>
@@ -241,24 +275,25 @@ export default function FeaturedModules() {
         )}
       </div>
 
-      <div className="flex items-center justify-center gap-1.5 mt-4">
-        {Array.from({ length: totalSlides }).map((_, i) => (
-          <button
-            key={i}
-            onClick={() => {
-              const el = scrollRef.current;
-              if (!el) return;
-              el.scrollTo({
-                left: i * (230 + 12),
-                behavior: "smooth",
-              });
-            }}
-            className={`w-1.5 h-1.5 rounded-full transition-all cursor-pointer ${
-              i === slideIndex ? "bg-brand-red w-4" : "bg-brand-gray-300 hover:bg-brand-gray-400"
-            }`}
-          />
-        ))}
-      </div>
+      {totalSlides > 1 ? (
+        <div className="flex items-center justify-center gap-1.5 mt-4">
+          {Array.from({ length: totalSlides }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              aria-label={`Ir al módulo ${i + 1}`}
+              onClick={() => {
+                const el = scrollRef.current;
+                if (!el) return;
+                el.scrollTo({ left: i * (230 + 12), behavior: "smooth" });
+              }}
+              className={`w-1.5 h-1.5 rounded-full transition-all cursor-pointer ${
+                i === slideIndex ? "bg-brand-red w-4" : "bg-brand-gray-300 hover:bg-brand-gray-400"
+              }`}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

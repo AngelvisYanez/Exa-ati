@@ -83,7 +83,7 @@ export default function InventarioPage() {
       const token = localStorage.getItem('sri_access_token');
       const params = new URLSearchParams();
       if (termino) params.set('termino', termino);
-      const res = await apiFetch(`/api/ecommerce/productos?${params}`, {
+      const res = await apiFetch(`/api/comercio/productos?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -194,8 +194,8 @@ export default function InventarioPage() {
     try {
       const method = editingId ? 'PUT' : 'POST';
       const url = editingId
-        ? `/api/ecommerce/productos/${editingId}`
-        : '/api/ecommerce/productos';
+        ? `/api/comercio/productos/${editingId}`
+        : '/api/comercio/productos';
 
       const res = await apiFetch(url, {
         method,
@@ -227,7 +227,7 @@ export default function InventarioPage() {
     if (!confirm('¿Eliminar este producto?')) return;
     try {
       const token = localStorage.getItem('sri_access_token');
-      const res = await apiFetch(`/api/ecommerce/productos/${id}`, {
+      const res = await apiFetch(`/api/comercio/productos/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

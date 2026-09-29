@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   createContext,
@@ -25,6 +25,8 @@ interface AuthContextValue {
   activeRuc: string | null;
   rucList: { ruc: string; razonSocial: string }[];
   setActiveRuc: (ruc: string) => void;
+  switchEmpresa: (tenantId: string) => Promise<void>;
+  createEmpresa: (nombre: string, ruc?: string | null) => Promise<string>;
   login: (email: string, password: string) => Promise<SessionUser>;
   register: (email: string, password: string, nombre?: string) => Promise<void>;
   logout: () => void;
@@ -52,42 +54,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      if (currentUser.rol === "USER") {
-        const res = await sriClient.getEmisor();
-        if (res.success && res.emisor) {
-          const item = { ruc: res.emisor.ruc, razonSocial: res.emisor.razonSocial || res.emisor.ruc };
-          setRucList([item]);
-          setHasSriLinked(true);
-          setActiveRucState(res.emisor.ruc);
-          localStorage.setItem("sri_selected_ruc", res.emisor.ruc);
-        } else {
-          setRucList([]);
-          setHasSriLinked(false);
-          setActiveRucState(null);
-        }
-      } else {
-        const res = await sriClient.getEmisores();
-        if (res.success && res.emisores && res.emisores.length > 0) {
-          const list = res.emisores.map((e: any) => ({
+      // Opción 2: 1 RUC por empresa (tenant). Preferir getEmisor.
+      const res = await sriClient.getEmisor();
+      if (res.success && res.emisor) {
+        const item = {
+          ruc: res.emisor.ruc,
+          razonSocial: res.emisor.razonSocial || res.emisor.ruc,
+        };
+        setRucList([item]);
+        setHasSriLinked(true);
+        setActiveRucState(res.emisor.ruc);
+        localStorage.setItem("sri_selected_ruc", res.emisor.ruc);
+        return;
+      }
+
+      // Fallback listado (legacy multi-emisor en un tenant)
+      if (currentUser.rol !== "USER") {
+        const listRes = await sriClient.getEmisores();
+        if (listRes.success && listRes.emisores && listRes.emisores.length > 0) {
+          const list = listRes.emisores.map((e: { ruc: string; razonSocial?: string }) => ({
             ruc: e.ruc,
             razonSocial: e.razonSocial || `Contribuyente ${e.ruc}`,
           }));
           setRucList(list);
           setHasSriLinked(true);
-
           const stored = localStorage.getItem("sri_selected_ruc");
-          if (stored && list.some((x: any) => x.ruc === stored)) {
+          if (stored && list.some((x: { ruc: string }) => x.ruc === stored)) {
             setActiveRucState(stored);
           } else {
             setActiveRucState(list[0].ruc);
             localStorage.setItem("sri_selected_ruc", list[0].ruc);
           }
-        } else {
-          setRucList([]);
-          setHasSriLinked(false);
-          setActiveRucState(null);
+          return;
         }
       }
+
+      setRucList([]);
+      setHasSriLinked(false);
+      setActiveRucState(null);
+      localStorage.removeItem("sri_selected_ruc");
     } catch {
       setRucList([]);
       setHasSriLinked(false);
@@ -100,12 +105,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(session?.user ?? null);
     if (session?.user) {
       checkSriLinked(session.user).finally(() => setIsLoading(false));
-      // Refrescar módulos desde /api/auth/me (por si cambiaron en admin)
       void (async () => {
         try {
-          const token = typeof window !== "undefined"
-            ? localStorage.getItem("sri_access_token")
-            : null;
+          const token =
+            typeof window !== "undefined"
+              ? localStorage.getItem("sri_access_token")
+              : null;
           if (!token) return;
           const res = await fetch("/api/auth/me", {
             headers: { Authorization: `Bearer ${token}` },
@@ -119,10 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               ...data.user,
               modulos: data.user.modulos || [],
             };
-            setSession({
-              accessToken: token,
-              user: updated,
-            });
+            setSession({ accessToken: token, user: updated });
             setUser(updated);
           }
         } catch {
@@ -184,7 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string, nombre?: string) => {
       await sriClient.register(email, password, "USER", nombre);
       await login(email, password);
-      window.location.href = "/";
+      window.location.href = "/registro";
     },
     [login]
   );
@@ -196,8 +198,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setHasSriLinked(false);
     setRucList([]);
     setActiveRucState(null);
-    if (!pathname?.startsWith("/login") && !pathname?.startsWith("/register")) {
-      router.push("/login");
+    if (!pathname?.startsWith("/iniciar-sesion") && !pathname?.startsWith("/registro")) {
+      router.push("/iniciar-sesion");
     }
   }, [router, pathname]);
 
@@ -212,6 +214,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.reload();
   }, []);
 
+  /** Cambia de empresa (tenant): nuevo JWT y recarga con datos aislados. */
+  const switchEmpresa = useCallback(async (tenantId: string) => {
+    localStorage.removeItem("sri_selected_ruc");
+    const data = await sriClient.switchEmpresa(tenantId);
+    if (data.user) setUser(data.user);
+    window.location.href = "/panel";
+  }, []);
+
+  /** Crea empresa bajo la cuenta y cambia a ella. */
+  const createEmpresa = useCallback(async (nombre: string, ruc?: string | null) => {
+    const res = await sriClient.createEmpresa(nombre, ruc);
+    const tenantId = res.data?.tenantId as string | undefined;
+    if (!tenantId) throw new Error("No se pudo crear la empresa");
+    await sriClient.switchEmpresa(tenantId);
+    localStorage.removeItem("sri_selected_ruc");
+    window.location.href = "/configuracion";
+    return tenantId;
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -222,6 +243,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         activeRuc,
         rucList,
         setActiveRuc,
+        switchEmpresa,
+        createEmpresa,
         login,
         register,
         logout,
@@ -237,6 +260,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = use(AuthContext);
-  if (!ctx) throw new Error("useAuth debe usarse dentro de AuthProvider");
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }

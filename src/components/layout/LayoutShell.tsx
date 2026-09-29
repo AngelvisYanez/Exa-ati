@@ -2,6 +2,7 @@
 
 import Sidebar from "@/components/layout/Sidebar";
 import BottomNav from "@/components/layout/BottomNav";
+import SubscriptionGate from "@/components/billing/SubscriptionGate";
 import { useSidebar } from "@/contexts/SidebarContext";
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
@@ -15,6 +16,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
         className={`flex-1 min-w-0 flex flex-col min-h-dvh transition-[padding] duration-200 ease-out
           ${collapsed ? "md:pl-14" : "md:pl-60"} pl-0 pb-14 md:pb-0`}
       >
+        <SubscriptionGate />
         {children}
       </div>
       <BottomNav />

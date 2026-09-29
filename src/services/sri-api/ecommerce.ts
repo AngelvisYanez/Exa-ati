@@ -304,34 +304,29 @@ export async function sendInvoiceEmail(claveAcceso: string): Promise<boolean> {
     [comprobante.emisor_ruc]
   );
 
-  const apiUrl = process.env.NEXT_PUBLIC_SRI_API_URL || '';
-  const pdfUrl = `${apiUrl}/api/sri/comprobantes/${claveAcceso}/pdf`;
-  const subject = `Factura ${comprobante.serie}-${comprobante.secuencial} - ${emisor?.razon_social || ''}`;
-  const body = `Estimado/a ${comprobante.receptor_razon_social},\n\nAdjuntamos su factura electrónica ${comprobante.serie}-${comprobante.secuencial} por un valor de $${parseFloat(comprobante.importe_total).toFixed(2)}.\n\nClave de Acceso: ${claveAcceso}\n\nGracias por su preferencia.`;
+  const { sendTemplatedEmail, appBaseUrl, smtpConfigured } = await import(
+    '@/services/email/templates'
+  );
+  if (!smtpConfigured()) return false;
 
-  try {
-    const transporter = await getMailTransporter();
-    await transporter.sendMail({
-      to: comprobante.receptor_email,
-      subject,
-      text: body,
-      attachments: [{ filename: `factura_${claveAcceso}.pdf`, path: pdfUrl }],
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
+  const pdfUrl = `${appBaseUrl()}/api/sri/comprobantes/${claveAcceso}/pdf`;
+  const importe = `$${parseFloat(comprobante.importe_total).toFixed(2)}`;
 
-async function getMailTransporter() {
-  const nodemailer = await import('nodemailer');
-  return nodemailer.default.createTransport({
-    host: process.env.SMTP_HOST || 'localhost',
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: process.env.SMTP_USER ? {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    } : undefined,
+  const result = await sendTemplatedEmail({
+    codigo: 'comprobante_autorizado',
+    to: comprobante.receptor_email,
+    vars: {
+      receptor_razon_social: comprobante.receptor_razon_social || 'Cliente',
+      serie: comprobante.serie || '',
+      secuencial: comprobante.secuencial || '',
+      importe,
+      clave_acceso: claveAcceso,
+      emisor_razon_social: emisor?.razon_social || '',
+      emisor_ruc: emisor?.ruc || comprobante.emisor_ruc || '',
+      link_pdf: pdfUrl,
+    },
+    attachments: [{ filename: `factura_${claveAcceso}.pdf`, path: pdfUrl }],
   });
+
+  return result.sent;
 }

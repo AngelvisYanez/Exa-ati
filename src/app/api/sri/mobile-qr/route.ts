@@ -42,7 +42,7 @@ export async function GET(req: Request) {
       })();
 
     const base = String(appUrl).replace(/\/$/, '');
-    const targetUrl = `${base}/mobile?code=${code}`;
+    const targetUrl = `${base}/movil?code=${code}`;
 
     const qrDataBase64 = await qrcode.toDataURL(targetUrl, {
       margin: 2,

@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import { LayoutGrid, FileText, MessageSquare, Bell, Settings } from "lucide-react";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutGrid },
+  { href: "/panel", label: "Dashboard", icon: LayoutGrid },
   { href: "/documentos", label: "Documentos", icon: FileText },
-  { href: "/chat", label: "Chat IA", icon: MessageSquare },
+  { href: "/asistente", label: "Asistente", icon: MessageSquare },
   { href: "/notificaciones", label: "Notificaciones", icon: Bell },
   { href: "/configuracion", label: "Ajustes", icon: Settings },
 ];
@@ -16,7 +16,7 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
+    if (href === "/panel") return pathname === "/panel" || pathname === "/";
     return pathname?.startsWith(href);
   };
 

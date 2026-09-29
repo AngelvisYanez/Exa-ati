@@ -44,14 +44,27 @@ const typeStyles: Record<string, { color: string; bg: string; dot: string }> = {
 };
 
 export default function Topbar({ title, period = "Período actual", backLink, lastSyncLabel, syncPendientes, isConnected, enProcesoCount, pprCount }: TopbarProps) {
-  const { user, hasSriLinked, activeRuc, rucList, setActiveRuc, isLoading: authLoading } = useAuth();
+  const {
+    user,
+    hasSriLinked,
+    activeRuc,
+    rucList,
+    switchEmpresa,
+    createEmpresa,
+    isLoading: authLoading,
+    logout,
+  } = useAuth();
   const { setMobileOpen } = useSidebar();
   const [notifOpen, setNotifOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [vincularOpen, setVincularOpen] = useState(false);
+  const [crearOpen, setCrearOpen] = useState(false);
+  const [nuevaEmpresaNombre, setNuevaEmpresaNombre] = useState("");
+  const [creando, setCreando] = useState(false);
   const [vincularRuc, setVincularRuc] = useState("");
   const [vincularPassword, setVincularPassword] = useState("");
   const [vinculando, setVinculando] = useState(false);
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [sriConnected, setSriConnected] = useState(false);
   const [userName, setUserName] = useState("");
@@ -59,7 +72,22 @@ export default function Topbar({ title, period = "Período actual", backLink, la
   const notifRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
+  const empresas = user?.empresas ?? [];
+  const maxEmpresas = typeof user?.maxEmpresas === "number" ? user.maxEmpresas : 1;
+  const canAddEmpresa = empresas.length < maxEmpresas;
+
   useEffect(() => {
+    const activa = user?.empresaActiva;
+    if (activa?.nombre) {
+      setUserName(activa.nombre);
+      const parts = activa.nombre.trim().split(/\s+/).filter(Boolean);
+      setUserInitials(
+        parts.length >= 2
+          ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+          : activa.nombre.slice(0, 2).toUpperCase() || "—"
+      );
+      return;
+    }
     if (user?.email) {
       const emailName = user.email.split("@")[0];
       setUserName(emailName);
@@ -144,7 +172,7 @@ export default function Topbar({ title, period = "Período actual", backLink, la
     try {
       const res = await sriClient.vincularSri(vincularRuc, vincularPassword);
       if (res.success) {
-        toast.success("Empresa vinculada correctamente");
+        toast.success("RUC vinculado a esta empresa");
         setVincularOpen(false);
         setVincularRuc("");
         setVincularPassword("");
@@ -153,10 +181,45 @@ export default function Topbar({ title, period = "Período actual", backLink, la
       } else {
         toast.error(res.error || "Error al vincular");
       }
-    } catch {
-      toast.error("Error de red al vincular");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error de red al vincular");
     } finally {
       setVinculando(false);
+    }
+  };
+
+  const handleCrearEmpresa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const nombre = nuevaEmpresaNombre.trim();
+    if (nombre.length < 2) {
+      toast.error("Indica el nombre de la empresa");
+      return;
+    }
+    if (!canAddEmpresa) {
+      toast.error(`Tu plan permite hasta ${maxEmpresas} empresa(s). Actualiza el plan.`);
+      return;
+    }
+    setCreando(true);
+    try {
+      await createEmpresa(nombre);
+      toast.success("Empresa creada. Vincula el RUC en Configuración.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo crear la empresa");
+      setCreando(false);
+    }
+  };
+
+  const handleSwitchEmpresa = async (tenantId: string) => {
+    if (tenantId === user?.tenantId) {
+      setUserDropdownOpen(false);
+      return;
+    }
+    setSwitchingId(tenantId);
+    try {
+      await switchEmpresa(tenantId);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo cambiar de empresa");
+      setSwitchingId(null);
     }
   };
 
@@ -332,63 +395,179 @@ export default function Topbar({ title, period = "Período actual", backLink, la
                   <div className="min-w-0">
                     <p className="text-[13px] font-bold text-brand-gray-900 truncate">{userName || user?.email || "Usuario"}</p>
                     <p className="text-[10.5px] text-brand-gray-500 truncate">{user?.email || ""}</p>
+                    {user?.planNombre ? (
+                      <p className="text-[10px] font-semibold text-brand-red mt-0.5">
+                        Plan {user.planNombre}
+                        {typeof user.maxEmpresas === "number"
+                          ? ` · hasta ${user.maxEmpresas} empresa${user.maxEmpresas === 1 ? "" : "s"}`
+                          : ""}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </div>
 
-              {/* Lista de RUCs */}
+              {/* Lista de empresas (tenants) */}
               <div className="py-1">
                 <div className="flex items-center justify-between px-4 py-1.5">
                   <span className="text-[9px] font-bold text-brand-gray-400 uppercase tracking-widest">
-                    Empresas / RUCs Vinculados
+                    Mis empresas
+                    <span className="font-normal text-brand-gray-400">
+                      {" "}
+                      ({empresas.length}/{maxEmpresas})
+                    </span>
                   </span>
                   <button
                     type="button"
-                    onClick={() => setVincularOpen(true)}
+                    onClick={() => {
+                      if (!canAddEmpresa) {
+                        toast.message("Cupo del plan agotado", {
+                          description: "Ve a Planes para ampliar el cupo de empresas.",
+                          action: {
+                            label: "Planes",
+                            onClick: () => {
+                              window.location.href = "/suscripcion";
+                            },
+                          },
+                        });
+                        return;
+                      }
+                      setCrearOpen(true);
+                      setVincularOpen(false);
+                    }}
                     className="flex items-center gap-1 text-[10px] font-bold text-brand-red hover:text-brand-red-bright transition-colors cursor-pointer active:scale-95"
                   >
                     <Plus className="w-3 h-3" strokeWidth={2.5} />
                     Añadir
                   </button>
                 </div>
-                {rucList.map((item) => (
-                  <button
-                    key={item.ruc}
-                    onClick={() => {
-                      setActiveRuc(item.ruc);
-                      setUserDropdownOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-4 py-2 text-left text-xs transition-colors cursor-pointer ${
-                      item.ruc === activeRuc ? "bg-brand-gray-100 font-semibold text-brand-gray-900" : "text-brand-gray-600 hover:bg-brand-gray-50 hover:text-brand-gray-900"
-                    }`}
-                  >
-                    <div className={`p-1 rounded-md ${item.ruc === activeRuc ? 'bg-brand-red text-white' : 'bg-brand-gray-100 text-brand-gray-500'}`}>
-                      <Building2 className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`truncate ${item.ruc === activeRuc ? 'text-brand-gray-900 font-bold' : ''}`}>{item.razonSocial}</p>
-                      <p className="text-[9.5px] text-brand-gray-400 font-mono">{item.ruc}</p>
-                    </div>
-                    {item.ruc === activeRuc && (
-                      <Check className="w-3.5 h-3.5 text-brand-red shrink-0" strokeWidth={2.5} />
-                    )}
-                  </button>
-                ))}
-                {rucList.length === 0 && (
+                {empresas.map((item) => {
+                  const isActive = item.id === user?.tenantId;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      disabled={!!switchingId}
+                      onClick={() => void handleSwitchEmpresa(item.id)}
+                      className={`w-full flex items-center gap-3 px-4 py-2 text-left text-xs transition-colors cursor-pointer disabled:opacity-60 ${
+                        isActive
+                          ? "bg-brand-gray-100 font-semibold text-brand-gray-900"
+                          : "text-brand-gray-600 hover:bg-brand-gray-50 hover:text-brand-gray-900"
+                      }`}
+                    >
+                      <div
+                        className={`p-1 rounded-md ${
+                          isActive
+                            ? "bg-brand-red text-white"
+                            : "bg-brand-gray-100 text-brand-gray-500"
+                        }`}
+                      >
+                        {switchingId === item.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Building2 className="w-3.5 h-3.5" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className={`truncate ${
+                            isActive ? "text-brand-gray-900 font-bold" : ""
+                          }`}
+                        >
+                          {item.nombre}
+                        </p>
+                        <p className="text-[9.5px] text-brand-gray-400 font-mono">
+                          {item.ruc || "Sin RUC — vincular SRI"}
+                        </p>
+                      </div>
+                      {isActive && (
+                        <Check
+                          className="w-3.5 h-3.5 text-brand-red shrink-0"
+                          strokeWidth={2.5}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+                {empresas.length === 0 && (
                   <div className="px-4 py-3 text-[11px] text-brand-gray-400 text-center">
-                    No hay empresas vinculadas
+                    No hay empresas en tu cuenta
                   </div>
                 )}
+                {!hasSriLinked && user?.tenantId ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVincularOpen(true);
+                      setCrearOpen(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-[11px] font-semibold text-brand-red hover:bg-brand-red-subtle transition-colors cursor-pointer"
+                  >
+                    Vincular RUC SRI a esta empresa…
+                  </button>
+                ) : null}
               </div>
 
-              {/* Formulario de vincular */}
+              {/* Formulario crear empresa */}
+              {crearOpen && (
+                <div className="border-t border-brand-gray-100 px-4 py-3 bg-brand-gray-50/40">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-brand-gray-900">
+                      Nueva empresa
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCrearOpen(false);
+                        setNuevaEmpresaNombre("");
+                      }}
+                      className="text-brand-gray-400 hover:text-brand-gray-700 transition-colors cursor-pointer"
+                      aria-label="Cerrar"
+                    >
+                      <X className="w-3.5 h-3.5" strokeWidth={2} />
+                    </button>
+                  </div>
+                  <form onSubmit={handleCrearEmpresa} className="flex flex-col gap-2">
+                    <input
+                      type="text"
+                      placeholder="Nombre comercial / razón social"
+                      aria-label="Nombre de la empresa"
+                      value={nuevaEmpresaNombre}
+                      onChange={(e) => setNuevaEmpresaNombre(e.target.value)}
+                      className="w-full h-8 px-2.5 text-xs rounded-lg border border-brand-gray-200 bg-white text-brand-gray-900 placeholder:text-brand-gray-400 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 transition-all"
+                      required
+                      minLength={2}
+                      maxLength={255}
+                    />
+                    <button
+                      type="submit"
+                      disabled={creando}
+                      className="w-full h-8 rounded-lg bg-brand-red text-white text-[11px] font-bold hover:bg-brand-red-bright disabled:opacity-50 transition-all duration-150 cursor-pointer flex items-center justify-center active:scale-[0.98] shadow-2xs"
+                    >
+                      {creando ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        "Crear y cambiar"
+                      )}
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {/* Formulario de vincular RUC a la empresa activa */}
               {vincularOpen && (
                 <div className="border-t border-brand-gray-100 px-4 py-3 bg-brand-gray-50/40">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold text-brand-gray-900">Vincular nueva empresa</span>
+                    <span className="text-[11px] font-bold text-brand-gray-900">
+                      Vincular RUC SRI
+                    </span>
                     <button
                       type="button"
-                      onClick={() => { setVincularOpen(false); setVincularRuc(""); setVincularPassword(""); }}
+                      onClick={() => {
+                        setVincularOpen(false);
+                        setVincularRuc("");
+                        setVincularPassword("");
+                      }}
                       className="text-brand-gray-400 hover:text-brand-gray-700 transition-colors cursor-pointer"
                       aria-label="Cerrar vinculación"
                     >
@@ -401,7 +580,9 @@ export default function Topbar({ title, period = "Período actual", backLink, la
                       placeholder="RUC"
                       aria-label="RUC de 13 dígitos"
                       value={vincularRuc}
-                      onChange={(e) => setVincularRuc(e.target.value.replace(/\D/g, "").slice(0, 13))}
+                      onChange={(e) =>
+                        setVincularRuc(e.target.value.replace(/\D/g, "").slice(0, 13))
+                      }
                       className="w-full h-8 px-2.5 text-xs rounded-lg border border-brand-gray-200 bg-white text-brand-gray-900 placeholder:text-brand-gray-400 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 transition-all"
                       required
                     />
@@ -415,7 +596,10 @@ export default function Topbar({ title, period = "Período actual", backLink, la
                         className="w-full h-8 px-2.5 pr-8 text-xs rounded-lg border border-brand-gray-200 bg-white text-brand-gray-900 placeholder:text-brand-gray-400 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 transition-all"
                         required
                       />
-                      <KeyRound className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray-400 pointer-events-none" strokeWidth={1.5} />
+                      <KeyRound
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray-400 pointer-events-none"
+                        strokeWidth={1.5}
+                      />
                     </div>
                     <button
                       type="submit"
@@ -445,8 +629,8 @@ export default function Topbar({ title, period = "Período actual", backLink, la
                 <button
                   type="button"
                   onClick={() => {
-                    localStorage.removeItem('sri_access_token');
-                    window.location.href = '/login';
+                    setUserDropdownOpen(false);
+                    logout();
                   }}
                   className="w-full flex items-center gap-3 px-4 py-2 text-xs font-medium text-brand-gray-700 hover:bg-brand-red-subtle hover:text-brand-red transition-colors cursor-pointer"
                 >

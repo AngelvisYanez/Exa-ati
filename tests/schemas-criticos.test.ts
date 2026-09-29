@@ -22,11 +22,14 @@ describe("schemas críticos", () => {
     expect(r.success).toBe(false);
   });
 
-  it("registerSchema exige confirmación coincidente", () => {
+  it("registerSchema exige confirmación coincidente y datos de empresa", () => {
     const bad = registerSchema.safeParse({
       email: "a@b.com",
       password: "123456",
       confirmPassword: "xxxxxx",
+      nombre: "Ana",
+      razonSocial: "Demo SA",
+      planCodigo: "emprendedor",
     });
     expect(bad.success).toBe(false);
 
@@ -35,6 +38,9 @@ describe("schemas críticos", () => {
       password: "123456",
       confirmPassword: "123456",
       nombre: "Ana",
+      razonSocial: "Demo SA",
+      planCodigo: "emprendedor",
+      periodo: "mensual",
     });
     expect(good.success).toBe(true);
   });
@@ -43,6 +49,36 @@ describe("schemas críticos", () => {
     const r = registerApiSchema.safeParse({
       email: "a@b.com",
       password: "123",
+      razonSocial: "Demo",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("registerApiSchema fuerza USER y rechaza ADMIN en registro público", () => {
+    const asAdmin = registerApiSchema.safeParse({
+      email: "a@b.com",
+      password: "123456",
+      rol: "ADMIN",
+      razonSocial: "Demo SA",
+    });
+    expect(asAdmin.success).toBe(false);
+
+    const asUser = registerApiSchema.safeParse({
+      email: "a@b.com",
+      password: "123456",
+      razonSocial: "Demo SA",
+      nombre: "Ana",
+    });
+    expect(asUser.success).toBe(true);
+    if (asUser.success) {
+      expect(asUser.data.rol).toBe("USER");
+    }
+  });
+
+  it("registerApiSchema exige razonSocial si no hay tenantId", () => {
+    const r = registerApiSchema.safeParse({
+      email: "a@b.com",
+      password: "123456",
     });
     expect(r.success).toBe(false);
   });

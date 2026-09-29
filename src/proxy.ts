@@ -1,7 +1,15 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/register", "/mobile"];
+/** Rutas públicas (marketing + auth + móvil QR). */
+const PUBLIC_PATHS = [
+  "/",
+  "/precios",
+  "/iniciar-sesion",
+  "/registro",
+  "/movil",
+];
+
 const TOKEN_COOKIE = "sri_access_token";
 
 /**
@@ -12,19 +20,30 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(TOKEN_COOKIE)?.value;
 
+  const isExactPublic = pathname === "/";
+  const isPublicPrefix = PUBLIC_PATHS.some(
+    (p) => p !== "/" && (pathname === p || pathname.startsWith(`${p}/`))
+  );
   const isPublic =
-    PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
-    pathname.startsWith("/api");
+    isExactPublic ||
+    isPublicPrefix ||
+    pathname.startsWith("/api") ||
+    pathname === "/precios";
 
   if (isPublic) {
-    if (token && (pathname === "/login" || pathname === "/register")) {
-      return NextResponse.redirect(new URL("/", request.url));
+    // Autenticado en login/registro → panel
+    if (
+      token &&
+      (pathname === "/iniciar-sesion" || pathname === "/registro")
+    ) {
+      return NextResponse.redirect(new URL("/panel", request.url));
     }
+    // Autenticado en landing/precios puede seguir viendo marketing
     return NextResponse.next();
   }
 
   if (!token) {
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/iniciar-sesion", request.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }

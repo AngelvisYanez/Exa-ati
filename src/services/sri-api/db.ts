@@ -138,7 +138,7 @@ export const db = {
     }
 
     let generatedId = null;
-    const isUuidTable = ['usuarios', 'tenants', 'emisores', 'comprobantes', 'tenant_settings', 'notificaciones'].includes(table);
+    const isUuidTable = ['usuarios', 'tenants', 'emisores', 'comprobantes', 'tenant_settings', 'notificaciones', 'pagos_suscripcion', 'cuentas'].includes(table);
     if (isUuidTable && !data.id) {
       generatedId = randomUUID();
       data.id = generatedId;

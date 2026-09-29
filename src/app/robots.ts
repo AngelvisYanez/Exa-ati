@@ -1,17 +1,29 @@
 import type { MetadataRoute } from "next";
+import { getSiteUrl } from "@/lib/marketing";
 
 /**
- * App is mostly authenticated — disallow indexing of private surfaces.
- * Public auth pages remain crawlable for brand discovery.
+ * Marketing indexable; app autenticada noindex.
  */
 export default function robots(): MetadataRoute.Robots {
+  const base = getSiteUrl();
   return {
     rules: [
       {
         userAgent: "*",
-        allow: ["/login", "/register"],
-        disallow: ["/", "/api/", "/documentos", "/configuracion", "/admin"],
+        allow: ["/", "/precios", "/iniciar-sesion", "/registro"],
+        disallow: [
+          "/panel",
+          "/api/",
+          "/documentos",
+          "/configuracion",
+          "/administracion",
+          "/suscripcion",
+          "/facturacion",
+          "/asistente",
+          "/movil",
+        ],
       },
     ],
+    sitemap: `${base}/sitemap.xml`,
   };
 }

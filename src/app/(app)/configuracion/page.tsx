@@ -171,7 +171,7 @@ function ConfiguracionContent() {
     if (code) {
       (async () => {
         try {
-          const res = await fetch("/api/sri/mobile-exchange", {
+          const res = await fetch("/api/sri/movil-exchange", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ code }),

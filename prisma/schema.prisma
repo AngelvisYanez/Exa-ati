@@ -10,18 +10,57 @@ datasource db {
 }
 
 // ─────────────────────────────────────────────
-// TENANTS (empresas/organizaciones)
+// CUENTAS (billing / suscripción) + TENANTS (empresa)
 // ─────────────────────────────────────────────
+model Cuenta {
+  id               String    @id @default(uuid()) @db.Uuid
+  nombre           String    @db.VarChar(255)
+  planCodigo       String    @default("emprendedor") @map("plan_codigo") @db.VarChar(30)
+  planPeriodo      String    @default("mensual") @map("plan_periodo") @db.VarChar(20)
+  planVigenteHasta DateTime? @map("plan_vigente_hasta")
+  /** activo | gracia | vencido | cancelado */
+  planEstado       String    @default("activo") @map("plan_estado") @db.VarChar(20)
+  planOrigen       String?   @default("manual") @map("plan_origen") @db.VarChar(30)
+  /** Flag UX: recordatorios de renovación; cobro sigue siendo PayPhone one-shot. */
+  renovacionAuto   Boolean   @default(false) @map("renovacion_auto")
+  ultimoPagoId     String?   @map("ultimo_pago_id") @db.Uuid
+  ownerUsuarioId   String?   @map("owner_usuario_id") @db.Uuid
+  activo           Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  plan             PlanSuscripcion @relation(fields: [planCodigo], references: [codigo], onDelete: Restrict, onUpdate: Cascade)
+  ultimoPago       PagoSuscripcion? @relation("CuentaUltimoPago", fields: [ultimoPagoId], references: [id], onDelete: SetNull)
+  tenants          Tenant[]
+  pagosSuscripcion PagoSuscripcion[] @relation("CuentaPagos")
+
+  @@index([ownerUsuarioId])
+  @@index([planCodigo])
+  @@index([planEstado])
+  @@index([planVigenteHasta])
+  @@map("cuentas")
+}
+
 model Tenant {
   id             String    @id @default(uuid()) @db.Uuid
   nombre         String    @db.VarChar(255)
   ruc            String?   @db.VarChar(20)
+  /** Cuenta de billing que agrupa esta empresa */
+  cuentaId       String?   @map("cuenta_id") @db.Uuid
+  /** @deprecated Preferir plan en Cuenta. Se mantiene como mirror. */
+  planCodigo     String    @default("emprendedor") @map("plan_codigo") @db.VarChar(30)
+  planPeriodo    String    @default("mensual") @map("plan_periodo") @db.VarChar(20)
+  planVigenteHasta DateTime? @map("plan_vigente_hasta")
+  planEstado     String    @default("activo") @map("plan_estado") @db.VarChar(20)
+  planOrigen     String?   @default("manual") @map("plan_origen") @db.VarChar(30)
   activo         Boolean   @default(true)
   lastSyncAt     DateTime? @map("last_sync_at")
   lastSyncResult String?   @map("last_sync_result") @db.Text
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
+  cuenta             Cuenta? @relation(fields: [cuentaId], references: [id], onDelete: SetNull)
+  miembros           TenantUsuario[]
   usuarios           Usuario[]
   emisores           Emisor[]
   comprobantes       Comprobante[]
@@ -49,8 +88,62 @@ model Tenant {
   asientos           Asiento[]
   inventarioMovimientos InventarioMovimiento[]
   notificaciones     Notificacion[]
+  pagosSuscripcion   PagoSuscripcion[]
 
+  @@index([cuentaId])
   @@map("tenants")
+}
+
+model TenantUsuario {
+  tenantId  String   @map("tenant_id") @db.Uuid
+  usuarioId String   @map("usuario_id") @db.Uuid
+  rol       String   @default("ADMIN") @db.VarChar(50)
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, usuarioId])
+  @@index([usuarioId])
+  @@map("tenant_usuarios")
+}
+
+// ─────────────────────────────────────────────
+// PLANES DE SUSCRIPCIÓN
+// ─────────────────────────────────────────────
+model PlanSuscripcion {
+  codigo        String   @id @db.VarChar(30)
+  nombre        String   @db.VarChar(100)
+  descripcion   String?  @db.Text
+  maxEmpresas   Int      @default(1) @map("max_empresas")
+  precioMensual Decimal  @default(0) @map("precio_mensual") @db.Decimal(12, 2)
+  precioAnual   Decimal? @map("precio_anual") @db.Decimal(12, 2)
+  moneda        String   @default("USD") @db.VarChar(3)
+  orden         Int      @default(0)
+  activo        Boolean  @default(true)
+  esSistema     Boolean  @default(false) @map("es_sistema")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  modulos PlanModulo[]
+  cuentas Cuenta[]
+  pagos   PagoSuscripcion[]
+
+  @@map("planes_suscripcion")
+}
+
+model PlanModulo {
+  planCodigo   String @map("plan_codigo") @db.VarChar(30)
+  moduloCodigo String @map("modulo_codigo") @db.VarChar(50)
+
+  plan   PlanSuscripcion @relation(fields: [planCodigo], references: [codigo], onDelete: Cascade)
+  modulo Modulo          @relation(fields: [moduloCodigo], references: [codigo], onDelete: Cascade)
+
+  @@id([planCodigo, moduloCodigo])
+  @@index([moduloCodigo])
+  @@map("plan_modulos")
 }
 
 // ─────────────────────────────────────────────
@@ -79,8 +172,44 @@ model Modulo {
   activo Boolean @default(true)
 
   roles RolModulo[]
+  planes PlanModulo[]
 
   @@map("modulos")
+}
+
+model PagoSuscripcion {
+  id                   String    @id @default(uuid()) @db.Uuid
+  tenantId             String    @map("tenant_id") @db.Uuid
+  cuentaId             String?   @map("cuenta_id") @db.Uuid
+  usuarioId            String?   @map("usuario_id") @db.Uuid
+  planCodigo           String    @map("plan_codigo") @db.VarChar(30)
+  periodo              String    @default("mensual") @db.VarChar(20)
+  montoCentavos        Int       @map("monto_centavos")
+  moneda               String    @default("USD") @db.VarChar(3)
+  /** pendiente | preparado | aprobado | cancelado | fallido | expirado */
+  estado               String    @default("pendiente") @db.VarChar(30)
+  clientTransactionId  String    @unique @map("client_transaction_id") @db.VarChar(64)
+  payphonePaymentId    BigInt?   @map("payphone_payment_id")
+  payphoneTxId         BigInt?   @map("payphone_tx_id")
+  authorizationCode    String?   @map("authorization_code") @db.VarChar(64)
+  payWithCardUrl       String?   @map("pay_with_card_url") @db.Text
+  payWithPayphoneUrl   String?   @map("pay_with_payphone_url") @db.Text
+  reference            String?   @db.VarChar(255)
+  rawPrepare           Json?     @map("raw_prepare")
+  rawConfirm           Json?     @map("raw_confirm")
+  confirmedAt          DateTime? @map("confirmed_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cuenta Cuenta?          @relation("CuentaPagos", fields: [cuentaId], references: [id], onDelete: SetNull)
+  plan   PlanSuscripcion  @relation(fields: [planCodigo], references: [codigo], onDelete: Restrict, onUpdate: Cascade)
+  cuentaUltimoPago Cuenta[] @relation("CuentaUltimoPago")
+
+  @@index([tenantId, createdAt])
+  @@index([cuentaId, estado])
+  @@index([estado])
+  @@map("pagos_suscripcion")
 }
 
 model RolModulo {
@@ -111,6 +240,7 @@ model Usuario {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   tenant Tenant? @relation(fields: [tenantId], references: [id])
+  membresias TenantUsuario[]
 
   @@index([tenantId])
   @@index([tenantId, activo])
@@ -1067,4 +1197,24 @@ model Notificacion {
   @@index([tenantId, unread])
   @@index([tenantId, eventAt])
   @@map("notificaciones")
+}
+
+// ─────────────────────────────────────────────
+// LEADS MARKETING
+// ─────────────────────────────────────────────
+model LeadMarketing {
+  id        String   @id @default(uuid()) @db.Uuid
+  nombre    String   @db.VarChar(120)
+  email     String   @db.VarChar(255)
+  telefono  String   @db.VarChar(20)
+  ciudad    String   @db.VarChar(80)
+  perfil    String   @db.VarChar(30)
+  mensaje   String?  @db.Text
+  fuente    String   @default("homepage") @db.VarChar(80)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([email])
+  @@index([ciudad])
+  @@map("leads_marketing")
 }
