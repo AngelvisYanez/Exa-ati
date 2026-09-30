@@ -40,6 +40,7 @@ vi.mock("@/services/billing/payphone", async () => {
     ...actual,
     getPayphoneConfig: vi.fn(),
     preparePayphonePayment: vi.fn(),
+    createPayphonePaymentLink: vi.fn(),
     confirmPayphonePayment: vi.fn(),
   };
 });
@@ -47,12 +48,13 @@ vi.mock("@/services/billing/payphone", async () => {
 import { db } from "@/services/sri-api/db";
 import {
   getPayphoneConfig,
-  preparePayphonePayment,
+  createPayphonePaymentLink,
   confirmPayphonePayment,
 } from "@/services/billing/payphone";
 import {
   startSubscriptionCheckout,
   confirmSubscriptionPayment,
+  applyPayphoneLinkNotification,
 } from "@/services/billing/subscription-checkout";
 
 describe("subscription-checkout flows", () => {
@@ -61,7 +63,7 @@ describe("subscription-checkout flows", () => {
     vi.mocked(db.queryOne).mockReset();
     vi.mocked(db.insert).mockReset();
     vi.mocked(getPayphoneConfig).mockReset();
-    vi.mocked(preparePayphonePayment).mockReset();
+    vi.mocked(createPayphonePaymentLink).mockReset();
     vi.mocked(confirmPayphonePayment).mockReset();
     vi.mocked(db.query).mockResolvedValue({ rows: [], rowCount: 0 } as never);
     vi.mocked(db.queryOne).mockResolvedValue(null);
@@ -81,7 +83,7 @@ describe("subscription-checkout flows", () => {
     ).rejects.toThrow(/PayPhone no configurado/i);
   });
 
-  it("startSubscriptionCheckout prepara pago y retorna URLs", async () => {
+  it("startSubscriptionCheckout crea Payment Link y retorna URL", async () => {
     vi.mocked(getPayphoneConfig).mockReturnValue({
       token: "tok",
       storeId: "store",
@@ -90,11 +92,10 @@ describe("subscription-checkout flows", () => {
       ivaPercent: 0,
     });
     vi.mocked(db.queryOne).mockResolvedValue({ cuenta_id: "c1" } as never);
-    vi.mocked(preparePayphonePayment).mockResolvedValue({
-      paymentId: 99,
-      payWithCard: "https://pay.example/card",
-      payWithPayPhone: "https://pay.example/app",
-      raw: { ok: true },
+    vi.mocked(createPayphonePaymentLink).mockResolvedValue({
+      paymentUrl: "https://pay.example/link/abc",
+      clientTransactionId: "subabc123",
+      raw: "https://pay.example/link/abc",
     });
 
     const result = await startSubscriptionCheckout({
@@ -107,9 +108,41 @@ describe("subscription-checkout flows", () => {
 
     expect(result.pagoId).toBe("pago-1");
     expect(result.amountCents).toBe(4900);
-    expect(result.payWithCard).toContain("card");
+    expect(result.paymentUrl).toContain("link");
+    expect(result.payWithCard).toBe(result.paymentUrl);
     expect(vi.mocked(db.insert).mock.calls[0][0]).toBe("pagos_suscripcion");
-    expect(vi.mocked(preparePayphonePayment)).toHaveBeenCalled();
+    expect(vi.mocked(createPayphonePaymentLink)).toHaveBeenCalled();
+  });
+
+  it("applyPayphoneLinkNotification activa con Succeeded", async () => {
+    vi.mocked(db.queryOne).mockImplementation(async (sql: string) => {
+      const s = String(sql);
+      if (s.includes("FROM pagos_suscripcion")) {
+        return {
+          id: "pago-1",
+          tenant_id: "t1",
+          cuenta_id: "c1",
+          plan_codigo: "contador",
+          periodo: "mensual",
+          estado: "preparado",
+          monto_centavos: 4900,
+        } as never;
+      }
+      if (s.includes("plan_vigente_hasta")) {
+        return { plan_vigente_hasta: null } as never;
+      }
+      return null;
+    });
+
+    const result = await applyPayphoneLinkNotification({
+      clientTransactionId: "subabc123",
+      transactionStatus: "Succeeded",
+      transactionId: 99,
+      amount: 4900,
+    });
+
+    expect(result.estado).toBe("aprobado");
+    expect(result.planCodigo).toBe("contador");
   });
 
   it("confirmSubscriptionPayment idempotente si ya aprobado", async () => {

@@ -37,7 +37,14 @@ describe("payphone amounts", () => {
     const a = createClientTransactionId();
     const b = createClientTransactionId();
     expect(a).not.toBe(b);
-    expect(a.length).toBeLessThanOrEqual(30);
+    expect(a.length).toBeLessThanOrEqual(15);
+  });
+
+  it("isPayphoneLinkApproved acepta Succeeded/Aprobado", async () => {
+    const { isPayphoneLinkApproved } = await import("@/services/billing/payphone");
+    expect(isPayphoneLinkApproved("Succeeded")).toBe(true);
+    expect(isPayphoneLinkApproved("Aprobado")).toBe(true);
+    expect(isPayphoneLinkApproved("Canceled")).toBe(false);
   });
 
   it("addPeriodo mensual y anual", () => {

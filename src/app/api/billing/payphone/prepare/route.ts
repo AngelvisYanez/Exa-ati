@@ -48,6 +48,7 @@ export async function POST(req: Request) {
       data: {
         pagoId: checkout.pagoId,
         clientTransactionId: checkout.clientTransactionId,
+        paymentUrl: checkout.paymentUrl,
         payWithCard: checkout.payWithCard,
         payWithPayPhone: checkout.payWithPayPhone,
         amount: fromCentavos(checkout.amountCents),

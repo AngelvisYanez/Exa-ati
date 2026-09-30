@@ -1,9 +1,14 @@
 /**
- * Cliente PayPhone — Botón de Pago (Prepare + Confirm).
- * Docs: https://docs.payphone.app/boton-de-pago
+ * Cliente PayPhone — Payment Links (flujo activo, portado de exacontable)
+ * + Botón de Pago Prepare/Confirm (legado / fallback).
  *
- * Montos en centavos enteros. Confirm obligatorio en < 5 min o PayPhone revierte.
+ * Links: https://docs.payphone.app (POST /api/Links)
+ * Botón: https://docs.payphone.app/boton-de-pago
+ *
+ * Montos en centavos enteros.
  */
+
+import https from "node:https";
 
 export type PayphonePeriodo = "mensual" | "anual";
 
@@ -15,6 +20,12 @@ export interface PayphoneConfig {
   /** Si > 0, cobra IVA sobre el precio (amountWithTax + tax). Default 0 = sin IVA. */
   ivaPercent: number;
 }
+
+/** Agent HTTP/1.1 — PayPhone a veces falla con HTTP/2 en Node (exacontable). */
+const payphoneH1Agent = new https.Agent({
+  ALPNProtocols: ["http/1.1"],
+  servername: "pay.payphonetodoesposible.com",
+});
 
 export function getPayphoneConfig(): PayphoneConfig | null {
   const token = process.env.PAYPHONE_TOKEN?.trim();
@@ -84,11 +95,17 @@ export function buildAmountBreakdown(
   };
 }
 
-/** ID único ≤ 30 chars (límite práctico PayPhone). */
-export function createClientTransactionId(prefix = "sub"): string {
+/**
+ * ID único para PayPhone.
+ * Payment Links en exacontable usa ≤ 15 chars; Botón acepta ~30.
+ */
+export function createClientTransactionId(
+  prefix = "sub",
+  maxLen = 15
+): string {
   const t = Date.now().toString(36);
   const r = Math.random().toString(36).slice(2, 8);
-  return `${prefix}-${t}-${r}`.slice(0, 30);
+  return `${prefix}${t}${r}`.replace(/[^a-zA-Z0-9]/g, "").slice(0, maxLen);
 }
 
 export interface PreparePaymentInput {
@@ -122,34 +139,145 @@ export interface ConfirmPaymentResult {
   raw: unknown;
 }
 
+/** POST JSON a PayPhone forzando HTTP/1.1 (mismo workaround que exacontable). */
+function payphoneHttpsPost(
+  url: string,
+  headers: Record<string, string>,
+  body: string
+): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = https.request(
+      {
+        protocol: u.protocol,
+        hostname: u.hostname,
+        port: u.port || 443,
+        path: `${u.pathname}${u.search}`,
+        method: "POST",
+        headers,
+        agent: payphoneH1Agent,
+        servername: u.hostname,
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => {
+          data += chunk;
+        });
+        res.on("end", () =>
+          resolve({ status: res.statusCode || 500, text: data })
+        );
+      }
+    );
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
+
 async function payphoneFetch(
   config: PayphoneConfig,
   path: string,
   body: unknown
 ): Promise<unknown> {
-  const res = await fetch(`${config.apiBase}${path}`, {
-    method: "POST",
-    headers: {
+  const payload = JSON.stringify(body);
+  const { status, text } = await payphoneHttpsPost(
+    `${config.apiBase}${path}`,
+    {
       Authorization: `Bearer ${config.token}`,
       "Content-Type": "application/json",
+      "Content-Length": String(Buffer.byteLength(payload)),
     },
-    body: JSON.stringify(body),
-  });
-  const text = await res.text();
+    payload
+  );
   let data: unknown = null;
   try {
     data = text ? JSON.parse(text) : null;
   } catch {
     data = { raw: text };
   }
-  if (!res.ok) {
+  if (status < 200 || status >= 300) {
     const msg =
       typeof data === "object" && data && "message" in data
         ? String((data as { message: unknown }).message)
-        : `PayPhone HTTP ${res.status}`;
+        : typeof data === "string"
+          ? data
+          : `PayPhone HTTP ${status}`;
     throw new Error(msg);
   }
   return data;
+}
+
+export interface CreatePaymentLinkInput {
+  clientTransactionId: string;
+  amountCents: number;
+  /** Si se omite, se usa amountCents (sin IVA desglosado, como exacontable). */
+  amountWithoutTax?: number;
+  reference: string;
+  oneTime?: boolean;
+}
+
+export interface CreatePaymentLinkResult {
+  paymentUrl: string;
+  clientTransactionId: string;
+  raw: unknown;
+}
+
+/**
+ * Crea un Payment Link (API /api/Links) — flujo activo de exacontable.
+ * La respuesta suele ser un string URL (a veces JSON-encoded).
+ */
+export async function createPayphonePaymentLink(
+  input: CreatePaymentLinkInput
+): Promise<CreatePaymentLinkResult> {
+  const config = getPayphoneConfig();
+  if (!config) {
+    throw new Error(
+      "PayPhone no está configurado. Define PAYPHONE_TOKEN y PAYPHONE_STORE_ID."
+    );
+  }
+
+  const clientTransactionId = input.clientTransactionId.slice(0, 15);
+  const amountWithoutTax = input.amountWithoutTax ?? input.amountCents;
+  const payload = {
+    amount: input.amountCents,
+    amountWithoutTax,
+    clientTransactionId,
+    currency: "USD",
+    storeId: config.storeId,
+    reference: input.reference.slice(0, 200),
+    oneTime: input.oneTime !== false,
+  };
+
+  const raw = await payphoneFetch(config, "/api/Links", payload);
+
+  let paymentUrl: string;
+  if (typeof raw === "string") {
+    paymentUrl = raw.replace(/^"|"$/g, "").trim();
+  } else if (raw && typeof raw === "object" && "paymentUrl" in raw) {
+    paymentUrl = String((raw as { paymentUrl: unknown }).paymentUrl);
+  } else {
+    paymentUrl = String(raw ?? "").replace(/^"|"$/g, "").trim();
+  }
+
+  if (!paymentUrl || !/^https?:\/\//i.test(paymentUrl)) {
+    throw new Error(
+      "PayPhone Links no devolvió una URL de pago válida. Revisa StoreId y Token."
+    );
+  }
+
+  return { paymentUrl, clientTransactionId, raw };
+}
+
+/** Estados de webhook Links / notify (exacontable). */
+export function isPayphoneLinkApproved(status: string | null | undefined): boolean {
+  const s = String(status || "").trim().toLowerCase();
+  return (
+    s === "succeeded" ||
+    s === "aprobado" ||
+    s === "approved" ||
+    s === "paid" ||
+    s === "3"
+  );
 }
 
 export async function preparePayphonePayment(

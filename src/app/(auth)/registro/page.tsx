@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/contexts/AuthContext";
@@ -77,6 +77,7 @@ const STEPS = [
 
 function RegisterWizard() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { login, refreshUserModules } = useAuth();
 
   const [step, setStep] = useState<Step>(1);
@@ -91,14 +92,15 @@ function RegisterWizard() {
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [paying, setPaying] = useState<"card" | "payphone" | null>(null);
+  const [paying, setPaying] = useState(false);
+  const [waitingPayment, setWaitingPayment] = useState(false);
   const [checkout, setCheckout] = useState<{
-    payWithCard: string;
-    payWithPayPhone: string;
+    paymentUrl: string;
     pagoId: string;
     amount: number;
   } | null>(null);
   const [creating, setCreating] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const {
     register,
@@ -198,13 +200,15 @@ function RegisterWizard() {
       if (!res.ok) throw new Error(data.message || "Error al preparar el pago");
 
       setCheckout({
-        payWithCard: data.data.payWithCard,
-        payWithPayPhone: data.data.payWithPayPhone,
+        paymentUrl:
+          data.data.paymentUrl ||
+          data.data.payWithCard ||
+          data.data.payWithPayPhone,
         pagoId: data.data.pagoId,
         amount: data.data.amount,
       });
       setStep(3);
-      toast.success("Cuenta creada. Elige cómo pagar.");
+      toast.success("Cuenta creada. Completa el pago con PayPhone.");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error al registrarse";
       setError(msg);
@@ -214,15 +218,58 @@ function RegisterWizard() {
     }
   };
 
-  const startPay = (kind: "card" | "payphone") => {
-    if (!checkout) return;
-    const url = kind === "card" ? checkout.payWithCard : checkout.payWithPayPhone;
-    if (!url) {
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => stopPolling(), [stopPolling]);
+
+  const pollPagoStatus = useCallback(async () => {
+    if (!checkout?.pagoId) return;
+    try {
+      const res = await apiFetch(
+        `/api/billing/payphone/status?pagoId=${encodeURIComponent(checkout.pagoId)}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const estado = data.data?.estado as string | undefined;
+      if (estado === "aprobado") {
+        stopPolling();
+        setWaitingPayment(false);
+        setPaying(false);
+        toast.success("Pago aprobado");
+        router.push(
+          `/registro/gracias?status=aprobado&plan=${encodeURIComponent(data.data.planCodigo || "")}&periodo=${encodeURIComponent(data.data.periodo || "")}&pagoId=${encodeURIComponent(checkout.pagoId)}`
+        );
+      } else if (estado === "cancelado" || estado === "fallido") {
+        stopPolling();
+        setWaitingPayment(false);
+        setPaying(false);
+        toast.error(
+          estado === "cancelado" ? "Pago cancelado" : "Pago fallido"
+        );
+      }
+    } catch {
+      /* reintento */
+    }
+  }, [checkout?.pagoId, router, stopPolling]);
+
+  const startPay = () => {
+    if (!checkout?.paymentUrl) {
       toast.error("URL de pago no disponible");
       return;
     }
-    setPaying(kind);
-    window.location.href = url;
+    setPaying(true);
+    setWaitingPayment(true);
+    window.open(checkout.paymentUrl, "_blank", "noopener,noreferrer");
+    stopPolling();
+    pollRef.current = setInterval(() => {
+      void pollPagoStatus();
+    }, 3000);
+    toast.message("Completa el pago en la pestaña de PayPhone");
   };
 
   return (
@@ -667,43 +714,50 @@ function RegisterWizard() {
                 </Link>{" "}
                 cuando PayPhone esté configurado.
               </div>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  disabled={paying !== null}
-                  onClick={() => startPay("card")}
-                  className="flex flex-col items-start gap-2 rounded-xl border border-brand-gray-200 p-4 min-h-[6.5rem] hover:border-brand-red active:bg-brand-gray-50 cursor-pointer disabled:opacity-50 text-left touch-manipulation transition-colors duration-200"
-                >
-                  <CreditCard className="size-5 text-brand-red" />
-                  <span className="text-sm font-bold text-brand-gray-900">Tarjeta</span>
-                  <span className="text-xs text-brand-gray-500 leading-snug">
-                    Visa, Mastercard y más vía PayPhone
-                  </span>
-                  {paying === "card" ? (
-                    <Loader2 className="size-4 animate-spin text-brand-gray-400" />
-                  ) : null}
-                </button>
-                <button
-                  type="button"
-                  disabled={paying !== null}
-                  onClick={() => startPay("payphone")}
-                  className="flex flex-col items-start gap-2 rounded-xl border border-brand-gray-200 p-4 min-h-[6.5rem] hover:border-brand-red active:bg-brand-gray-50 cursor-pointer disabled:opacity-50 text-left touch-manipulation transition-colors duration-200"
-                >
-                  <Phone className="size-5 text-brand-red" />
-                  <span className="text-sm font-bold text-brand-gray-900">Saldo PayPhone</span>
-                  <span className="text-xs text-brand-gray-500 leading-snug">
-                    Paga con tu billetera PayPhone
-                  </span>
-                  {paying === "payphone" ? (
-                    <Loader2 className="size-4 animate-spin text-brand-gray-400" />
-                  ) : null}
-                </button>
+            ) : waitingPayment ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-center space-y-3">
+                <Loader2 className="size-8 animate-spin text-amber-600 mx-auto" />
+                <p className="text-sm font-bold text-brand-gray-900">
+                  Esperando tu pago…
+                </p>
+                <p className="text-xs text-brand-gray-600 leading-snug">
+                  Completa el cobro en PayPhone. Esta pantalla se actualizará sola
+                  cuando el pago sea aprobado.
+                </p>
+                {checkout.paymentUrl ? (
+                  <a
+                    href={checkout.paymentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex text-xs font-bold text-brand-red underline underline-offset-2"
+                  >
+                    Reabrir página de pago
+                  </a>
+                ) : null}
               </div>
+            ) : (
+              <button
+                type="button"
+                disabled={paying}
+                onClick={startPay}
+                className="flex flex-col items-start gap-2 rounded-xl border border-brand-gray-200 p-4 min-h-[6.5rem] hover:border-brand-red active:bg-brand-gray-50 cursor-pointer disabled:opacity-50 text-left touch-manipulation transition-colors duration-200 w-full"
+              >
+                <CreditCard className="size-5 text-brand-red" />
+                <span className="text-sm font-bold text-brand-gray-900">
+                  Pagar con PayPhone
+                </span>
+                <span className="text-xs text-brand-gray-500 leading-snug">
+                  Tarjeta o saldo PayPhone en un enlace seguro
+                </span>
+                {paying ? (
+                  <Loader2 className="size-4 animate-spin text-brand-gray-400" />
+                ) : null}
+              </button>
             )}
 
             <p className="text-xs text-brand-gray-400 text-center leading-relaxed px-2">
-              Tras el cobro verás la página de gracias con tu número de orden.
+              Se abrirá PayPhone en una pestaña nueva. Al aprobar el cobro verás la
+              página de gracias.
             </p>
           </div>
         ) : null}
