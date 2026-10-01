@@ -10,10 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { apiFetch } from "@/lib/apiFetch";
 import { toast } from "sonner";
 import {
-  Plus, Search, X, Check, Wallet, Clock, AlertTriangle, HandCoins,
+  Plus, X, Check, Wallet, Clock, AlertTriangle, HandCoins,
   Banknote, Trash2, Eye
 } from "lucide-react";
 
@@ -101,6 +104,7 @@ export default function CuentasModule({ tipo }: Props) {
   const [loading, setLoading] = useState(true);
   const [estado, setEstado] = useState("TODOS");
   const [termino, setTermino] = useState("");
+  const [view, setView] = useViewMode(`cuentas-${tipo}`);
   const [resumen, setResumen] = useState<any>(null);
   const [aging, setAging] = useState<{ buckets: { key: string; label: string; monto: number; cuentas: number }[]; total: number } | null>(null);
 
@@ -369,25 +373,25 @@ export default function CuentasModule({ tipo }: Props) {
     <main className="ui-page flex-1">
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray-400" />
-          <Input
-            size={1}
-            value={termino}
-            onChange={(e) => setTermino(e.target.value)}
+        <div className="min-w-0 flex-1">
+          <ListToolbar
+            search={termino}
+            onSearchChange={setTermino}
             placeholder={`Buscar por ${labelContraparte(tipo).toLowerCase()} (RUC/Cédula)...`}
-            className="h-8 text-xs pl-8"
-          />
+            view={view}
+            onViewChange={setView}
+          >
+            <select
+              value={estado}
+              onChange={(e) => setEstado(e.target.value)}
+              className="h-8 text-xs rounded-lg border border-input bg-transparent px-2.5"
+            >
+              {ESTADOS.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </ListToolbar>
         </div>
-        <select
-          value={estado}
-          onChange={(e) => setEstado(e.target.value)}
-          className="h-8 text-xs rounded-lg border border-input bg-transparent px-2.5"
-        >
-          {ESTADOS.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
         <Button variant="outline" size="sm" onClick={loadRows}>
           Actualizar
         </Button>
@@ -431,6 +435,17 @@ export default function CuentasModule({ tipo }: Props) {
 
       {/* Table */}
       <Card className="p-0 overflow-hidden">
+        {loading ? (
+          <div className="p-6"><TableSkeleton rows={4} columns={6} /></div>
+        ) : rows.length === 0 ? (
+          <div className="p-6">
+            <EmptyState
+              icon={<Wallet className="w-5 h-5" />}
+              title={`No hay cuentas por ${sustantivo(tipo).toLowerCase()}`}
+              description={`Registra una cuenta o emite una factura a crédito para generar cuentas por ${sustantivo(tipo).toLowerCase()} automáticamente.`}
+            />
+          </div>
+        ) : view === "lista" ? (
         <div className="overflow-x-auto">
           <Table className="w-full text-xs">
             <TableHeader>
@@ -446,19 +461,7 @@ export default function CuentasModule({ tipo }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={8} className="p-6"><TableSkeleton rows={4} columns={6} /></TableCell></TableRow>
-              ) : rows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="p-6">
-                    <EmptyState
-                      icon={<Wallet className="w-5 h-5" />}
-                      title={`No hay cuentas por ${sustantivo(tipo).toLowerCase()}`}
-                      description={`Registra una cuenta o emite una factura a crédito para generar cuentas por ${sustantivo(tipo).toLowerCase()} automáticamente.`}
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : rows.map((r) => {
+              {rows.map((r) => {
                 const contraparte = tipo === "COBRAR" ? r.cliente_nombre : r.proveedor_nombre;
                 const identificacion = tipo === "COBRAR" ? r.cliente_identificacion : r.proveedor_identificacion;
                 return (
@@ -514,6 +517,47 @@ export default function CuentasModule({ tipo }: Props) {
             </TableBody>
           </Table>
         </div>
+        ) : (
+          <div className="p-3">
+            <RecordGrid>
+              {rows.map((r) => {
+                const contraparte = tipo === "COBRAR" ? r.cliente_nombre : r.proveedor_nombre;
+                const identificacion = tipo === "COBRAR" ? r.cliente_identificacion : r.proveedor_identificacion;
+                return (
+                  <RecordCard
+                    key={r.id}
+                    title={contraparte || "—"}
+                    subtitle={`${r.numero_documento || "—"} · ${identificacion || "—"}`}
+                    fields={[
+                      { label: "Emisión", value: fmtFecha(r.fecha_emision) },
+                      { label: "Vencimiento", value: fmtFecha(r.fecha_vencimiento) },
+                      { label: "Monto", value: `$${num(r.monto_original).toFixed(2)}` },
+                      { label: "Saldo", value: `$${num(r.saldo_pendiente).toFixed(2)}` },
+                    ]}
+                    actions={
+                      <div className="flex items-center gap-1">
+                        {r.estado !== "PAGADO" && r.estado !== "ANULADO" && (
+                          <Button variant="ghost" size="xs" title="Registrar pago" onClick={() => {
+                            setPagoCuenta(r);
+                            setPagoForm({ fecha: new Date().toISOString().split("T")[0], monto: num(r.saldo_pendiente).toFixed(2), metodoPago: "EFECTIVO", referencia: "", notas: "" });
+                          }}>
+                            <HandCoins className="w-3.5 h-3.5 text-success" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="xs" title="Ver pagos" onClick={() => verPagos(r)}>
+                          <Eye className="w-3.5 h-3.5 text-brand-gray-500" />
+                        </Button>
+                        <Button variant="ghost" size="xs" title="Eliminar / Anular" onClick={() => eliminar(r)}>
+                          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                        </Button>
+                      </div>
+                    }
+                  />
+                );
+              })}
+            </RecordGrid>
+          </div>
+        )}
         {!loading && (
           <div className="px-4 py-2 border-t border-brand-gray-100 flex justify-between text-xs text-brand-gray-500">
             <span>{total} cuenta(s)</span>

@@ -7,6 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Search, Download, Trash2, FileText, Upload } from "lucide-react";
 
@@ -36,6 +39,8 @@ export default function DocumentosPage() {
   const [items, setItems] = useState<Documento[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState("");
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("ct-documentos");
   const [showUpload, setShowUpload] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -108,6 +113,30 @@ export default function DocumentosPage() {
     }
   };
 
+  const q = search.trim().toLowerCase();
+  const visibles = q
+    ? items.filter((doc) =>
+        `${doc.nombre} ${doc.tipo} ${doc.modulo} ${doc.periodo}`.toLowerCase().includes(q)
+      )
+    : items;
+
+  const accionesDoc = (doc: Documento) => (
+    <>
+      <Button variant="ghost" size="icon" className="w-7 h-7" title="Descargar">
+        <Download className="w-3.5 h-3.5" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="w-7 h-7 text-red-500"
+        title="Eliminar"
+        onClick={() => handleDelete(doc.id, doc.nombre)}
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </Button>
+    </>
+  );
+
   return (
     <>
       <title>Documentos Fiscales - Control Tributario</title>
@@ -170,6 +199,14 @@ export default function DocumentosPage() {
           </Card>
         )}
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar por nombre, tipo o módulo..."
+          view={view}
+          onViewChange={setView}
+        />
+
         {loading ? (
           <p className="text-sm text-brand-gray-400">Cargando...</p>
         ) : items.length === 0 ? (
@@ -182,9 +219,11 @@ export default function DocumentosPage() {
               />
             </CardContent>
           </Card>
-        ) : (
+        ) : visibles.length === 0 ? (
+          <p className="text-sm text-brand-gray-400">Ningún resultado para la búsqueda.</p>
+        ) : view === "cuadricula" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {items.map((doc) => (
+            {visibles.map((doc) => (
               <Card key={doc.id} className="border-brand-gray-200">
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
@@ -207,23 +246,45 @@ export default function DocumentosPage() {
                   <p className="text-[10px] text-brand-gray-400 mb-2">
                     {new Date(doc.createdAt).toLocaleDateString()}
                   </p>
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" className="w-7 h-7" title="Descargar">
-                      <Download className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="w-7 h-7 text-red-500"
-                      title="Eliminar"
-                      onClick={() => handleDelete(doc.id, doc.nombre)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
+                  <div className="flex justify-end gap-1">{accionesDoc(doc)}</div>
                 </CardContent>
               </Card>
             ))}
+          </div>
+        ) : (
+          <div className="overflow-x-auto bg-white border border-brand-gray-200 rounded-xl">
+            <Table className="w-full text-sm">
+              <TableHeader>
+                <TableRow className="border-b text-left text-brand-gray-500 text-xs uppercase tracking-wider">
+                  <TableHead className="py-2 px-3">Nombre</TableHead>
+                  <TableHead className="py-2 px-3">Periodo</TableHead>
+                  <TableHead className="py-2 px-3">Tipo</TableHead>
+                  <TableHead className="py-2 px-3">Módulo</TableHead>
+                  <TableHead className="py-2 px-3">Fecha</TableHead>
+                  <TableHead className="py-2 px-3 text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibles.map((doc) => (
+                  <TableRow key={doc.id} className="border-b hover:bg-gray-50">
+                    <TableCell className="py-2 px-3 font-medium">{doc.nombre}</TableCell>
+                    <TableCell className="py-2 px-3">{doc.periodo}</TableCell>
+                    <TableCell className="py-2 px-3">
+                      <Badge className={`text-[10px] ${tipoColors[doc.tipo] || "bg-gray-100 text-gray-800"}`}>
+                        {doc.tipo}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-2 px-3 text-xs text-brand-gray-500">{doc.modulo}</TableCell>
+                    <TableCell className="py-2 px-3 text-xs text-brand-gray-500">
+                      {new Date(doc.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="py-2 px-3">
+                      <div className="flex justify-end gap-1">{accionesDoc(doc)}</div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
       </main>

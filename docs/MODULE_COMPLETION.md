@@ -5,6 +5,8 @@ Verificación por oleada: `npx tsc --noEmit` · `npm test` · `npm run smoke:api
 
 ## Estado
 
+Relación entre módulos y flujo de datos: [MODULE_GRAPH.md](MODULE_GRAPH.md).
+
 | # | Módulo | Wave | Estado |
 |---|--------|------|--------|
 | 1 | Configuración / emisor / certificado | 1 | done |

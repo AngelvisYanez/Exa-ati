@@ -11,8 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import {
-  Package, Plus, Pencil, Trash2, Search, X, Check,
+  Package, Plus, Pencil, Trash2, X, Check,
   PackageOpen, AlertTriangle, History, ArrowDown, ArrowUp, Settings2
 } from "lucide-react";
 import { toast } from "sonner";
@@ -65,6 +68,7 @@ export default function InventarioPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
   const [termino, setTermino] = useState('');
+  const [view, setView] = useViewMode("inventario");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductoForm>(emptyForm());
@@ -263,15 +267,14 @@ export default function InventarioPage() {
       <Topbar title="Inventario de Productos" />
       <main className="ui-page flex-1">
         {/* Search + Add */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray-400" />
-            <Input
-              size={1}
-              value={termino}
-              onChange={e => setTermino(e.target.value)}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <ListToolbar
+              search={termino}
+              onSearchChange={setTermino}
               placeholder="Buscar por código o nombre..."
-              className="h-8 text-xs pl-8"
+              view={view}
+              onViewChange={setView}
             />
           </div>
           <Button variant="outline" size="sm" onClick={loadProductos}>
@@ -376,6 +379,16 @@ export default function InventarioPage() {
 
         {/* Table */}
         <Card className="p-0 overflow-hidden">
+          {loading ? (
+            <div className="p-6"><TableSkeleton rows={4} columns={6} /></div>
+          ) : productos.length === 0 ? (
+            <EmptyState
+              icon={<Package className="w-5 h-5" />}
+              title="No hay productos."
+              description="Crea tu primer producto."
+              compact
+            />
+          ) : view === "lista" ? (
           <div className="overflow-x-auto">
             <Table className="w-full text-xs">
               <TableHeader>
@@ -390,20 +403,7 @@ export default function InventarioPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
-                  <TableRow><TableCell colSpan={7} className="p-6"><TableSkeleton rows={4} columns={6} /></TableCell></TableRow>
-                ) : productos.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="p-0">
-                      <EmptyState
-                        icon={<Package className="w-5 h-5" />}
-                        title="No hay productos."
-                        description="Crea tu primer producto."
-                        compact
-                      />
-                    </TableCell>
-                  </TableRow>
-                ) : productos.map(p => (
+                {productos.map(p => (
                   <TableRow
                     key={p.id}
                     className={`border-b border-brand-gray-100 hover:bg-brand-gray-50 cursor-pointer ${selectedProducto?.id === p.id ? 'bg-sky-50' : ''}`}
@@ -439,6 +439,40 @@ export default function InventarioPage() {
               </TableBody>
             </Table>
           </div>
+          ) : (
+            <div className="p-3">
+              <RecordGrid>
+                {productos.map(p => (
+                  <div
+                    key={p.id}
+                    onClick={() => selectProducto(p)}
+                    className={selectedProducto?.id === p.id ? "rounded-xl ring-2 ring-sky-300" : undefined}
+                  >
+                    <RecordCard
+                      title={p.nombre}
+                      subtitle={p.codigo}
+                      fields={[
+                        { label: "Precio", value: `$${parseFloat(p.precio_unitario).toFixed(2)}` },
+                        { label: "IVA", value: `${p.iva_porcentaje}%` },
+                        { label: "Stock", value: parseFloat(p.stock).toFixed(0) },
+                        { label: "Estado", value: p.activo ? "Activo" : "Inactivo" },
+                      ]}
+                      actions={
+                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                          <Button variant="ghost" size="xs" onClick={() => openEdit(p)}>
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                          <Button variant="ghost" size="xs" onClick={() => handleDelete(p.id)}>
+                            <Trash2 className="w-3 h-3 text-red-500" />
+                          </Button>
+                        </div>
+                      }
+                    />
+                  </div>
+                ))}
+              </RecordGrid>
+            </div>
+          )}
         </Card>
 
         {/* Kardex */}

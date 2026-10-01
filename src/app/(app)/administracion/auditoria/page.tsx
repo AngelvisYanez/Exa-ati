@@ -7,6 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Search, ChevronLeft, ChevronRight, Download, FileText, FileSpreadsheet } from "lucide-react";
 
@@ -49,6 +52,8 @@ export default function AdminAuditoriaPage() {
   const [emailFilter, setEmailFilter] = useState("");
   const [desdeFilter, setDesdeFilter] = useState("");
   const [hastaFilter, setHastaFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("auditoria-admin");
 
   const buildUrl = useCallback((p: number) => {
     const params = new URLSearchParams();
@@ -114,6 +119,20 @@ export default function AdminAuditoriaPage() {
     });
   };
 
+  const q = search.trim().toLowerCase();
+  const visible = q
+    ? logs.filter((log) =>
+        [
+          formatFecha(log.createdAt),
+          log.usuarioEmail,
+          log.accion,
+          log.recurso,
+          log.descripcion,
+          log.exitoso ? "Éxito" : "Error",
+        ].some((v) => String(v ?? "").toLowerCase().includes(q))
+      )
+    : logs;
+
   return (
     <>
       <title>Auditoría - Admin - OFSERCONT IA</title>
@@ -144,7 +163,13 @@ export default function AdminAuditoriaPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar en registros..."
+          view={view}
+          onViewChange={setView}
+        >
           <select
             value={accionFilter}
             onChange={(e) => setAccionFilter(e.target.value)}
@@ -192,13 +217,31 @@ export default function AdminAuditoriaPage() {
             className="h-8 text-xs"
             title="Hasta"
           />
-        </div>
+        </ListToolbar>
 
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
             <TableSkeleton rows={6} columns={5} />
-          ) : logs.length === 0 ? (
+          ) : visible.length === 0 ? (
             <EmptyState title="No se encontraron registros." compact />
+          ) : view === "cuadricula" ? (
+            <div className="p-3">
+              <RecordGrid>
+                {visible.map((log) => (
+                  <RecordCard
+                    key={log.id}
+                    title={log.accion}
+                    subtitle={log.usuarioEmail || "—"}
+                    fields={[
+                      { label: "Fecha", value: formatFecha(log.createdAt) },
+                      { label: "Recurso", value: log.recurso || "—" },
+                      { label: "Descripción", value: log.descripcion || "—" },
+                      { label: "Resultado", value: log.exitoso ? "Éxito" : "Error" },
+                    ]}
+                  />
+                ))}
+              </RecordGrid>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="w-full text-left border-collapse text-[12px]">
@@ -213,7 +256,7 @@ export default function AdminAuditoriaPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-brand-gray-50">
-                  {logs.map((log) => (
+                  {visible.map((log) => (
                     <TableRow key={log.id} className="hover:bg-brand-gray-50/40 transition-colors">
                       <TableCell className="py-2.5 px-3 text-[11px] text-brand-gray-500 whitespace-nowrap">
                         {formatFecha(log.createdAt)}

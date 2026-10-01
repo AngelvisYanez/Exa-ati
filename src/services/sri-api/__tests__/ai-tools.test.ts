@@ -780,7 +780,8 @@ describe('consultar_estado_descarga', () => {
     expect(res.html).toContain('#12');
     expect(res.html).toContain('En proceso');
     expect(res.html).toContain('Completada');
-    expect(res.html).toContain('Historial de descargas');
+    expect(res.html).toContain('href="/documentos"');
+    expect(res.html).not.toContain('descargas=1');
     expect(res.text).toContain('#12');
   });
 

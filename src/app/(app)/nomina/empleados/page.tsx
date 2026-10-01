@@ -8,6 +8,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import Dialog from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Plus, Users, Save } from "lucide-react";
 import { apiFetch } from "@/lib/apiFetch";
@@ -21,6 +24,8 @@ interface Empleado {
 export default function EmpleadosPage() {
   const [items, setItems] = useState<Empleado[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("empleados");
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -47,6 +52,11 @@ export default function EmpleadosPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const q = search.trim().toLowerCase();
+  const visibles = q
+    ? items.filter((emp) => `${emp.cedula} ${emp.nombre_completo}`.toLowerCase().includes(q))
+    : items;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,10 +101,18 @@ export default function EmpleadosPage() {
           </Button>
         </div>
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar por cédula o nombre..."
+          view={view}
+          onViewChange={setView}
+        />
+
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden shadow-sm">
           {loading ? (
             <div className="p-8 text-center text-sm text-brand-gray-400">Cargando nómina de empleados...</div>
-          ) : items.length === 0 ? (
+          ) : visibles.length === 0 ? (
             <Card>
               <CardContent className="p-0">
                 <EmptyState
@@ -104,7 +122,7 @@ export default function EmpleadosPage() {
                 />
               </CardContent>
             </Card>
-          ) : (
+          ) : view === "lista" ? (
             <Table className="w-full text-sm">
               <TableHeader>
                 <TableRow className="bg-brand-gray-50 border-b text-left text-brand-gray-600 text-xs font-bold uppercase tracking-wider">
@@ -116,7 +134,7 @@ export default function EmpleadosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((emp) => {
+                {visibles.map((emp) => {
                   const s = Number(emp.sueldo || 0);
                   return (
                     <TableRow key={emp.cedula} className="hover:bg-brand-gray-50 border-b border-brand-gray-100">
@@ -130,6 +148,26 @@ export default function EmpleadosPage() {
                 })}
               </TableBody>
             </Table>
+          ) : (
+            <div className="p-3">
+              <RecordGrid>
+                {visibles.map((emp) => {
+                  const s = Number(emp.sueldo || 0);
+                  return (
+                    <RecordCard
+                      key={emp.cedula}
+                      title={emp.nombre_completo}
+                      subtitle={emp.cedula}
+                      fields={[
+                        { label: "Sueldo base", value: `$${s.toFixed(2)}` },
+                        { label: "Aporte ind. 9.45%", value: `$${(s * 0.0945).toFixed(2)}` },
+                        { label: "Costo patronal 11.15%", value: `$${(s * 0.1115).toFixed(2)}` },
+                      ]}
+                    />
+                  );
+                })}
+              </RecordGrid>
+            </div>
           )}
         </div>
       </main>

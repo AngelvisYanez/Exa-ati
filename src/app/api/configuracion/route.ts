@@ -16,6 +16,8 @@ export async function GET(req: Request) {
       emisor = await db.queryOne<any>(
         `SELECT ruc, razon_social, nombre_comercial, tipo_contribuyente, ambiente,
                 cert_valido_hasta, certificado_valido_hasta,
+                direccion_matriz, dir_matriz,
+                CASE WHEN logo IS NULL THEN false ELSE true END AS tiene_logo,
                 whatsapp_numero, whatsapp_estado, notif_documentos, notif_generacion, notif_email,
                 whatsapp_notif_documentos, whatsapp_notif_generacion
          FROM emisores WHERE ruc = $1 AND activo = true`,
@@ -58,6 +60,8 @@ export async function GET(req: Request) {
         ruc: emisor.ruc,
         razonSocial: emisor.razon_social,
         nombreComercial: emisor.nombre_comercial,
+        direccion: emisor.direccion_matriz || emisor.dir_matriz || '',
+        tieneLogo: Boolean(emisor.tiene_logo),
         regimen: emisor.tipo_contribuyente || null,
         ambiente: emisor.ambiente === '2' ? 'Producción' : 'Pruebas',
         estadoSri: 'ACTIVO',

@@ -7,6 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Download, FileText, Code2 } from "lucide-react";
 import { apiFetch } from "@/lib/apiFetch";
@@ -22,6 +25,8 @@ export default function Formulario107Page() {
   const [loading, setLoading] = useState(true);
   const [anioFiscal, setAnioFiscal] = useState("2025");
   const [generando, setGenerando] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("formulario-107");
 
   const load = useCallback(async () => {
     try {
@@ -70,6 +75,40 @@ export default function Formulario107Page() {
     }
   };
 
+  const q = search.trim().toLowerCase();
+  const visibles = q
+    ? empleados.filter((emp) => `${emp.cedula} ${emp.nombre_completo}`.toLowerCase().includes(q))
+    : empleados;
+
+  const acciones107 = (emp: EmpleadoF107) => {
+    const keyPdf = `${emp.cedula}_pdf`;
+    const keyXml = `${emp.cedula}_xml`;
+    return (
+      <>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleDescargar107(emp.cedula, "pdf")}
+          disabled={generando === keyPdf}
+          className="text-brand-red border-brand-red/30 hover:bg-brand-red/10"
+        >
+          <FileText className="w-4 h-4 mr-1" />
+          {generando === keyPdf ? "PDF..." : "Descargar PDF (F107)"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleDescargar107(emp.cedula, "xml")}
+          disabled={generando === keyXml}
+          className="text-purple-700 border-purple-300 hover:bg-purple-50"
+        >
+          <Code2 className="w-4 h-4 mr-1" />
+          {generando === keyXml ? "XML..." : "Exportar RDEP (XML)"}
+        </Button>
+      </>
+    );
+  };
+
   return (
     <>
       <title>Formulario 107 SRI - OFSERCONT IA</title>
@@ -81,16 +120,24 @@ export default function Formulario107Page() {
             <h1 className="text-xl font-bold text-brand-gray-900">Formulario 107 SRI & Anexo RDEP</h1>
             <p className="text-xs text-brand-gray-500 mt-1">Comprobante de retención anual de Impuesto a la Renta por ingresos del trabajo en relación de dependencia.</p>
           </div>
-          <div className="flex gap-2 items-center">
-            <span className="text-xs font-semibold text-brand-gray-700">Año Fiscal:</span>
-            <Input
-              value={anioFiscal}
-              onChange={(e) => setAnioFiscal(e.target.value)}
-              className="w-28 font-mono text-sm"
-              placeholder="2025"
-            />
-          </div>
         </div>
+
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar por cédula o nombre..."
+          view={view}
+          onViewChange={setView}
+        >
+          <span className="text-xs font-semibold text-brand-gray-700">Año Fiscal:</span>
+          <Input
+            value={anioFiscal}
+            onChange={(e) => setAnioFiscal(e.target.value)}
+            className="w-28 font-mono text-sm"
+            placeholder="2025"
+            aria-label="Año fiscal"
+          />
+        </ListToolbar>
 
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden shadow-sm">
           {loading ? (
@@ -105,7 +152,9 @@ export default function Formulario107Page() {
                 />
               </CardContent>
             </Card>
-          ) : (
+          ) : visibles.length === 0 ? (
+            <div className="p-8 text-center text-sm text-brand-gray-400">Ningún resultado para la búsqueda.</div>
+          ) : view === "lista" ? (
             <Table className="w-full text-sm">
               <TableHeader>
                 <TableRow className="bg-brand-gray-50 border-b text-left text-brand-gray-600 text-xs font-bold uppercase tracking-wider">
@@ -116,45 +165,38 @@ export default function Formulario107Page() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {empleados.map((emp) => {
+                {visibles.map((emp) => {
                   const s = Number(emp.sueldo || 0) * 12;
-                  const keyPdf = `${emp.cedula}_pdf`;
-                  const keyXml = `${emp.cedula}_xml`;
-
                   return (
                     <TableRow key={emp.cedula} className="hover:bg-brand-gray-50 border-b border-brand-gray-100">
                       <TableCell className="py-3 px-4 font-mono text-xs font-semibold text-brand-gray-700">{emp.cedula}</TableCell>
                       <TableCell className="py-3 px-4 font-semibold text-brand-gray-900">{emp.nombre_completo}</TableCell>
                       <TableCell className="py-3 px-4 text-right font-bold text-brand-gray-900">${s.toFixed(2)}</TableCell>
                       <TableCell className="py-3 px-4">
-                        <div className="flex justify-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDescargar107(emp.cedula, "pdf")}
-                            disabled={generando === keyPdf}
-                            className="text-brand-red border-brand-red/30 hover:bg-brand-red/10"
-                          >
-                            <FileText className="w-4 h-4 mr-1" />
-                            {generando === keyPdf ? "PDF..." : "Descargar PDF (F107)"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDescargar107(emp.cedula, "xml")}
-                            disabled={generando === keyXml}
-                            className="text-purple-700 border-purple-300 hover:bg-purple-50"
-                          >
-                            <Code2 className="w-4 h-4 mr-1" />
-                            {generando === keyXml ? "XML..." : "Exportar RDEP (XML)"}
-                          </Button>
-                        </div>
+                        <div className="flex justify-center gap-2">{acciones107(emp)}</div>
                       </TableCell>
                     </TableRow>
                   );
                 })}
               </TableBody>
             </Table>
+          ) : (
+            <div className="p-3">
+              <RecordGrid>
+                {visibles.map((emp) => {
+                  const s = Number(emp.sueldo || 0) * 12;
+                  return (
+                    <RecordCard
+                      key={emp.cedula}
+                      title={emp.nombre_completo}
+                      subtitle={emp.cedula}
+                      fields={[{ label: "Ingresos proyectados", value: `$${s.toFixed(2)}` }]}
+                      actions={acciones107(emp)}
+                    />
+                  );
+                })}
+              </RecordGrid>
+            </div>
           )}
         </div>
       </main>

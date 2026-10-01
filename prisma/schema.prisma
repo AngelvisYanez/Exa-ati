@@ -194,6 +194,25 @@ model MetodoPago {
   @@map("metodos_pago")
 }
 
+model RideDiseno {
+  codigo            String   @id @db.VarChar(40)
+  nombre            String   @db.VarChar(120)
+  descripcion       String?  @db.VarChar(500)
+  plantilla         String   @db.VarChar(20)
+  mostrarLogo       Boolean  @default(true) @map("mostrar_logo")
+  mostrarQr         Boolean  @default(true) @map("mostrar_qr")
+  mostrarAdicional  Boolean  @default(true) @map("mostrar_adicional")
+  mostrarPagos      Boolean  @default(true) @map("mostrar_pagos")
+  colorModo         String   @default("ruc") @map("color_modo") @db.VarChar(10)
+  colorHex          String?  @map("color_hex") @db.VarChar(7)
+  esPredeterminado  Boolean  @default(false) @map("es_predeterminado")
+  esSistema         Boolean  @default(false) @map("es_sistema")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("ride_disenos")
+}
+
 model PagoSuscripcion {
   id                   String    @id @default(uuid()) @db.Uuid
   tenantId             String    @map("tenant_id") @db.Uuid
@@ -304,6 +323,8 @@ model Emisor {
   certificadoValidoHasta       DateTime? @map("certificado_valido_hasta")
   certValidoHasta              DateTime? @map("cert_valido_hasta")
   claveSriEncrypted            String?   @map("clave_sri_encrypted") @db.Text
+  logo                         Bytes?    @map("logo")
+  logoMime                     String?   @map("logo_mime") @db.VarChar(40)
   activo                       Boolean   @default(true)
   createdAt                    DateTime  @default(now()) @map("created_at")
   updatedAt                    DateTime  @updatedAt @map("updated_at")

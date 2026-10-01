@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Plus, Edit, Trash2, Percent } from "lucide-react";
 
@@ -43,6 +46,8 @@ export default function ImpuestosPage() {
   const [impuestos, setImpuestos] = useState<Impuesto[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterTipo, setFilterTipo] = useState("");
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("impuestos");
 
   const load = useCallback(async () => {
     try {
@@ -73,6 +78,15 @@ export default function ImpuestosPage() {
     }
   };
 
+  const q = search.trim().toLowerCase();
+  const visible = q
+    ? impuestos.filter((imp) =>
+        [imp.codigo, imp.nombre, `${imp.porcentaje}%`, imp.porcentaje, imp.tarifa, imp.tipo, imp.activo ? "Activo" : "Inactivo"].some(
+          (v) => String(v ?? "").toLowerCase().includes(q)
+        )
+      )
+    : impuestos;
+
   return (
     <>
       <title>Impuestos - OFSERCONT IA</title>
@@ -83,33 +97,74 @@ export default function ImpuestosPage() {
             <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Impuestos</h1>
             <p className="text-xs text-brand-gray-500 mt-0.5">Configuración de tarifas impositivas</p>
           </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={filterTipo}
-              onChange={(e) => setFilterTipo(e.target.value)}
-              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
-            >
-              {FILTER_TIPOS.map((f) => (
-                <option key={f.value} value={f.value}>{f.label}</option>
-              ))}
-            </select>
-            <Link href="/contabilidad/impuestos/nueva">
-              <Button size="sm" className="bg-brand-red hover:bg-brand-red-bright text-white">
-                <Plus className="w-3.5 h-3.5" /> Nuevo Impuesto
-              </Button>
-            </Link>
-          </div>
+          <Link href="/contabilidad/impuestos/nueva">
+            <Button size="sm" className="bg-brand-red hover:bg-brand-red-bright text-white">
+              <Plus className="w-3.5 h-3.5" /> Nuevo Impuesto
+            </Button>
+          </Link>
         </div>
+
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar impuesto..."
+          view={view}
+          onViewChange={setView}
+        >
+          <select
+            value={filterTipo}
+            onChange={(e) => setFilterTipo(e.target.value)}
+            className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
+          >
+            {FILTER_TIPOS.map((f) => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+        </ListToolbar>
 
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
             <TableSkeleton rows={6} columns={5} />
-          ) : impuestos.length === 0 ? (
+          ) : visible.length === 0 ? (
             <EmptyState
               icon={<Percent className="w-5 h-5" />}
               title="No hay impuestos registrados."
               compact
             />
+          ) : view === "cuadricula" ? (
+            <div className="p-3">
+              <RecordGrid>
+                {visible.map((imp) => (
+                  <RecordCard
+                    key={imp.id}
+                    title={imp.nombre}
+                    subtitle={imp.codigo}
+                    fields={[
+                      { label: "%", value: `${imp.porcentaje}%` },
+                      { label: "Tarifa", value: imp.tarifa },
+                      { label: "Tipo", value: imp.tipo },
+                      { label: "Estado", value: imp.activo ? "Activo" : "Inactivo" },
+                    ]}
+                    actions={
+                      <>
+                        <Link
+                          href={`/contabilidad/impuestos/${imp.id}`}
+                          className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors"
+                        >
+                          <Edit className="w-3 h-3" /> Editar
+                        </Link>
+                        <button
+                          onClick={() => handleDelete(imp.id, imp.nombre)}
+                          className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" /> Eliminar
+                        </button>
+                      </>
+                    }
+                  />
+                ))}
+              </RecordGrid>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="w-full text-left border-collapse text-[13px]">
@@ -125,7 +180,7 @@ export default function ImpuestosPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-brand-gray-50">
-                  {impuestos.map((imp) => (
+                  {visible.map((imp) => (
                     <TableRow key={imp.id} className="hover:bg-brand-gray-50/40 transition-colors">
                       <TableCell className="py-3 px-4 font-mono text-xs font-semibold text-brand-gray-600">{imp.codigo}</TableCell>
                       <TableCell className="py-3 px-4 text-sm font-medium text-brand-gray-800">{imp.nombre}</TableCell>

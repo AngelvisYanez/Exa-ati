@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Plus, Eye, Trash2, Download, FileText } from "lucide-react";
 
@@ -39,6 +42,8 @@ export default function ReportesPage() {
   const [loading, setLoading] = useState(true);
   const [filterTipo, setFilterTipo] = useState("");
   const [filterPeriodo, setFilterPeriodo] = useState("");
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("reportes-fiscales");
 
   const load = useCallback(async () => {
     try {
@@ -76,6 +81,20 @@ export default function ReportesPage() {
     return new Date(d).toLocaleDateString("es-EC", { day: "2-digit", month: "short", year: "numeric" });
   };
 
+  const q = search.trim().toLowerCase();
+  const visible = q
+    ? reportes.filter((r) =>
+        [
+          `Form. ${r.tipo}`,
+          r.tipo,
+          r.periodo,
+          ESTADO_LABEL[r.estado] || r.estado,
+          formatFecha(r.fechaGeneracion),
+          r.fechaPresentacion ? formatFecha(r.fechaPresentacion) : "",
+        ].some((v) => String(v ?? "").toLowerCase().includes(q))
+      )
+    : reportes;
+
   return (
     <>
       <title>Reportes - OFSERCONT IA</title>
@@ -93,7 +112,13 @@ export default function ReportesPage() {
           </Link>
         </div>
 
-        <div className="flex gap-2 flex-wrap">
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar reporte..."
+          view={view}
+          onViewChange={setView}
+        >
           <select value={filterTipo} onChange={(e) => setFilterTipo(e.target.value)} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none">
             <option value="">Todos los tipos</option>
             <option value="103">Formulario 103</option>
@@ -106,18 +131,48 @@ export default function ReportesPage() {
             className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
             placeholder="Período"
           />
-        </div>
+        </ListToolbar>
 
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
             <TableSkeleton rows={6} columns={5} />
-          ) : reportes.length === 0 ? (
+          ) : visible.length === 0 ? (
             <EmptyState
               icon={<FileText className="w-5 h-5" />}
               title="No hay reportes generados."
               description="Crea uno nuevo para comenzar."
               compact
             />
+          ) : view === "cuadricula" ? (
+            <div className="p-3">
+              <RecordGrid>
+                {visible.map((r) => (
+                  <RecordCard
+                    key={r.id}
+                    title={`Form. ${r.tipo}`}
+                    subtitle={r.periodo}
+                    fields={[
+                      { label: "Estado", value: ESTADO_LABEL[r.estado] || r.estado },
+                      { label: "Generación", value: formatFecha(r.fechaGeneracion) },
+                      { label: "Presentación", value: r.fechaPresentacion ? formatFecha(r.fechaPresentacion) : "—" },
+                    ]}
+                    actions={
+                      <>
+                        <Link href={`/declaraciones/reportes/${r.id}`} className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors">
+                          <Eye className="w-3 h-3" /> Ver
+                        </Link>
+                        <button className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors cursor-pointer">
+                          <Download className="w-3 h-3" /> XML
+                        </button>
+                        <button onClick={() => handleDelete(r.id)} className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer">
+                          <Trash2 className="w-3 h-3" /> Eliminar
+                        </button>
+                      </>
+                    }
+                  />
+                ))}
+              </RecordGrid>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="w-full text-left border-collapse text-[13px]">
@@ -132,7 +187,7 @@ export default function ReportesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-brand-gray-50">
-                  {reportes.map((r) => (
+                  {visible.map((r) => (
                     <TableRow key={r.id} className="hover:bg-brand-gray-50/40 transition-colors">
                       <TableCell className="py-3 px-4 font-semibold text-brand-gray-800">Form. {r.tipo}</TableCell>
                       <TableCell className="py-3 px-4 text-xs font-mono text-brand-gray-600">{r.periodo}</TableCell>

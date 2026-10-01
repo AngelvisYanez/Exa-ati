@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import Link from "next/link";
 import Topbar from "@/components/layout/Topbar";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ShieldCheck } from "lucide-react";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { useViewMode } from "@/components/lists/useViewMode";
 import DateRangeFilter, {
   DateRange,
   formatDateRangeLabel,
@@ -103,6 +106,8 @@ function formatLastRun(dateStr: string | null) {
 
 export default function AuditoriaPage() {
   const [filter, setFilter] = useState<RiskLevel | "Todos">("Todos");
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("auditoria-alertas");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -166,7 +171,13 @@ export default function AuditoriaPage() {
   const altoCount = alerts.filter((a) => a.risk === "Alto").length;
   const medioCount = alerts.filter((a) => a.risk === "Medio").length;
   const bajoCount = alerts.filter((a) => a.risk === "Bajo").length;
-  const filtered = filter === "Todos" ? alerts : alerts.filter((a) => a.risk === filter);
+  const byRisk = filter === "Todos" ? alerts : alerts.filter((a) => a.risk === filter);
+  const alertQuery = search.trim().toLowerCase();
+  const filtered = alertQuery
+    ? byRisk.filter((a) =>
+        `${a.title} ${a.description} ${a.risk} ${a.type} ${a.suggestion}`.toLowerCase().includes(alertQuery)
+      )
+    : byRisk;
   const overallRisk: RiskLevel = altoCount > 0 ? "Alto" : medioCount > 0 ? "Medio" : "Bajo";
   const rc = riskConfig[overallRisk];
 
@@ -270,6 +281,15 @@ export default function AuditoriaPage() {
               <span className="ml-auto text-[11px] text-brand-gray-400">{filtered.length} alertas</span>
             </div>
 
+            <ListToolbar
+              search={search}
+              onSearchChange={setSearch}
+              placeholder="Buscar alerta..."
+              view={view}
+              onViewChange={setView}
+            />
+
+            {view === "cuadricula" ? (
             <div className="flex flex-col gap-3">
               {filtered.map((alert) => {
                 const r = riskConfig[alert.risk];
@@ -341,6 +361,74 @@ export default function AuditoriaPage() {
                 />
               )}
             </div>
+            ) : filtered.length === 0 ? (
+              <EmptyState
+                icon={<ShieldCheck className="w-5 h-5" />}
+                title="Sin alertas en esta categoría"
+                description="Todo se ve bien en el nivel seleccionado."
+                className="rounded-xl border border-success-light/40 bg-success-pale"
+              />
+            ) : (
+              <div className="overflow-x-auto bg-white border border-brand-gray-200 rounded-xl">
+                <Table className="w-full text-sm">
+                  <TableHeader>
+                    <TableRow className="border-b text-left text-brand-gray-500 text-xs uppercase tracking-wider">
+                      <TableHead className="py-2 px-3">Alerta</TableHead>
+                      <TableHead className="py-2 px-3">Riesgo</TableHead>
+                      <TableHead className="py-2 px-3">Tipo</TableHead>
+                      <TableHead className="py-2 px-3">Documentos</TableHead>
+                      <TableHead className="py-2 px-3">Descripción</TableHead>
+                      <TableHead className="py-2 px-3 text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((alert) => {
+                      const r = riskConfig[alert.risk];
+                      const isExpanded = expanded === alert.id;
+                      return (
+                        <Fragment key={alert.id}>
+                          <TableRow className="border-b hover:bg-gray-50">
+                            <TableCell className="py-2 px-3 font-medium text-brand-gray-800">{alert.title}</TableCell>
+                            <TableCell className="py-2 px-3">
+                              <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full ${r.bg} ${r.color}`}>
+                                {r.label}
+                              </span>
+                            </TableCell>
+                            <TableCell className="py-2 px-3 text-xs text-brand-gray-500">{alert.type}</TableCell>
+                            <TableCell className="py-2 px-3 text-xs">{alert.count !== undefined ? alert.count : "—"}</TableCell>
+                            <TableCell className="py-2 px-3 text-xs text-brand-gray-500 max-w-xs truncate">{alert.description}</TableCell>
+                            <TableCell className="py-2 px-3 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setExpanded(isExpanded ? null : alert.id)}
+                                  className="text-[11px] font-semibold text-brand-gray-600 hover:text-brand-gray-800 cursor-pointer"
+                                >
+                                  {isExpanded ? "Ocultar" : "Detalle"}
+                                </button>
+                                <Link href="/asistente" className="text-[11px] font-semibold text-brand-red hover:text-brand-red-bright">
+                                  Consultar al Agente IA
+                                </Link>
+                                <Link href="/documentos" className="text-[11px] font-semibold text-brand-gray-700 hover:text-brand-gray-900">
+                                  Ver documentos
+                                </Link>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && (
+                            <TableRow>
+                              <TableCell colSpan={6} className={`py-2 px-3 text-xs text-brand-gray-700 ${r.bg}`}>
+                                {alert.suggestion}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
 
             <div className="bg-brand-gray-900 text-white rounded-xl p-5 flex items-center gap-4">
               <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center shrink-0">

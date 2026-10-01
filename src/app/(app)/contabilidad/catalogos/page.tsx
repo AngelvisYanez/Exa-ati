@@ -6,6 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { FileText, BookOpen, RefreshCw } from "lucide-react";
 
@@ -23,6 +26,8 @@ export default function CatalogosPage() {
   const [tiposSustento, setTiposSustento] = useState<CatalogoItem[]>([]);
   const [loadingDoc, setLoadingDoc] = useState(true);
   const [loadingSust, setLoadingSust] = useState(true);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("catalogos");
 
   const loadDocumentos = useCallback(async () => {
     try {
@@ -62,6 +67,12 @@ export default function CatalogosPage() {
     loadSustento();
   };
 
+  const q = search.trim().toLowerCase();
+  const matchItem = (t: CatalogoItem) =>
+    [t.codigo, t.descripcion, t.activo ? "Activo" : "Inactivo"].some((v) => v.toLowerCase().includes(q));
+  const docs = q ? tiposDocumento.filter(matchItem) : tiposDocumento;
+  const sustentos = q ? tiposSustento.filter(matchItem) : tiposSustento;
+
   return (
     <>
       <title>Catálogos - OFSERCONT IA</title>
@@ -80,6 +91,14 @@ export default function CatalogosPage() {
           </button>
         </div>
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar en catálogos..."
+          view={view}
+          onViewChange={setView}
+        />
+
         <Card className="border-brand-gray-200">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
@@ -95,12 +114,23 @@ export default function CatalogosPage() {
           <CardContent>
             {loadingDoc ? (
               <TableSkeleton rows={6} columns={5} />
-            ) : tiposDocumento.length === 0 ? (
+            ) : docs.length === 0 ? (
               <EmptyState
                 icon={<FileText className="w-5 h-5" />}
                 title="No hay tipos de documento registrados."
                 compact
               />
+            ) : view === "cuadricula" ? (
+              <RecordGrid>
+                {docs.map((t) => (
+                  <RecordCard
+                    key={t.id}
+                    title={t.descripcion}
+                    subtitle={t.codigo}
+                    fields={[{ label: "Estado", value: t.activo ? "Activo" : "Inactivo" }]}
+                  />
+                ))}
+              </RecordGrid>
             ) : (
               <div className="overflow-x-auto">
                 <Table className="w-full text-left border-collapse text-[13px]">
@@ -112,7 +142,7 @@ export default function CatalogosPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-brand-gray-50">
-                    {tiposDocumento.map((t) => (
+                    {docs.map((t) => (
                       <TableRow key={t.id} className="hover:bg-brand-gray-50/40 transition-colors">
                         <TableCell className="py-2.5 px-4 font-mono text-xs font-bold text-brand-red">{t.codigo}</TableCell>
                         <TableCell className="py-2.5 px-4 text-brand-gray-700">{t.descripcion}</TableCell>
@@ -147,12 +177,23 @@ export default function CatalogosPage() {
           <CardContent>
             {loadingSust ? (
               <TableSkeleton rows={6} columns={5} />
-            ) : tiposSustento.length === 0 ? (
+            ) : sustentos.length === 0 ? (
               <EmptyState
                 icon={<BookOpen className="w-5 h-5" />}
                 title="No hay tipos de sustento registrados."
                 compact
               />
+            ) : view === "cuadricula" ? (
+              <RecordGrid>
+                {sustentos.map((t) => (
+                  <RecordCard
+                    key={t.id}
+                    title={t.descripcion}
+                    subtitle={t.codigo}
+                    fields={[{ label: "Estado", value: t.activo ? "Activo" : "Inactivo" }]}
+                  />
+                ))}
+              </RecordGrid>
             ) : (
               <div className="overflow-x-auto">
                 <Table className="w-full text-left border-collapse text-[13px]">
@@ -164,7 +205,7 @@ export default function CatalogosPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-brand-gray-50">
-                    {tiposSustento.map((t) => (
+                    {sustentos.map((t) => (
                       <TableRow key={t.id} className="hover:bg-brand-gray-50/40 transition-colors">
                         <TableCell className="py-2.5 px-4 font-mono text-xs font-bold text-brand-red">{t.codigo}</TableCell>
                         <TableCell className="py-2.5 px-4 text-brand-gray-700">{t.descripcion}</TableCell>

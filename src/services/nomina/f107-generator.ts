@@ -1,11 +1,12 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { calcularIREmpleado, GastosPersonales } from './calculos-ir-empleados';
+import { BrandPdf } from '@/services/pdf/layout';
+import { GastosPersonales } from './calculos-ir-empleados';
 
 export interface Formulario107Data {
   anioFiscal: number;
   emisor: {
     ruc: string;
     razonSocial: string;
+    nombreComercial?: string | null;
   };
   empleado: {
     cedula: string;
@@ -49,90 +50,61 @@ export function generateF107Xml(data: Formulario107Data): string {
 }
 
 export async function generateF107Pdf(data: Formulario107Data): Promise<Buffer> {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([600, 840]);
-  const { width, height } = page.getSize();
+  const pdf = await BrandPdf.create({
+    ruc: data.emisor.ruc,
+    razonSocial: data.emisor.razonSocial,
+    nombreComercial: data.emisor.nombreComercial,
+  });
+  const money = (value: number) => `$ ${value.toFixed(2)}`;
 
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-  // Cabecera SRI
-  page.drawRectangle({
-    x: 20,
-    y: height - 80,
-    width: width - 40,
-    height: 60,
-    color: rgb(0.06, 0.16, 0.32),
+  pdf.drawHeader({
+    documentTitle: 'Formulario 107',
+    subtitle: `Retención en la fuente del impuesto a la renta · año ${data.anioFiscal}`,
+    badge: String(data.anioFiscal),
   });
 
-  page.drawText('FORMULARIO 107 - COMPROBANTE DE RETENCIÓN EN LA FUENTE', {
-    x: 35,
-    y: height - 45,
-    size: 11,
-    font: fontBold,
-    color: rgb(1, 1, 1),
-  });
+  pdf.drawPanels(
+    {
+      title: 'EMPLEADOR',
+      lines: [
+        { label: 'RUC', value: data.emisor.ruc },
+        { label: 'Razón social', value: data.emisor.razonSocial },
+      ],
+    },
+    {
+      title: 'TRABAJADOR',
+      lines: [
+        { label: 'Cédula / pasaporte', value: data.empleado.cedula },
+        { label: 'Apellidos y nombres', value: `${data.empleado.apellidos} ${data.empleado.nombres}` },
+      ],
+    }
+  );
 
-  page.drawText(`IMPUESTO A LA RENTA / INGRESOS DEL TRABAJO EN RELACIÓN DE DEPENDENCIA · AÑO ${data.anioFiscal}`, {
-    x: 35,
-    y: height - 65,
-    size: 8,
-    font: fontRegular,
-    color: rgb(0.9, 0.9, 0.9),
-  });
-
-  // Emisor
-  let y = height - 110;
-  page.drawText('100 DATOS DEL EMPLEADOR (INFORMANTE)', { x: 30, y, size: 9, font: fontBold, color: rgb(0.06, 0.16, 0.32) });
-  y -= 15;
-  page.drawText(`RUC: ${data.emisor.ruc}`, { x: 30, y, size: 8, font: fontRegular });
-  page.drawText(`Razón Social: ${data.emisor.razonSocial}`, { x: 250, y, size: 8, font: fontRegular });
-
-  // Empleado
-  y -= 25;
-  page.drawText('200 DATOS DEL TRABAJADOR (SUJETO RETENIDO)', { x: 30, y, size: 9, font: fontBold, color: rgb(0.06, 0.16, 0.32) });
-  y -= 15;
-  page.drawText(`Cédula / Pasaporte: ${data.empleado.cedula}`, { x: 30, y, size: 8, font: fontRegular });
-  page.drawText(`Apellidos y Nombres: ${data.empleado.apellidos} ${data.empleado.nombres}`, { x: 250, y, size: 8, font: fontRegular });
-
-  // Tabla Casilleros Formulario 107
-  y -= 35;
-  page.drawRectangle({ x: 30, y: y - 15, width: width - 60, height: 18, color: rgb(0.9, 0.92, 0.95) });
-  page.drawText('Casillero / Concepto Tributario', { x: 40, y: y - 10, size: 8, font: fontBold });
-  page.drawText('Valor ($)', { x: width - 100, y: y - 10, size: 8, font: fontBold });
-
-  y -= 30;
+  pdf.drawSectionTitle('Casilleros');
   const casilleros = [
-    { code: '301', label: 'Sueldos y Salarios', val: data.sueldosSalarios301 },
-    { code: '303', label: 'Sobresueldos, Horas Extras y Comisiones', val: data.horasExtrasComisiones303 },
-    { code: '305', label: 'Participación de Utilidades', val: data.utilidades305 ?? 0 },
-    { code: '351', label: 'Aporte Personal al IESS (9.45%)', val: data.aporteIess351 },
-    { code: '361', label: 'Deducción Gastos Personales - Vivienda', val: data.gastosPersonales?.vivienda ?? 0 },
-    { code: '363', label: 'Deducción Gastos Personales - Educación / Arte', val: data.gastosPersonales?.educacion ?? 0 },
-    { code: '365', label: 'Deducción Gastos Personales - Salud', val: data.gastosPersonales?.salud ?? 0 },
-    { code: '367', label: 'Deducción Gastos Personales - Vestimenta', val: data.gastosPersonales?.vestimenta ?? 0 },
-    { code: '369', label: 'Deducción Gastos Personales - Alimentación', val: data.gastosPersonales?.alimentacion ?? 0 },
-    { code: '401', label: 'IMPUESTO A LA RENTA RETENIDO EN LA FUENTE', val: data.impuestoRetenido401, highlight: true },
+    { code: '301', label: 'Sueldos y salarios', val: data.sueldosSalarios301 },
+    { code: '303', label: 'Sobresueldos, horas extras y comisiones', val: data.horasExtrasComisiones303 },
+    { code: '305', label: 'Participación de utilidades', val: data.utilidades305 ?? 0 },
+    { code: '351', label: 'Aporte personal al IESS', val: data.aporteIess351 },
+    { code: '361', label: 'Gastos personales — vivienda', val: data.gastosPersonales?.vivienda ?? 0 },
+    { code: '363', label: 'Gastos personales — educación', val: data.gastosPersonales?.educacion ?? 0 },
+    { code: '365', label: 'Gastos personales — salud', val: data.gastosPersonales?.salud ?? 0 },
+    { code: '367', label: 'Gastos personales — vestimenta', val: data.gastosPersonales?.vestimenta ?? 0 },
+    { code: '369', label: 'Gastos personales — alimentación', val: data.gastosPersonales?.alimentacion ?? 0 },
+    { code: '401', label: 'Impuesto a la renta retenido', val: data.impuestoRetenido401 },
   ];
 
-  for (const c of casilleros) {
-    if (c.highlight) {
-      page.drawRectangle({ x: 30, y: y - 3, width: width - 60, height: 14, color: rgb(0.95, 0.96, 0.98) });
-    }
-    page.drawText(`[${c.code}] ${c.label}`, { x: 40, y, size: 8, font: c.highlight ? fontBold : fontRegular });
-    page.drawText(`$ ${c.val.toFixed(2)}`, { x: width - 100, y, size: 8, font: c.highlight ? fontBold : fontRegular });
-    y -= 16;
-  }
+  pdf.drawTable(
+    [
+      { header: 'Casillero', width: 70 },
+      { header: 'Concepto', width: pdf.contentWidth - 160 },
+      { header: 'Valor', width: 90, align: 'right' },
+    ],
+    casilleros.map((c) => [c.code, c.label, money(c.val)])
+  );
 
-  // Pie de firmas
-  y -= 40;
-  page.drawLine({ start: { x: 50, y }, end: { x: 220, y }, thickness: 1, color: rgb(0.6, 0.6, 0.6) });
-  page.drawLine({ start: { x: 350, y }, end: { x: 520, y }, thickness: 1, color: rgb(0.6, 0.6, 0.6) });
+  pdf.drawAmountBox([{ label: 'Casillero 401', value: money(data.impuestoRetenido401), strong: true }]);
+  pdf.drawSignatureRow('Firma del empleador', 'Firma del trabajador');
 
-  y -= 12;
-  page.drawText('Firma Agente de Retención (Empleador)', { x: 50, y, size: 7, font: fontRegular });
-  page.drawText('Firma del Trabajador (Sujeto Retenido)', { x: 350, y, size: 7, font: fontRegular });
-
-  const pdfBytes = await pdfDoc.save();
-  return Buffer.from(pdfBytes);
+  return pdf.toBuffer();
 }

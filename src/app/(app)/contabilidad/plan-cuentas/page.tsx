@@ -4,13 +4,15 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, Search, ChevronRight, ChevronDown, BookOpen } from "lucide-react";
+import { Plus, Edit, Trash2, ChevronRight, ChevronDown, BookOpen } from "lucide-react";
 
 import { apiFetch } from "@/lib/apiFetch";
 interface Cuenta {
@@ -131,6 +133,7 @@ export default function PlanCuentasPage() {
   const [filtered, setFiltered] = useState<Cuenta[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("plan-cuentas");
 
   const load = useCallback(async () => {
     try {
@@ -173,23 +176,20 @@ export default function PlanCuentasPage() {
             <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Plan de Cuentas</h1>
             <p className="text-xs text-brand-gray-500 mt-0.5">Catálogo contable jerárquico con niveles y tipos</p>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-60">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray-400" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar cuenta..."
-                className="pl-8 h-8 text-xs"
-              />
-            </div>
-            <Link href="/contabilidad/plan-cuentas/nueva">
-              <Button size="sm" className="bg-brand-red hover:bg-brand-red-bright text-white">
-                <Plus className="w-3.5 h-3.5" /> Crear Cuenta
-              </Button>
-            </Link>
-          </div>
+          <Link href="/contabilidad/plan-cuentas/nueva">
+            <Button size="sm" className="bg-brand-red hover:bg-brand-red-bright text-white">
+              <Plus className="w-3.5 h-3.5" /> Crear Cuenta
+            </Button>
+          </Link>
         </div>
+
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar cuenta..."
+          view={view}
+          onViewChange={setView}
+        />
 
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
@@ -201,6 +201,49 @@ export default function PlanCuentasPage() {
               description="Crea la primera cuenta contable."
               compact
             />
+          ) : view === "cuadricula" ? (
+            <div className="p-3">
+              <RecordGrid>
+                {filtered.map((cuenta) => (
+                  <RecordCard
+                    key={cuenta.id}
+                    title={cuenta.nombre}
+                    subtitle={cuenta.codigo}
+                    fields={[
+                      { label: "Nivel", value: cuenta.nivel },
+                      { label: "Tipo", value: TIPO_LABEL[cuenta.tipo] || cuenta.tipo },
+                      { label: "Movimiento", value: cuenta.permiteMovimiento ? "Sí" : "No" },
+                    ]}
+                    actions={
+                      <>
+                        <Link
+                          href={`/contabilidad/plan-cuentas/${cuenta.id}`}
+                          className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors"
+                        >
+                          <Edit className="w-3 h-3" /> Editar
+                        </Link>
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`¿Eliminar la cuenta "${cuenta.nombre}"?`)) return;
+                            try {
+                              const res = await apiFetch(`/api/contabilidad/plan-cuentas/${cuenta.id}`, { method: "DELETE" });
+                              if (!res.ok) throw new Error("Error al eliminar");
+                              toast.success("Cuenta eliminada correctamente");
+                              window.location.reload();
+                            } catch {
+                              toast.error("Error al eliminar la cuenta");
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" /> Eliminar
+                        </button>
+                      </>
+                    }
+                  />
+                ))}
+              </RecordGrid>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="w-full text-left border-collapse text-[13px]">

@@ -8,6 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Plus, Search, Trash2, CloudDownload, RotateCcw, X } from "lucide-react";
 
@@ -73,6 +76,8 @@ export default function PlanillasIESSPage() {
     diasTrabajados: "30",
   });
   const [adding, setAdding] = useState(false);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("planillas-iess");
 
   useEffect(() => {
     setCedulaIess(loadSavedCedula());
@@ -211,6 +216,11 @@ export default function PlanillasIESSPage() {
     }
   };
 
+  const q = search.trim().toLowerCase();
+  const visibles = q
+    ? items.filter((p) => `${p.cedula} ${p.nombreCompleto} ${p.periodo}`.toLowerCase().includes(q))
+    : items;
+
   return (
     <>
       <title>Planillas IESS - Control Tributario</title>
@@ -224,12 +234,6 @@ export default function PlanillasIESSPage() {
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Input
-              placeholder="Periodo (YYYYMM)"
-              value={periodo}
-              onChange={(e) => setPeriodo(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              className="w-36"
-            />
             <Button variant="outline" size="icon" onClick={load} aria-label="Buscar">
               <Search className="w-4 h-4" />
             </Button>
@@ -254,6 +258,22 @@ export default function PlanillasIESSPage() {
             </Button>
           </div>
         </div>
+
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar por cédula o nombre..."
+          view={view}
+          onViewChange={setView}
+        >
+          <Input
+            placeholder="Periodo (YYYYMM)"
+            value={periodo}
+            onChange={(e) => setPeriodo(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            className="w-36"
+            aria-label="Periodo (YYYYMM)"
+          />
+        </ListToolbar>
 
         {showCreds && (
           <Card className="border-brand-gray-200">
@@ -373,7 +393,9 @@ export default function PlanillasIESSPage() {
               />
             </CardContent>
           </Card>
-        ) : (
+        ) : visibles.length === 0 ? (
+          <p className="text-sm text-brand-gray-400">Ningún resultado para la búsqueda.</p>
+        ) : view === "lista" ? (
           <div className="overflow-x-auto">
             <Table className="w-full text-sm">
               <TableHeader>
@@ -389,7 +411,7 @@ export default function PlanillasIESSPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((p) => (
+                {visibles.map((p) => (
                   <TableRow key={p.id} className="border-b hover:bg-gray-50">
                     <TableCell className="py-2 pr-2 font-mono text-xs">{p.cedula}</TableCell>
                     <TableCell className="py-2 pr-2 font-medium">{p.nombreCompleto}</TableCell>
@@ -412,6 +434,7 @@ export default function PlanillasIESSPage() {
                         size="icon"
                         className="w-7 h-7 text-red-500"
                         onClick={() => handleDelete(p.cedula, p.nombreCompleto)}
+                        aria-label={`Eliminar ${p.nombreCompleto}`}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
@@ -421,6 +444,34 @@ export default function PlanillasIESSPage() {
               </TableBody>
             </Table>
           </div>
+        ) : (
+          <RecordGrid>
+            {visibles.map((p) => (
+              <RecordCard
+                key={p.id}
+                title={p.nombreCompleto}
+                subtitle={p.cedula}
+                fields={[
+                  { label: "Sueldo", value: `$${Number(p.sueldo).toFixed(2)}` },
+                  { label: "A. Patronal", value: `$${Number(p.aportePatronal ?? 0).toFixed(2)}` },
+                  { label: "A. Individual", value: `$${Number(p.aporteIndividual ?? 0).toFixed(2)}` },
+                  { label: "S. Líquido", value: `$${Number(p.sueldoLiquido ?? 0).toFixed(2)}` },
+                  { label: "Costo empresa", value: `$${Number(p.costoTotalEmpresa ?? 0).toFixed(2)}` },
+                ]}
+                actions={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-7 h-7 text-red-500"
+                    onClick={() => handleDelete(p.cedula, p.nombreCompleto)}
+                    aria-label={`Eliminar ${p.nombreCompleto}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                }
+              />
+            ))}
+          </RecordGrid>
         )}
       </main>
     </>

@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 
 import { generateExcelReport } from "@/lib/excel-export";
+import { formatCurrency } from "@/lib/chartTheme";
 const TIPO_MAP: Record<string, string> = {
   '01': 'FAC', '04': 'NC', '05': 'ND', '07': 'RET'
 };
@@ -67,6 +68,7 @@ export default function Dashboard() {
     certWarning,
     categories,
     monthlyTrend,
+    taxSummary,
     totalVentas,
     totalCompras,
     ventasCount,
@@ -81,11 +83,15 @@ export default function Dashboard() {
     pprCount,
   } = useDashboardData(activeRuc);
 
+  const openAssistant = (raw: string) => {
+    const q = raw.trim();
+    if (!q) return;
+    router.push(`/asistente?q=${encodeURIComponent(q)}`);
+  };
+
   const handleChatSubmit = (e: FormEvent) => {
     e.preventDefault();
-    const q = chatQuery.trim();
-    if (!q) return;
-    router.push(`/chat?q=${encodeURIComponent(q)}`);
+    openAssistant(chatQuery);
   };
 
   const lastSyncLabel = syncStatus?.lastSyncAt
@@ -100,6 +106,16 @@ export default function Dashboard() {
   const defaultRange = getDefaultDateRange();
   const periodoLabel = formatDateRangeLabel(defaultRange);
   const vencimiento = getIvaVencimiento(defaultRange);
+  const ivaSaldo = taxSummary.ivaAPagar;
+  const ivaBadge =
+    ivaSaldo > 0 ? "A pagar" : ivaSaldo < 0 ? "Crédito" : "Sin saldo";
+  const ivaBadgeClass =
+    ivaSaldo > 0
+      ? "bg-amber-50 text-amber-700 border-amber-200"
+      : ivaSaldo < 0
+        ? "bg-sky-50 text-brand-sky border-sky-200"
+        : "bg-brand-gray-50 text-brand-gray-600 border-brand-gray-200";
+  const ivaMonto = ivaSaldo < 0 ? Math.abs(ivaSaldo) : taxSummary.ivaAPagarNeto;
 
   return (
     <>
@@ -171,9 +187,7 @@ export default function Dashboard() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    if (chatQuery.trim()) {
-                      router.push(`/chat?q=${encodeURIComponent(chatQuery.trim())}`);
-                    }
+                    openAssistant(chatQuery);
                   }
                 }}
                 rows={3}
@@ -229,18 +243,34 @@ export default function Dashboard() {
             {showDeclaraciones ? (
               <>
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <div>
                       <p className="text-[12px] font-semibold text-brand-gray-900">IVA – {periodoLabel}</p>
                       <p className="text-[10px] text-brand-gray-400">Vence: {vencimiento.fecha}</p>
                     </div>
-                    <span className="text-[9px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
-                      Revisar
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${loading ? "bg-brand-gray-50 text-brand-gray-500 border-brand-gray-200" : ivaBadgeClass}`}>
+                      {loading ? "…" : ivaBadge}
                     </span>
                   </div>
+                  <p className="text-lg font-bold tabular-nums text-brand-gray-900">
+                    {loading ? "—" : formatCurrency(ivaMonto)}
+                  </p>
+                  <div className="flex flex-col gap-0.5 text-[11px] text-brand-gray-500">
+                    <div className="flex items-center justify-between">
+                      <span>IVA ventas</span>
+                      <span className="font-semibold text-brand-gray-700 tabular-nums">
+                        {loading ? "—" : formatCurrency(taxSummary.totalVentasIva)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>IVA compras</span>
+                      <span className="font-semibold text-brand-gray-700 tabular-nums">
+                        {loading ? "—" : formatCurrency(taxSummary.totalComprasIva)}
+                      </span>
+                    </div>
+                  </div>
                   <p className="text-[11px] text-brand-gray-500 leading-relaxed">
-                    Revisa el control tributario y presenta cuando tengas el período listo. No hay estado
-                    automático en esta tarjeta.
+                    Estimado con los comprobantes del período. No es una declaración presentada.
                   </p>
                 </div>
                 <Link
@@ -284,18 +314,19 @@ export default function Dashboard() {
             <>
               <KpiCard
                 label="Ventas"
-                value={`$${totalVentas.toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                value={formatCurrency(totalVentas)}
                 count={ventasCount}
               />
               <KpiCard
                 label="Compras"
-                value={`$${totalCompras.toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                value={formatCurrency(totalCompras)}
                 count={comprasCount}
               />
               <KpiCard label="Retenciones" value={String(retencionesCount)} />
               <KpiCard
                 label={pprCount > 0 ? "Esperando SRI" : "En Proceso"}
                 value={String(pprCount + enProcesoCount)}
+                detail={`${noAuthCount} sin autorizar en el período`}
               />
             </>
           )}

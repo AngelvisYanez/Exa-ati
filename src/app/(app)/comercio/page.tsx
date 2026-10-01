@@ -11,6 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import {
   ShoppingCart, Package, TrendingUp, Clock,
   CheckCircle, AlertCircle, Send, ExternalLink, RefreshCw
@@ -32,6 +35,8 @@ export default function EcommerceDashboardPage() {
   const [facturas, setFacturas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("comercio");
 
   async function loadFacturas() {
     setLoading(true);
@@ -69,6 +74,20 @@ export default function EcommerceDashboardPage() {
       setEnviando(null);
     }
   }
+
+  const q = search.trim().toLowerCase();
+  const facturasVisibles = q
+    ? facturas.filter((f) =>
+        [
+          f.serie,
+          f.secuencial,
+          f.receptor_razon_social,
+          f.receptor_email,
+          f.estado,
+          f.fecha_emision ? new Date(f.fecha_emision).toLocaleDateString("es-EC") : "",
+        ].some((v) => String(v ?? "").toLowerCase().includes(q))
+      )
+    : facturas;
 
   const autorizadas = facturas.filter(f => f.estado === 'AUTORIZADO');
   const pendientes = facturas.filter(f => f.estado !== 'AUTORIZADO');
@@ -147,7 +166,25 @@ export default function EcommerceDashboardPage() {
           </div>
         </div>
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar factura, cliente o email..."
+          view={view}
+          onViewChange={setView}
+        />
+
         <Card className="p-0 overflow-hidden">
+          {loading ? (
+            <div className="p-6"><TableSkeleton rows={4} columns={6} /></div>
+          ) : facturasVisibles.length === 0 ? (
+            <EmptyState
+              icon={<ShoppingCart className="w-5 h-5" />}
+              title="No hay facturas eCommerce."
+              action={<Link href="/comercio/facturar" className="text-brand-red underline">Crear primera factura</Link>}
+              compact
+            />
+          ) : view === "lista" ? (
           <div className="overflow-x-auto">
             <Table className="w-full text-xs">
               <TableHeader>
@@ -161,20 +198,7 @@ export default function EcommerceDashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
-                  <TableRow><TableCell colSpan={6} className="p-6"><TableSkeleton rows={4} columns={6} /></TableCell></TableRow>
-                ) : facturas.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="p-0">
-                      <EmptyState
-                        icon={<ShoppingCart className="w-5 h-5" />}
-                        title="No hay facturas eCommerce."
-                        action={<Link href="/comercio/facturar" className="text-brand-red underline">Crear primera factura</Link>}
-                        compact
-                      />
-                    </TableCell>
-                  </TableRow>
-                ) : facturas.map((f) => (
+                {facturasVisibles.map((f) => (
                   <TableRow key={f.id} className="border-b border-brand-gray-100 hover:bg-brand-gray-50">
                     <TableCell className="p-3">
                       <div className="flex flex-col">
@@ -206,6 +230,35 @@ export default function EcommerceDashboardPage() {
               </TableBody>
             </Table>
           </div>
+          ) : (
+            <div className="p-3">
+              <RecordGrid>
+                {facturasVisibles.map((f) => (
+                  <RecordCard
+                    key={f.id}
+                    title={`${f.serie}-${f.secuencial}`}
+                    subtitle={f.receptor_razon_social || "—"}
+                    fields={[
+                      { label: "Email", value: f.receptor_email || "—" },
+                      { label: "Total", value: `$${parseFloat(f.importe_total || 0).toFixed(2)}` },
+                      { label: "Estado", value: f.estado },
+                      { label: "Fecha", value: f.fecha_emision ? new Date(f.fecha_emision).toLocaleDateString("es-EC") : "—" },
+                    ]}
+                    actions={
+                      f.estado === "AUTORIZADO" ? (
+                        <Button variant="ghost" size="xs" onClick={() => handleSendEmail(f.clave_acceso)}
+                          disabled={enviando === f.clave_acceso}>
+                          <Send className={`w-3.5 h-3.5 ${enviando === f.clave_acceso ? "animate-pulse" : ""}`} />
+                        </Button>
+                      ) : (
+                        <span className="text-brand-gray-300">—</span>
+                      )
+                    }
+                  />
+                ))}
+              </RecordGrid>
+            </div>
+          )}
         </Card>
       </main>
     </>

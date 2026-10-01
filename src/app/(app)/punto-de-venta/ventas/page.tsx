@@ -10,6 +10,9 @@ import { Card } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { Search, FileText, Download, Eye, RefreshCw } from "lucide-react";
 
 import { apiFetch } from "@/lib/apiFetch";
@@ -28,6 +31,7 @@ export default function PosVentasPage() {
   const [ventas, setVentas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [view, setView] = useViewMode("ventas-pos");
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [meta, setMeta] = useState({ total: 0, page: 1, totalPages: 1 });
@@ -91,33 +95,42 @@ export default function PosVentasPage() {
       <Topbar title="Historial de Ventas POS" />
       <main className="ui-page flex-1">
         <Card className="p-4">
-          <form onSubmit={handleSearch} className="flex flex-wrap gap-3 items-end">
-            <div className="flex-1 min-w-[200px]">
-              <label className="text-[10px] font-bold uppercase text-brand-gray-500">Buscar</label>
-              <div className="relative mt-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray-400" />
-                <Input size={1} value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="Cliente, RUC, secuencial..." className="pl-8 h-8 text-xs" />
+          <form onSubmit={handleSearch}>
+            <ListToolbar
+              search={search}
+              onSearchChange={setSearch}
+              placeholder="Cliente, RUC, secuencial..."
+              view={view}
+              onViewChange={setView}
+            >
+              <div>
+                <label className="text-[10px] font-bold uppercase text-brand-gray-500">Desde</label>
+                <Input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} className="h-8 text-xs mt-1" />
               </div>
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase text-brand-gray-500">Desde</label>
-              <Input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} className="h-8 text-xs mt-1" />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase text-brand-gray-500">Hasta</label>
-              <Input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} className="h-8 text-xs mt-1" />
-            </div>
-            <Button type="submit" variant="outline" size="sm" className="h-8">
-              <Search className="w-3.5 h-3.5 mr-1" /> Filtrar
-            </Button>
-            <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => loadVentas()}>
-              <RefreshCw className="w-3.5 h-3.5" />
-            </Button>
+              <div>
+                <label className="text-[10px] font-bold uppercase text-brand-gray-500">Hasta</label>
+                <Input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} className="h-8 text-xs mt-1" />
+              </div>
+              <Button type="submit" variant="outline" size="sm" className="h-8">
+                <Search className="w-3.5 h-3.5 mr-1" /> Filtrar
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => loadVentas()}>
+                <RefreshCw className="w-3.5 h-3.5" />
+              </Button>
+            </ListToolbar>
           </form>
         </Card>
 
         <Card className="p-0 overflow-hidden">
+          {loading ? (
+            <div className="p-6"><TableSkeleton rows={4} columns={6} /></div>
+          ) : ventas.length === 0 ? (
+            <EmptyState
+              icon={<FileText className="w-5 h-5" />}
+              title="No hay ventas POS registradas"
+              compact
+            />
+          ) : view === "lista" ? (
           <div className="overflow-x-auto">
             <Table className="w-full text-xs">
               <TableHeader>
@@ -132,19 +145,7 @@ export default function PosVentasPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
-                  <TableRow><TableCell colSpan={7} className="p-6"><TableSkeleton rows={4} columns={6} /></TableCell></TableRow>
-                ) : ventas.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="p-0">
-                      <EmptyState
-                        icon={<FileText className="w-5 h-5" />}
-                        title="No hay ventas POS registradas"
-                        compact
-                      />
-                    </TableCell>
-                  </TableRow>
-                ) : ventas.map((v, i) => (
+                {ventas.map((v, i) => (
                   <TableRow key={v.id} className="border-b border-brand-gray-100 hover:bg-brand-gray-50">
                     <TableCell className="p-3 font-mono text-brand-gray-500">{((meta.page - 1) * 20) + i + 1}</TableCell>
                     <TableCell className="p-3">{v.fecha_emision ? new Date(v.fecha_emision).toLocaleDateString('es-EC') : '—'}</TableCell>
@@ -175,6 +176,39 @@ export default function PosVentasPage() {
               </TableBody>
             </Table>
           </div>
+          ) : (
+            <div className="p-3">
+              <RecordGrid>
+                {ventas.map((v, i) => (
+                  <RecordCard
+                    key={v.id}
+                    title={v.receptor_razon_social || "—"}
+                    subtitle={v.receptor_identificacion || "—"}
+                    fields={[
+                      { label: "#", value: ((meta.page - 1) * 20) + i + 1 },
+                      { label: "Fecha", value: v.fecha_emision ? new Date(v.fecha_emision).toLocaleDateString("es-EC") : "—" },
+                      { label: "Total", value: `$${parseFloat(v.importe_total || 0).toFixed(2)}` },
+                      { label: "Estado", value: v.estado },
+                    ]}
+                    actions={
+                      <div className="flex items-center gap-1">
+                        <a href={getPdfUrl(v.clave_acceso)} target="_blank" rel="noopener noreferrer"
+                          className="p-1.5 rounded-md hover:bg-brand-gray-100 text-brand-gray-500 hover:text-brand-gray-800 transition-colors"
+                          title="Ver RIDE">
+                          <Eye className="w-3.5 h-3.5" />
+                        </a>
+                        <a href={getPdfUrl(v.clave_acceso)} download
+                          className="p-1.5 rounded-md hover:bg-brand-gray-100 text-brand-gray-500 hover:text-brand-gray-800 transition-colors"
+                          title="Descargar PDF">
+                          <Download className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    }
+                  />
+                ))}
+              </RecordGrid>
+            </div>
+          )}
         </Card>
 
         {meta.totalPages > 1 && (

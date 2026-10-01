@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Plus, Edit, Trash2, Landmark } from "lucide-react";
 
@@ -22,6 +25,8 @@ interface PosicionFiscal {
 export default function PosicionesFiscalesPage() {
   const [items, setItems] = useState<PosicionFiscal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("posiciones-fiscales");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ nombre: "", tipoContribuyente: "" });
@@ -98,6 +103,15 @@ export default function PosicionesFiscalesPage() {
     }
   };
 
+  const q = search.trim().toLowerCase();
+  const visible = q
+    ? items.filter((p) =>
+        [p.nombre, p.tipoContribuyente, p.activo ? "Activo" : "Inactivo"].some((v) =>
+          String(v ?? "").toLowerCase().includes(q)
+        )
+      )
+    : items;
+
   return (
     <>
       <title>Posiciones Fiscales - OFSERCONT IA</title>
@@ -140,15 +154,48 @@ export default function PosicionesFiscalesPage() {
           </div>
         )}
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar posición fiscal..."
+          view={view}
+          onViewChange={setView}
+        />
+
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
             <TableSkeleton rows={6} columns={5} />
-          ) : items.length === 0 ? (
+          ) : visible.length === 0 ? (
             <EmptyState
               icon={<Landmark className="w-5 h-5" />}
               title="No hay posiciones fiscales configuradas."
               compact
             />
+          ) : view === "cuadricula" ? (
+            <div className="p-3">
+              <RecordGrid>
+                {visible.map((p) => (
+                  <RecordCard
+                    key={p.id}
+                    title={p.nombre}
+                    fields={[
+                      { label: "Tipo contribuyente", value: p.tipoContribuyente || "—" },
+                      { label: "Estado", value: p.activo ? "Activo" : "Inactivo" },
+                    ]}
+                    actions={
+                      <>
+                        <button onClick={() => openEdit(p)} className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors cursor-pointer">
+                          <Edit className="w-3 h-3" /> Editar
+                        </button>
+                        <button onClick={() => handleDelete(p.id, p.nombre)} className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer">
+                          <Trash2 className="w-3 h-3" /> Eliminar
+                        </button>
+                      </>
+                    }
+                  />
+                ))}
+              </RecordGrid>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="w-full text-left border-collapse text-[13px]">
@@ -161,7 +208,7 @@ export default function PosicionesFiscalesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-brand-gray-50">
-                  {items.map((p) => (
+                  {visible.map((p) => (
                     <TableRow key={p.id} className="hover:bg-brand-gray-50/40 transition-colors">
                       <TableCell className="py-3 px-4">
                         <span className="font-medium text-brand-gray-800">{p.nombre}</span>

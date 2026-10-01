@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Plus, Edit, Trash2, CreditCard } from "lucide-react";
 import { apiFetch } from "@/lib/apiFetch";
@@ -38,6 +41,8 @@ function formatMoney(amount: number, moneda: string) {
 function AdminPlanesContent() {
   const [planes, setPlanes] = useState<PlanRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("planes");
 
   const load = useCallback(async () => {
     try {
@@ -74,6 +79,24 @@ function AdminPlanesContent() {
     }
   };
 
+  const q = search.trim().toLowerCase();
+  const visible = q
+    ? planes.filter((p) =>
+        [
+          p.codigo,
+          p.nombre,
+          p.descripcion,
+          formatMoney(p.precioMensual, p.moneda),
+          p.precioAnual != null ? formatMoney(p.precioAnual, p.moneda) : "",
+          p.maxEmpresas,
+          p.modulosCount,
+          p.tenantsCount,
+          p.activo ? "Activo" : "Inactivo",
+          p.esSistema ? "sistema" : "",
+        ].some((v) => String(v ?? "").toLowerCase().includes(q))
+      )
+    : planes;
+
   return (
     <>
       <title>Planes - Admin - OFSERCONT IA</title>
@@ -95,15 +118,64 @@ function AdminPlanesContent() {
           </Link>
         </div>
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar plan..."
+          view={view}
+          onViewChange={setView}
+        />
+
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
             <TableSkeleton rows={4} columns={7} />
-          ) : planes.length === 0 ? (
+          ) : visible.length === 0 ? (
             <EmptyState
               icon={<CreditCard className="w-5 h-5" />}
-              title="No hay planes. Aplica la migración 007 o crea uno."
+              title={
+                search.trim()
+                  ? "No se encontraron planes."
+                  : "No hay planes. Aplica la migración 007 o crea uno."
+              }
               compact
             />
+          ) : view === "cuadricula" ? (
+            <div className="p-3">
+              <RecordGrid>
+                {visible.map((p) => (
+                  <RecordCard
+                    key={p.codigo}
+                    title={p.nombre}
+                    subtitle={p.codigo}
+                    fields={[
+                      { label: "Precio / mes", value: formatMoney(p.precioMensual, p.moneda) },
+                      { label: "Empresas", value: p.maxEmpresas },
+                      { label: "Módulos", value: p.modulosCount },
+                      { label: "Estado", value: p.activo ? "Activo" : "Inactivo" },
+                    ]}
+                    actions={
+                      <>
+                        <Link href={`/administracion/planes/${encodeURIComponent(p.codigo)}`}>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
+                        </Link>
+                        {!p.esSistema ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-brand-red hover:text-brand-red"
+                            onClick={() => handleDelete(p.codigo, p.nombre)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        ) : null}
+                      </>
+                    }
+                  />
+                ))}
+              </RecordGrid>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="w-full text-left border-collapse text-[13px]">
@@ -119,7 +191,7 @@ function AdminPlanesContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-brand-gray-50">
-                  {planes.map((p) => (
+                  {visible.map((p) => (
                     <TableRow key={p.codigo} className="hover:bg-brand-gray-50/40 transition-colors">
                       <TableCell className="py-3 px-4">
                         <div className="font-medium text-brand-gray-800">{p.nombre}</div>

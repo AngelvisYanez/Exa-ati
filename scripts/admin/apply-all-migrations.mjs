@@ -39,6 +39,8 @@ const PG_FILES = [
   '010_suscripcion_ciclo_vida.sql',
   '011_email_plantillas_registro.sql',
   '012_metodos_pago_admin.sql',
+  '013_emisor_logo.sql',
+  '014_ride_disenos.sql',
 ];
 
 const MYSQL_FILES = [
@@ -48,6 +50,8 @@ const MYSQL_FILES = [
   '003_add_cuentas_por_cobrar_pagar_mysql.sql',
   '003_asientos_inventario_mysql.sql',
   'add_whatsapp_notif_columns_mysql.sql',
+  '013_emisor_logo_mysql.sql',
+  '014_ride_disenos_mysql.sql',
 ];
 
 const EXPECTED_TABLES = [

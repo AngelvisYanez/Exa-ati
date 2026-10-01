@@ -11,6 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Plus, RefreshCw, ArrowLeft, BookOpen, Wand2 } from "lucide-react";
 import { apiFetch } from "@/lib/apiFetch";
@@ -57,6 +60,8 @@ export default function DiarioPage() {
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [glosa, setGlosa] = useState("");
   const [lineas, setLineas] = useState<LineaForm[]>([emptyLinea(), emptyLinea()]);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("diario");
   const [periodoGen, setPeriodoGen] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -160,6 +165,17 @@ export default function DiarioPage() {
       setGenerando(false);
     }
   }
+
+  const q = search.trim().toLowerCase();
+  const visibleAsientos = q
+    ? asientos.filter((a) => {
+        const debe = a.lineas?.reduce((s, l) => s + Number(l.debe || 0), 0) ?? 0;
+        const haber = a.lineas?.reduce((s, l) => s + Number(l.haber || 0), 0) ?? 0;
+        return [a.numero, String(a.fecha).slice(0, 10), a.glosa, a.origen, a.estado, debe.toFixed(2), haber.toFixed(2)].some(
+          (v) => String(v ?? "").toLowerCase().includes(q)
+        );
+      })
+    : asientos;
 
   return (
     <>
@@ -275,49 +291,79 @@ export default function DiarioPage() {
           </Card>
         )}
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar asiento..."
+          view={view}
+          onViewChange={setView}
+        />
+
         <Card className="p-0 overflow-hidden">
-          <Table className="w-full text-xs">
-            <TableHeader>
-              <TableRow className="bg-brand-gray-50">
-                <TableHead className="p-3">#</TableHead>
-                <TableHead className="p-3">Fecha</TableHead>
-                <TableHead className="p-3">Glosa</TableHead>
-                <TableHead className="p-3">Origen</TableHead>
-                <TableHead className="p-3">Estado</TableHead>
-                <TableHead className="p-3 text-right">Debe</TableHead>
-                <TableHead className="p-3 text-right">Haber</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={7} className="p-6"><TableSkeleton rows={4} columns={6} /></TableCell></TableRow>
-              ) : asientos.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="p-0">
-                    <EmptyState
-                      icon={<BookOpen className="w-5 h-5" />}
-                      title="No hay asientos registrados"
-                      compact
+          {loading ? (
+            <div className="p-6">
+              <TableSkeleton rows={4} columns={6} />
+            </div>
+          ) : visibleAsientos.length === 0 ? (
+            <EmptyState
+              icon={<BookOpen className="w-5 h-5" />}
+              title="No hay asientos registrados"
+              compact
+            />
+          ) : view === "cuadricula" ? (
+            <div className="p-3">
+              <RecordGrid>
+                {visibleAsientos.map((a) => {
+                  const debe = a.lineas?.reduce((s, l) => s + Number(l.debe || 0), 0) ?? 0;
+                  const haber = a.lineas?.reduce((s, l) => s + Number(l.haber || 0), 0) ?? 0;
+                  return (
+                    <RecordCard
+                      key={a.id}
+                      title={a.glosa || `Asiento ${a.numero}`}
+                      subtitle={`#${a.numero} · ${String(a.fecha).slice(0, 10)}`}
+                      fields={[
+                        { label: "Origen", value: a.origen },
+                        { label: "Estado", value: a.estado },
+                        { label: "Debe", value: `$${debe.toFixed(2)}` },
+                        { label: "Haber", value: `$${haber.toFixed(2)}` },
+                      ]}
                     />
-                  </TableCell>
+                  );
+                })}
+              </RecordGrid>
+            </div>
+          ) : (
+            <Table className="w-full text-xs">
+              <TableHeader>
+                <TableRow className="bg-brand-gray-50">
+                  <TableHead className="p-3">#</TableHead>
+                  <TableHead className="p-3">Fecha</TableHead>
+                  <TableHead className="p-3">Glosa</TableHead>
+                  <TableHead className="p-3">Origen</TableHead>
+                  <TableHead className="p-3">Estado</TableHead>
+                  <TableHead className="p-3 text-right">Debe</TableHead>
+                  <TableHead className="p-3 text-right">Haber</TableHead>
                 </TableRow>
-              ) : asientos.map((a) => {
-                const debe = a.lineas?.reduce((s, l) => s + Number(l.debe || 0), 0) ?? 0;
-                const haber = a.lineas?.reduce((s, l) => s + Number(l.haber || 0), 0) ?? 0;
-                return (
-                  <TableRow key={a.id} className="border-b hover:bg-brand-gray-50">
-                    <TableCell className="p-3 font-mono font-bold">{a.numero}</TableCell>
-                    <TableCell className="p-3">{String(a.fecha).slice(0, 10)}</TableCell>
-                    <TableCell className="p-3">{a.glosa}</TableCell>
-                    <TableCell className="p-3"><Badge variant="outline">{a.origen}</Badge></TableCell>
-                    <TableCell className="p-3"><Badge>{a.estado}</Badge></TableCell>
-                    <TableCell className="p-3 text-right font-mono">${debe.toFixed(2)}</TableCell>
-                    <TableCell className="p-3 text-right font-mono">${haber.toFixed(2)}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {visibleAsientos.map((a) => {
+                  const debe = a.lineas?.reduce((s, l) => s + Number(l.debe || 0), 0) ?? 0;
+                  const haber = a.lineas?.reduce((s, l) => s + Number(l.haber || 0), 0) ?? 0;
+                  return (
+                    <TableRow key={a.id} className="border-b hover:bg-brand-gray-50">
+                      <TableCell className="p-3 font-mono font-bold">{a.numero}</TableCell>
+                      <TableCell className="p-3">{String(a.fecha).slice(0, 10)}</TableCell>
+                      <TableCell className="p-3">{a.glosa}</TableCell>
+                      <TableCell className="p-3"><Badge variant="outline">{a.origen}</Badge></TableCell>
+                      <TableCell className="p-3"><Badge>{a.estado}</Badge></TableCell>
+                      <TableCell className="p-3 text-right font-mono">${debe.toFixed(2)}</TableCell>
+                      <TableCell className="p-3 text-right font-mono">${haber.toFixed(2)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </Card>
       </main>
     </>

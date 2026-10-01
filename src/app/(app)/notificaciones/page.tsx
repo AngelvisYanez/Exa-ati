@@ -6,6 +6,9 @@ import Topbar from "@/components/layout/Topbar";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Bell } from "lucide-react";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { useViewMode } from "@/components/lists/useViewMode";
 import DateRangeFilter, {
   DateRange,
   formatDateRangeLabel,
@@ -90,6 +93,8 @@ export default function NotificacionesPage() {
   const [showOnlyUnread, setShowOnlyUnread] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
   const [channelsActive, setChannelsActive] = useState(0);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("notificaciones");
 
   useEffect(() => {
     const load = async () => {
@@ -120,6 +125,10 @@ export default function NotificacionesPage() {
     if (filterType !== "Todos" && n.type !== filterType) return false;
     if (filterChannel !== "Todos" && n.channel !== filterChannel) return false;
     if (showOnlyUnread && !n.unread) return false;
+    const q = search.trim().toLowerCase();
+    if (q && !`${n.title} ${n.body} ${n.channel} ${n.type} ${n.date} ${typeConfig[n.type].label}`.toLowerCase().includes(q)) {
+      return false;
+    }
     return true;
   });
 
@@ -246,7 +255,16 @@ export default function NotificacionesPage() {
           })}
         </div>
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar por título o mensaje..."
+          view={view}
+          onViewChange={setView}
+        />
+
         {/* Grouped Notification List */}
+        {view === "cuadricula" ? (
         <div className="flex flex-col gap-6">
           {Object.entries(grouped).map(([date, items]) => (
             <div key={date}>
@@ -325,6 +343,73 @@ export default function NotificacionesPage() {
             />
           )}
         </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={<Bell className="w-5 h-5" />}
+            title="Sin notificaciones"
+            description="No hay notificaciones con los filtros seleccionados."
+            className="rounded-xl border border-dashed border-brand-gray-200 bg-brand-gray-50"
+          />
+        ) : (
+          <div className="overflow-x-auto bg-white border border-brand-gray-200 rounded-xl">
+            <Table className="w-full text-sm">
+              <TableHeader>
+                <TableRow className="border-b text-left text-brand-gray-500 text-xs uppercase tracking-wider">
+                  <TableHead className="py-2 px-3">Fecha</TableHead>
+                  <TableHead className="py-2 px-3">Título</TableHead>
+                  <TableHead className="py-2 px-3">Mensaje</TableHead>
+                  <TableHead className="py-2 px-3">Canal</TableHead>
+                  <TableHead className="py-2 px-3">Tipo</TableHead>
+                  <TableHead className="py-2 px-3">Hora</TableHead>
+                  <TableHead className="py-2 px-3 text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((n) => {
+                  const tc = typeConfig[n.type];
+                  return (
+                    <TableRow key={n.id} className="border-b hover:bg-gray-50">
+                      <TableCell className="py-2 px-3 text-xs text-brand-gray-500">{n.date}</TableCell>
+                      <TableCell className={`py-2 px-3 font-medium ${n.unread ? "text-brand-gray-900" : "text-brand-gray-600"}`}>{n.title}</TableCell>
+                      <TableCell className="py-2 px-3 text-xs text-brand-gray-500 max-w-xs truncate">{n.body}</TableCell>
+                      <TableCell className="py-2 px-3">
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${channelColor[n.channel]}`}>
+                          {channelIcons[n.channel]}
+                          {n.channel}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-2 px-3">
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${tc.bg} ${tc.color}`}>{tc.label}</span>
+                      </TableCell>
+                      <TableCell className="py-2 px-3 text-xs text-brand-gray-400 whitespace-nowrap">{n.time}</TableCell>
+                      <TableCell className="py-2 px-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-2">
+                          {n.actionLabel && n.actionHref && (
+                            <a
+                              href={n.actionHref}
+                              onClick={() => markRead(n.id)}
+                              className="text-[11px] font-bold text-brand-red hover:text-brand-red-bright transition-colors"
+                            >
+                              {n.actionLabel}
+                            </a>
+                          )}
+                          {n.unread && (
+                            <button
+                              onClick={() => markRead(n.id)}
+                              className="text-[10px] text-brand-gray-400 hover:text-brand-gray-600 transition-colors cursor-pointer"
+                            >
+                              Marcar leída
+                            </button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
         {/* Configuration card */}
         <div className="bg-brand-gray-50 border border-brand-gray-200 rounded-xl p-5 flex items-center gap-4">

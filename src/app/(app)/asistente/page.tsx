@@ -291,7 +291,7 @@ function ChatIA() {
     }
   }, [emisorName]);
 
-  // Captura consulta inicial desde el dashboard (/chat?q=...)
+  // Captura consulta inicial desde el dashboard (/asistente?q=...)
   useEffect(() => {
     const q = searchParams.get("q")?.trim();
     if (!q || urlQueryHandledRef.current) return;

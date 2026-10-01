@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Calculator, FileSpreadsheet, RotateCcw } from "lucide-react";
 import { apiFetch } from "@/lib/apiFetch";
@@ -30,6 +33,8 @@ export default function RolesPage() {
     return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
   const [procesando, setProcesando] = useState(false);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("nomina-roles");
 
   const load = useCallback(async () => {
     try {
@@ -86,6 +91,13 @@ export default function RolesPage() {
     }
   };
 
+  const q = search.trim().toLowerCase();
+  const visibles = q
+    ? items.filter((row) =>
+        `${row.cedula} ${row.nombreCompleto} ${row.periodo}`.toLowerCase().includes(q)
+      )
+    : items;
+
   const totalSueldos = items.reduce((s, i) => s + Number(i.sueldo || 0), 0);
   const totalAporteInd = items.reduce((s, i) => s + Number(i.aporteIndividual || 0), 0);
   const totalAportePat = items.reduce((s, i) => s + Number(i.aportePatronal || 0), 0);
@@ -103,12 +115,6 @@ export default function RolesPage() {
             <p className="text-xs text-brand-gray-500 mt-1">Cálculo de ingresos, deducción IESS 9.45%, aportes patronales y líquido a recibir.</p>
           </div>
           <div className="flex gap-2 items-center flex-wrap">
-            <Input
-              value={periodo}
-              onChange={(e) => setPeriodo(e.target.value)}
-              placeholder="Periodo YYYYMM"
-              className="w-36 font-mono text-sm"
-            />
             <Button onClick={load} variant="outline">
               <RotateCcw className="w-4 h-4 mr-1" /> Cargar
             </Button>
@@ -118,6 +124,22 @@ export default function RolesPage() {
             </Button>
           </div>
         </div>
+
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar por cédula o empleado..."
+          view={view}
+          onViewChange={setView}
+        >
+          <Input
+            value={periodo}
+            onChange={(e) => setPeriodo(e.target.value)}
+            placeholder="Periodo YYYYMM"
+            className="w-36 font-mono text-sm"
+            aria-label="Periodo YYYYMM"
+          />
+        </ListToolbar>
 
         {/* Resumen KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -150,7 +172,9 @@ export default function RolesPage() {
               description={'Haz clic en "Calcular Rol del Mes".'}
               compact
             />
-          ) : (
+          ) : visibles.length === 0 ? (
+            <div className="p-8 text-center text-sm text-brand-gray-400">Ningún resultado para la búsqueda.</div>
+          ) : view === "lista" ? (
             <Table className="w-full text-sm">
               <TableHeader>
                 <TableRow className="bg-brand-gray-50 border-b text-left text-brand-gray-600 text-xs font-bold uppercase tracking-wider">
@@ -163,7 +187,7 @@ export default function RolesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((row) => (
+                {visibles.map((row) => (
                   <TableRow key={row.id || row.cedula} className="hover:bg-brand-gray-50 border-b border-brand-gray-100">
                     <TableCell className="py-3 px-4 font-mono text-xs text-brand-gray-700">{row.cedula}</TableCell>
                     <TableCell className="py-3 px-4 font-semibold text-brand-gray-900">{row.nombreCompleto}</TableCell>
@@ -175,6 +199,24 @@ export default function RolesPage() {
                 ))}
               </TableBody>
             </Table>
+          ) : (
+            <div className="p-3">
+              <RecordGrid>
+                {visibles.map((row) => (
+                  <RecordCard
+                    key={row.id || row.cedula}
+                    title={row.nombreCompleto}
+                    subtitle={row.cedula}
+                    fields={[
+                      { label: "Sueldo", value: `$${Number(row.sueldo || 0).toFixed(2)}` },
+                      { label: "Aporte 9.45%", value: `$${Number(row.aporteIndividual || 0).toFixed(2)}` },
+                      { label: "Aporte 11.15%", value: `$${Number(row.aportePatronal || 0).toFixed(2)}` },
+                      { label: "Líquido a recibir", value: `$${Number(row.sueldoLiquido || 0).toFixed(2)}` },
+                    ]}
+                  />
+                ))}
+              </RecordGrid>
+            </div>
           )}
         </div>
       </main>

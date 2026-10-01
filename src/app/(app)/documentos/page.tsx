@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Suspense, useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Topbar from "@/components/layout/Topbar";
 import {
   DateRange,
@@ -18,39 +18,41 @@ import Dialog from "@/components/ui/Dialog";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
 import XmlImportZone from "@/components/XmlImportZone";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
-import { X, Download, FileText, ChevronDown, DownloadCloud } from "lucide-react";
+import { X, Download, FileText, ChevronDown } from "lucide-react";
 import DocumentosFilters, {
   type DocumentosViewFilter,
 } from "@/components/documentos/DocumentosFilters";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { TIPO_DESC } from "@/components/documentos/constants";
 
 import { apiFetch } from "@/lib/apiFetch";
 import { generateExcelReport } from "@/lib/excel-export";
 import { buildScrapePayloadForClave } from "@/lib/sri-scrape-from-clave";
+import {
+  buildFilterScrapePayload,
+  planDocumentosFilterSync,
+  shouldSyncDocumentosFilter,
+  type FilterScrapeJob,
+} from "@/lib/documentos-filter-sync";
 
 const SyncProgressDialog = dynamic(
   () => import("@/components/modals/SyncProgressDialog"),
-  { ssr: false }
-);
-const MassDownloadModal = dynamic(
-  () => import("@/components/modals/MassDownloadModal"),
   { ssr: false }
 );
 
 import type { SyncResultSummary } from "@/components/modals/SyncProgressDialog";
 
 function Documentos() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const { hasSriLinked, activeRuc, refreshSriStatus, isLoading: authLoading } = useAuth();
   const [search, setSearch] = useState("");
   const [viewFilter, setViewFilter] = useState<DocumentosViewFilter>("todos");
+  const [displayMode, setDisplayMode] = useViewMode("documentos");
   const [realDocs, setRealDocs] = useState<Comprobante[]>([]);
   const [isApiConnected, setIsApiConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -74,20 +76,12 @@ function Documentos() {
   }, []);
 
   useEffect(() => {
-    if (searchParams.get("descargas") === "1") {
-      setShowMassDownloadModal(true);
-      router.replace("/documentos", { scroll: false });
-    }
-  }, [router, searchParams]);
-
-  useEffect(() => {
     if (authLoading) return;
     void refreshSriStatus();
   }, [authLoading, refreshSriStatus]);
   const [totalEnPeriodo, setTotalEnPeriodo] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [showMassDownloadModal, setShowMassDownloadModal] = useState(false);
   const [activeJobs, setActiveJobs] = useState<
     { id: string; status: string; progress_message?: string; fecha_desde?: string; fecha_hasta?: string }[]
   >([]);
@@ -172,9 +166,6 @@ function Documentos() {
     }
   };
 
-  const massDownloadDirection =
-    viewFilter === 'emitidos' ? 'emitidos' : viewFilter === 'recibidos' ? 'recibidos' : 'ambos';
-
   const handleRetryPending = async () => {
     setRetrying(true);
     try {
@@ -215,7 +206,7 @@ function Documentos() {
       esEmitido,
     });
     if (!payload) {
-      throw new Error("No se pudo armar la descarga masiva desde la clave de acceso.");
+      throw new Error("No se pudo armar la descarga del SRI desde la clave de acceso.");
     }
 
     const token = localStorage.getItem("sri_access_token");
@@ -229,7 +220,7 @@ function Documentos() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.jobId) {
-      throw new Error(data.error || data.message || "No se pudo encolar la descarga masiva del SRI");
+      throw new Error(data.error || data.message || "No se pudo encolar la descarga del SRI");
     }
     return String(data.jobId);
   };
@@ -251,9 +242,8 @@ function Documentos() {
         if (missingXml) {
           const jobId = await enqueueScrapeForXml(doc);
           toast.info(
-            `XML no local. Se encoló descarga masiva del SRI${jobId ? ` (job ${jobId})` : ""}. Cuando termine, vuelve a descargar.`
+            `XML no local. Se encoló la descarga del SRI${jobId ? ` (job ${jobId})` : ""}. Cuando termine, vuelve a descargar.`
           );
-          setShowMassDownloadModal(true);
           return;
         }
         throw new Error(msg);
@@ -319,9 +309,8 @@ function Documentos() {
 
         const jobId = await enqueueScrapeForXml(doc);
         toast.info(
-          `Sin XML local para el RIDE. Se encoló descarga masiva del portal SRI${jobId ? ` (job ${jobId})` : ""}. Al terminar, vuelve a pulsar RIDE PDF.`
+          `Sin XML local para el RIDE. Se encoló la descarga del portal SRI${jobId ? ` (job ${jobId})` : ""}. Al terminar, vuelve a pulsar RIDE PDF.`
         );
-        setShowMassDownloadModal(true);
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -465,13 +454,83 @@ function Documentos() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Solo listar lo ya sincronizado en BD para el periodo (sin re-sync SOAP ni descarga).
+  // Lista lo ya guardado y, si hay fechas, sincroniza con el portal lo que falte.
   useEffect(() => {
     if (isClient && hasSriLinked && activeRuc) {
       void loadRealDocuments(dateRange);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange, hasSriLinked, activeRuc, isClient]);
+
+  useEffect(() => {
+    if (!isClient || !hasSriLinked || !activeRuc) return;
+    if (!shouldSyncDocumentosFilter(dateRange.from, dateRange.to)) return;
+
+    const ruc = activeRuc;
+    const from = dateRange.from;
+    const to = dateRange.to;
+    const view = viewFilter;
+    let stale = false;
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const token = localStorage.getItem("sri_access_token");
+        const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+        const listRes = await apiFetch("/api/sri/scraping", { headers: authHeaders });
+        if (!listRes.ok || stale) return;
+        const listed = await listRes.json().catch(() => ({}));
+        const jobs = (listed.jobs || []) as FilterScrapeJob[];
+        const plan = planDocumentosFilterSync(jobs, { ruc, from, to, view });
+        if (!plan.enqueue || stale) return;
+
+        for (const jobId of plan.cancelIds) {
+          if (stale) return;
+          await apiFetch("/api/sri/scraping", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", ...authHeaders },
+            body: JSON.stringify({ jobId }),
+          });
+        }
+
+        if (stale) return;
+
+        const payload = buildFilterScrapePayload({ ruc, from, to, view });
+        const res = await apiFetch("/api/sri/scraping", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify(payload),
+        });
+        const created = await res.json().catch(() => ({}));
+        if (stale) {
+          if (created.jobId) {
+            await apiFetch("/api/sri/scraping", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json", ...authHeaders },
+              body: JSON.stringify({ jobId: created.jobId }),
+            });
+          }
+          return;
+        }
+        if (!res.ok || !created.jobId) {
+          toast.error(created.error || created.message || "No se pudo sincronizar el período con el SRI");
+          return;
+        }
+        setActiveJobs((prev) => {
+          const id = String(created.jobId);
+          if (prev.some((job) => job.id === id)) return prev;
+          return [
+            ...prev,
+            { id, status: "PENDING", fecha_desde: from, fecha_hasta: to },
+          ];
+        });
+      })();
+    }, 600);
+
+    return () => {
+      stale = true;
+      window.clearTimeout(timer);
+    };
+  }, [isClient, hasSriLinked, activeRuc, dateRange.from, dateRange.to, viewFilter]);
 
   useEffect(() => {
     if (!isClient || !hasSriLinked) return;
@@ -484,18 +543,33 @@ function Documentos() {
         });
         if (!res.ok) return;
         const data = await res.json();
-        const jobs = (data.jobs || []).filter(
-          (j: { status?: string }) => j.status === "PENDING" || j.status === "PROCESSING"
-        ) as { id: string; status: string; progress_message?: string; fecha_desde?: string; fecha_hasta?: string }[];
+        const allJobs = (data.jobs || []) as {
+          id: string | number;
+          status?: string;
+          progress_message?: string;
+          fecha_desde?: string;
+          fecha_hasta?: string;
+        }[];
+        const jobs = allJobs
+          .filter((j) => j.status === "PENDING" || j.status === "PROCESSING")
+          .map((j) => ({
+            id: String(j.id),
+            status: j.status || "PENDING",
+            progress_message: j.progress_message,
+            fecha_desde: j.fecha_desde,
+            fecha_hasta: j.fecha_hasta,
+          }));
 
         const nextIds = new Set(jobs.map((j) => j.id));
         const prevIds = prevActiveJobIdsRef.current;
-        const finishedSomething =
-          prevIds.size > 0 && [...prevIds].some((id) => !nextIds.has(id));
+        const finishedIds = [...prevIds].filter((id) => !nextIds.has(id));
         prevActiveJobIdsRef.current = nextIds;
         setActiveJobs(jobs);
 
-        if (finishedSomething) {
+        const completed = finishedIds.some((id) =>
+          allJobs.some((j) => String(j.id) === id && j.status === "COMPLETED")
+        );
+        if (completed) {
           void loadRealDocuments(dateRange);
           toast.success("Descarga SRI finalizada: documentos sincronizados en el listado.");
         }
@@ -667,18 +741,10 @@ function Documentos() {
           onViewFilterChange={setViewFilter}
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
+          displayMode={displayMode}
+          onDisplayModeChange={setDisplayMode}
           primaryActions={
-            hasSriLinked && isApiConnected ? (
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setShowMassDownloadModal(true)}
-                className="min-h-9 gap-1.5"
-              >
-                <DownloadCloud className="w-3.5 h-3.5" />
-                Descarga masiva SRI
-              </Button>
-            ) : (
+            hasSriLinked && isApiConnected ? null : (
               <Link
                 href="/configuracion?vincular=true"
                 className={buttonVariants({
@@ -816,23 +882,53 @@ function Documentos() {
                 description={
                   search
                     ? "Prueba con otro término de búsqueda"
-                    : "No hay documentos sincronizados para este periodo. Si aún no los bajaste del portal, usa Descarga masiva SRI una sola vez."
+                    : activeJobs.length > 0
+                      ? "Sincronizando este período con el SRI. Los comprobantes nuevos aparecerán al terminar."
+                      : dateRange.from && dateRange.to
+                        ? "No hay comprobantes en este período."
+                        : "Elige un rango de fechas para sincronizar con el SRI los comprobantes que falten."
                 }
                 compact
-                action={
-                  !search && hasSriLinked ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => setShowMassDownloadModal(true)}
-                      className="gap-1.5"
-                    >
-                      <DownloadCloud className="w-3.5 h-3.5" />
-                      Descarga masiva SRI
-                    </Button>
-                  ) : undefined
-                }
               />
+            ) : displayMode === "cuadricula" ? (
+              <div className="p-3">
+                <RecordGrid>
+                  {paginatedDocs.map((doc, idx) => {
+                    const tipo = doc.tipoComprobante || "01";
+                    const tipoLabel = TIPO_DESC[tipo] || tipo;
+                    const emisorName = doc.emisor?.razonSocial || "Comprobante";
+                    return (
+                      <RecordCard
+                        key={doc.claveAcceso || idx}
+                        title={emisorName}
+                        subtitle={`${tipoLabel} · ${doc.serie || "—"}`}
+                        fields={[
+                          { label: "Emisión", value: doc.fechaEmision ? new Date(doc.fechaEmision).toLocaleDateString("es-EC") : "—" },
+                          { label: "Estado", value: doc.estado || "PENDIENTE" },
+                          { label: "Total", value: `$${(doc.importeTotal || 0).toFixed(2)}` },
+                          { label: "IVA", value: `$${(doc.totalIva || 0).toFixed(2)}` },
+                        ]}
+                        actions={
+                          <>
+                            <Button type="button" size="sm" variant="outline" onClick={() => setSelectedDoc(doc)}>
+                              Ver
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={downloadingClave === `pdf:${doc.claveAcceso}`}
+                              onClick={() => handleDownloadPdf(doc)}
+                            >
+                              PDF
+                            </Button>
+                          </>
+                        }
+                      />
+                    );
+                  })}
+                </RecordGrid>
+              </div>
             ) : (
               <Table className="min-w-[1500px]">
                 <TableHeader>
@@ -1172,30 +1268,8 @@ function Documentos() {
           </div>
         )}
       </Dialog>
-
-      <MassDownloadModal
-        open={showMassDownloadModal}
-        onClose={() => setShowMassDownloadModal(false)}
-        initialDateRange={dateRange}
-        initialDirection={massDownloadDirection}
-        onJobCompleted={() => {
-          void loadRealDocuments(dateRange);
-        }}
-      />
     </>
   );
 }
 
-export default function DocumentosPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-dvh items-center justify-center text-sm text-brand-gray-500">
-          Cargando documentos…
-        </div>
-      }
-    >
-      <Documentos />
-    </Suspense>
-  );
-}
+export default Documentos;

@@ -60,5 +60,6 @@ describe('Motor de Cálculo de Nómina, IESS y Retenciones IR (Formulario 107)',
     const pdfBuffer = await generateF107Pdf(f107Data);
     expect(pdfBuffer).toBeInstanceOf(Buffer);
     expect(pdfBuffer.length).toBeGreaterThan(1000);
+    expect(pdfBuffer.subarray(0, 4).toString()).toBe('%PDF');
   });
 });

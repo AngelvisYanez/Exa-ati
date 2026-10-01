@@ -161,7 +161,7 @@ export default function AdminPruebasPage() {
               <h2 className="text-sm font-bold text-brand-gray-900">Pruebas SOAP (módulo aparte)</h2>
               <p className="text-[11px] text-brand-gray-500 mt-0.5">
                 Consulta recepción/autorización offline por WSDL. Sirve para claves ya conocidas.
-                No lista el portal ni reemplaza Documentos → Descarga masiva SRI.
+                No lista el portal ni reemplaza la sincronización al filtrar en Documentos.
               </p>
               <div className="mt-3 flex flex-col sm:flex-row gap-2">
                 <input

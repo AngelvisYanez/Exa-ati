@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Plus, Edit, Trash2, Shield } from "lucide-react";
 import { apiFetch } from "@/lib/apiFetch";
@@ -26,6 +29,8 @@ interface Rol {
 function AdminRolesContent() {
   const [roles, setRoles] = useState<Rol[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("roles");
 
   const load = useCallback(async () => {
     try {
@@ -62,6 +67,21 @@ function AdminRolesContent() {
     }
   };
 
+  const q = search.trim().toLowerCase();
+  const visible = q
+    ? roles.filter((r) =>
+        [
+          r.codigo,
+          r.nombre,
+          r.descripcion,
+          r.esSistema ? "Sistema" : "Custom",
+          r.modulosCount,
+          r.usuariosCount,
+          r.activo ? "Activo" : "Inactivo",
+        ].some((v) => String(v ?? "").toLowerCase().includes(q))
+      )
+    : roles;
+
   return (
     <>
       <title>Roles - Admin - OFSERCONT IA</title>
@@ -81,15 +101,59 @@ function AdminRolesContent() {
           </Link>
         </div>
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar por código o nombre..."
+          view={view}
+          onViewChange={setView}
+        />
+
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
             <TableSkeleton rows={5} columns={6} />
-          ) : roles.length === 0 ? (
+          ) : visible.length === 0 ? (
             <EmptyState
               icon={<Shield className="w-5 h-5" />}
-              title="No hay roles configurados."
+              title={search.trim() ? "No se encontraron roles." : "No hay roles configurados."}
               compact
             />
+          ) : view === "cuadricula" ? (
+            <div className="p-3">
+              <RecordGrid>
+                {visible.map((r) => (
+                  <RecordCard
+                    key={r.codigo}
+                    title={r.nombre}
+                    subtitle={r.codigo}
+                    fields={[
+                      { label: "Tipo", value: r.esSistema ? "Sistema" : "Custom" },
+                      { label: "Módulos", value: r.modulosCount },
+                      { label: "Usuarios", value: r.usuariosCount },
+                      { label: "Estado", value: r.activo ? "Activo" : "Inactivo" },
+                    ]}
+                    actions={
+                      <>
+                        <Link
+                          href={`/administracion/roles/${encodeURIComponent(r.codigo)}`}
+                          className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors"
+                        >
+                          <Edit className="w-3 h-3" /> Editar
+                        </Link>
+                        {!r.esSistema && (
+                          <button
+                            onClick={() => handleDelete(r.codigo, r.nombre)}
+                            className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" /> Eliminar
+                          </button>
+                        )}
+                      </>
+                    }
+                  />
+                ))}
+              </RecordGrid>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="w-full text-left border-collapse text-[13px]">
@@ -105,7 +169,7 @@ function AdminRolesContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-brand-gray-50">
-                  {roles.map((r) => (
+                  {visible.map((r) => (
                     <TableRow key={r.codigo} className="hover:bg-brand-gray-50/40 transition-colors">
                       <TableCell className="py-3 px-4 font-mono text-xs font-semibold text-brand-gray-600">
                         {r.codigo}

@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react";
 import DateRangeFilter, { type DateRange } from "@/components/DateRangeFilter";
+import { ViewModeToggle } from "@/components/lists/ListToolbar";
+import type { ViewMode } from "@/components/lists/useViewMode";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,11 +18,13 @@ interface DocumentosFiltersProps {
   onViewFilterChange: (value: DocumentosViewFilter) => void;
   dateRange: DateRange;
   onDateRangeChange: (value: DateRange) => void;
-  /** Acciones primarias (p. ej. Descarga masiva) — visibles siempre. */
+  /** Acciones primarias (p. ej. vincular SRI) — visibles siempre. */
   primaryActions?: ReactNode;
   /** Acciones secundarias — menú “Más” en móvil / fila compacta en desktop. */
   secondaryActions?: ReactNode;
   children?: ReactNode;
+  displayMode?: ViewMode;
+  onDisplayModeChange?: (mode: ViewMode) => void;
 }
 
 const VIEW_TABS: { value: DocumentosViewFilter; label: string; short: string }[] = [
@@ -40,6 +44,8 @@ export default function DocumentosFilters({
   primaryActions,
   secondaryActions,
   children,
+  displayMode,
+  onDisplayModeChange,
 }: DocumentosFiltersProps) {
   return (
     <div className="flex flex-col gap-3">
@@ -94,13 +100,14 @@ export default function DocumentosFilters({
           </div>
         </div>
 
-        {(primaryActions || secondaryActions || children) && (
-          <div className="flex items-center gap-2 flex-wrap lg:ml-auto lg:justify-end">
-            {primaryActions}
-            {secondaryActions}
-            {children}
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-wrap lg:ml-auto lg:justify-end">
+          {primaryActions}
+          {secondaryActions}
+          {children}
+          {displayMode && onDisplayModeChange ? (
+            <ViewModeToggle view={displayMode} onViewChange={onDisplayModeChange} />
+          ) : null}
+        </div>
       </div>
     </div>
   );

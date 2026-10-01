@@ -4,13 +4,14 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, Search, UserCheck, Users } from "lucide-react";
+import { Plus, Edit, Trash2, Users } from "lucide-react";
 
 import { apiFetch } from "@/lib/apiFetch";
 interface Contacto {
@@ -29,6 +30,7 @@ export default function ClientesPage() {
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("clientes");
 
   const load = useCallback(async () => {
     try {
@@ -82,10 +84,13 @@ export default function ClientesPage() {
           </Link>
         </div>
 
-        <div className="relative max-w-sm w-full">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray-400" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar cliente..." className="pl-8 h-8 text-xs" />
-        </div>
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar cliente..."
+          view={view}
+          onViewChange={setView}
+        />
 
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
@@ -103,7 +108,7 @@ export default function ClientesPage() {
                 </Link>
               }
             />
-          ) : (
+          ) : view === "lista" ? (
             <div className="overflow-x-auto">
               <Table className="w-full text-left border-collapse text-[13px]">
                 <TableHeader>
@@ -142,6 +147,40 @@ export default function ClientesPage() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          ) : (
+            <div className="p-3">
+              <RecordGrid>
+                {contactos.map((c) => (
+                  <RecordCard
+                    key={c.id}
+                    title={c.razonSocial}
+                    subtitle={c.identificacion}
+                    fields={[
+                      { label: "Email", value: c.email || "—" },
+                      { label: "Teléfono", value: c.telefono || "—" },
+                      {
+                        label: "Estado",
+                        value: c.activo ? (
+                          <span className="text-[10px] font-semibold bg-success-pale text-success px-2 py-0.5 rounded-full">Activo</span>
+                        ) : (
+                          <span className="text-[10px] font-semibold bg-brand-gray-100 text-brand-gray-500 px-2 py-0.5 rounded-full">Inactivo</span>
+                        ),
+                      },
+                    ]}
+                    actions={
+                      <>
+                        <Link href={`/contactos/${c.id}`} className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1">
+                          <Edit className="w-3 h-3" /> Editar
+                        </Link>
+                        <button onClick={() => handleDelete(c.id, c.razonSocial)} className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer">
+                          <Trash2 className="w-3 h-3" /> Eliminar
+                        </button>
+                      </>
+                    }
+                  />
+                ))}
+              </RecordGrid>
             </div>
           )}
         </div>

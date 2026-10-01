@@ -370,6 +370,12 @@ const navGroups: NavGroup[] = [
             roles: ["SUPERADMIN"],
           },
           {
+            href: "/administracion/ride-diseno",
+            label: "Diseño RIDE",
+            module: "admin.ride",
+            roles: ["SUPERADMIN"],
+          },
+          {
             href: "/administracion/empresas",
             label: "Empresas",
             module: "admin.empresas",

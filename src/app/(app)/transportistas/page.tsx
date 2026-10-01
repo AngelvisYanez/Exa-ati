@@ -7,8 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, Search, Truck } from "lucide-react";
+import { Plus, Edit, Trash2, Truck } from "lucide-react";
 
 import { apiFetch } from "@/lib/apiFetch";
 interface Transportista {
@@ -24,6 +27,7 @@ export default function TransportistasPage() {
   const [items, setItems] = useState<Transportista[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("transportistas");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ruc: "", razonSocial: "", placa: "", telefono: "" });
@@ -111,16 +115,18 @@ export default function TransportistasPage() {
             <h1 className="text-xl font-bold tracking-tight text-brand-gray-800">Transportistas</h1>
             <p className="text-xs text-brand-gray-500 mt-0.5">Registro de transportistas para guías de remisión</p>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-60">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray-400" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar..." className="pl-8 h-8 text-xs" />
-            </div>
-            <Button size="sm" className="bg-brand-red hover:bg-brand-red-bright text-white" onClick={openCreate}>
-              <Plus className="w-3.5 h-3.5" /> Nuevo
-            </Button>
-          </div>
+          <Button size="sm" className="bg-brand-red hover:bg-brand-red-bright text-white" onClick={openCreate}>
+            <Plus className="w-3.5 h-3.5" /> Nuevo
+          </Button>
         </div>
+
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar..."
+          view={view}
+          onViewChange={setView}
+        />
 
         {showForm && (
           <div className="bg-white border border-brand-red/30 rounded-xl p-4 shadow-sm mb-4">
@@ -166,7 +172,7 @@ export default function TransportistasPage() {
               title="No hay transportistas registrados."
               compact
             />
-          ) : (
+          ) : view === "lista" ? (
             <div className="overflow-x-auto">
               <Table className="w-full text-left border-collapse text-[13px]">
                 <TableHeader>
@@ -205,6 +211,40 @@ export default function TransportistasPage() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          ) : (
+            <div className="p-3">
+              <RecordGrid>
+                {items.map((t) => (
+                  <RecordCard
+                    key={t.id}
+                    title={t.razonSocial}
+                    subtitle={t.ruc}
+                    fields={[
+                      { label: "Placa", value: t.placa },
+                      { label: "Teléfono", value: t.telefono || "—" },
+                      {
+                        label: "Estado",
+                        value: t.activo ? (
+                          <span className="text-[10px] font-semibold bg-success-pale text-success px-2 py-0.5 rounded-full">Activo</span>
+                        ) : (
+                          <span className="text-[10px] font-semibold bg-brand-gray-100 text-brand-gray-500 px-2 py-0.5 rounded-full">Inactivo</span>
+                        ),
+                      },
+                    ]}
+                    actions={
+                      <>
+                        <button onClick={() => openEdit(t)} className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1 cursor-pointer">
+                          <Edit className="w-3 h-3" /> Editar
+                        </button>
+                        <button onClick={() => handleDelete(t.id, t.razonSocial)} className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer">
+                          <Trash2 className="w-3 h-3" /> Eliminar
+                        </button>
+                      </>
+                    }
+                  />
+                ))}
+              </RecordGrid>
             </div>
           )}
         </div>

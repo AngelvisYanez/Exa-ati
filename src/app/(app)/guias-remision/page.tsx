@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Plus, Eye, Trash2, Download, Truck } from "lucide-react";
 
@@ -35,6 +38,8 @@ const ESTADO_BADGE: Record<string, string> = {
 export default function GuiasRemisionPage() {
   const [items, setItems] = useState<GuiaRemision[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("guias");
 
   const load = useCallback(async () => {
     try {
@@ -84,6 +89,16 @@ export default function GuiasRemisionPage() {
     return `${g.establecimiento}-${g.puntoEmision}-${g.secuencial}`;
   };
 
+  const q = search.trim().toLowerCase();
+  const visibles = q
+    ? items.filter((g) =>
+        [formatSecuencial(g), g.razonSocialTransportista, g.placa, g.estado, g.fechaEmision]
+          .join(" ")
+          .toLowerCase()
+          .includes(q)
+      )
+    : items;
+
   return (
     <>
       <title>Guías de Remisión - OFSERCONT IA</title>
@@ -101,16 +116,24 @@ export default function GuiasRemisionPage() {
           </Link>
         </div>
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar secuencial, transportista, placa..."
+          view={view}
+          onViewChange={setView}
+        />
+
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
             <TableSkeleton rows={6} columns={5} />
-          ) : items.length === 0 ? (
+          ) : visibles.length === 0 ? (
             <EmptyState
               icon={<Truck className="w-5 h-5" />}
               title="No hay guías de remisión registradas."
               compact
             />
-          ) : (
+          ) : view === "lista" ? (
             <div className="overflow-x-auto">
               <Table className="w-full text-left border-collapse text-[13px]">
                 <TableHeader>
@@ -124,7 +147,7 @@ export default function GuiasRemisionPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-brand-gray-50">
-                  {items.map((g) => (
+                  {visibles.map((g) => (
                     <TableRow key={g.id} className="hover:bg-brand-gray-50/40 transition-colors">
                       <TableCell className="py-3 px-4 font-mono text-xs font-semibold text-brand-gray-600">{formatSecuencial(g)}</TableCell>
                       <TableCell className="py-3 px-4 font-medium text-brand-gray-800">{g.razonSocialTransportista}</TableCell>
@@ -152,6 +175,38 @@ export default function GuiasRemisionPage() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          ) : (
+            <div className="p-3">
+              <RecordGrid>
+                {visibles.map((g) => (
+                  <RecordCard
+                    key={g.id}
+                    title={formatSecuencial(g)}
+                    subtitle={g.razonSocialTransportista}
+                    fields={[
+                      { label: "Placa", value: g.placa },
+                      { label: "Fecha", value: g.fechaEmision ? new Date(g.fechaEmision).toLocaleDateString("es-EC") : "—" },
+                      { label: "Estado", value: <Badge variant="outline" className={`text-[10px] ${ESTADO_BADGE[g.estado] || ""}`}>{g.estado}</Badge> },
+                    ]}
+                    actions={
+                      <>
+                        <Link href={`/guias-remision/${g.id}`} className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1">
+                          <Eye className="w-3 h-3" /> Ver
+                        </Link>
+                        {g.claveAcceso && (
+                          <button onClick={() => handleDownloadRide(g.claveAcceso!)} className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors mr-1 cursor-pointer">
+                            <Download className="w-3 h-3" /> RIDE
+                          </button>
+                        )}
+                        <button onClick={() => handleDelete(g.id)} className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer">
+                          <Trash2 className="w-3 h-3" /> Eliminar
+                        </button>
+                      </>
+                    }
+                  />
+                ))}
+              </RecordGrid>
             </div>
           )}
         </div>

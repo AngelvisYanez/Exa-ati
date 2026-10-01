@@ -797,7 +797,7 @@ async function consultarEstadoDescarga(tenantId: string, args: any): Promise<{ h
     }
     const estadoLabel = ESTADO_DESCARGA_LABELS[str(job.status)] || str(job.status);
     return {
-      html: `<strong>Descarga #${job.id} — ${escapeHtml(estadoLabel)}</strong><br/>• Período: ${formatoFechaEspanol(str(job.fecha_desde))} al ${formatoFechaEspanol(str(job.fecha_hasta))}<br/>• Tipo: ${escapeHtml(descripcionTipoComprobante(str(job.tipo_comprobante)))}${logsHtml}<br/><br/>Ver en el <a href="/documentos?descargas=1" class="underline font-semibold">Historial de descargas</a>.`,
+      html: `<strong>Descarga #${job.id} — ${escapeHtml(estadoLabel)}</strong><br/>• Período: ${formatoFechaEspanol(str(job.fecha_desde))} al ${formatoFechaEspanol(str(job.fecha_hasta))}<br/>• Tipo: ${escapeHtml(descripcionTipoComprobante(str(job.tipo_comprobante)))}${logsHtml}<br/><br/>Ver el progreso en <a href="/documentos" class="underline font-semibold">Documentos</a>.`,
       text: `Descarga #${job.id}: ${estadoLabel}.`,
     };
   }
@@ -823,7 +823,7 @@ async function consultarEstadoDescarga(tenantId: string, args: any): Promise<{ h
   const activa = jobs.find((j) => ['PENDING', 'PROCESSING'].includes(str(j.status)));
 
   return {
-    html: `<strong>Últimas descargas del SRI:</strong>${listToHtml(lineas)}<br/><br/>Ver en el <a href="/documentos?descargas=1" class="underline font-semibold">Historial de descargas</a>.`,
+    html: `<strong>Últimas descargas del SRI:</strong>${listToHtml(lineas)}<br/><br/>Ver el progreso en <a href="/documentos" class="underline font-semibold">Documentos</a>.`,
     text: activa
       ? `La descarga #${activa.id} está ${ESTADO_DESCARGA_LABELS[str(activa.status)]?.toLowerCase()}.`
       : `${jobs.length} descarga(s) recientes.`,

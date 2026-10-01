@@ -81,3 +81,38 @@ export async function hasEmisorLinked(user: JwtPayload): Promise<boolean> {
 export function isValidRuc(ruc: string): boolean {
   return RUC_PATTERN.test(ruc);
 }
+
+export async function getLinkedCompany(
+  user: JwtPayload,
+  req?: Request
+): Promise<{ ruc: string; razonSocial: string; nombreComercial: string | null }> {
+  const ruc = await getUserRuc(user, req);
+  const emisor = user.tenantId
+    ? await db.queryOne<{
+        ruc: string;
+        razon_social: string | null;
+        nombre_comercial: string | null;
+      }>(
+        `SELECT ruc, razon_social, nombre_comercial
+         FROM emisores
+         WHERE ruc = $1 AND tenant_id = $2 AND activo = true
+         LIMIT 1`,
+        [ruc, user.tenantId]
+      )
+    : await db.queryOne<{
+        ruc: string;
+        razon_social: string | null;
+        nombre_comercial: string | null;
+      }>(
+        `SELECT ruc, razon_social, nombre_comercial
+         FROM emisores
+         WHERE ruc = $1 AND activo = true
+         LIMIT 1`,
+        [ruc]
+      );
+  return {
+    ruc: emisor?.ruc || ruc,
+    razonSocial: emisor?.razon_social || '',
+    nombreComercial: emisor?.nombre_comercial || null,
+  };
+}

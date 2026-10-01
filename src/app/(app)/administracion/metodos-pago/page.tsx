@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Plus, Edit, Trash2, Wallet } from "lucide-react";
 import { apiFetch } from "@/lib/apiFetch";
@@ -26,6 +29,8 @@ interface MetodoRow {
 function AdminMetodosContent() {
   const [rows, setRows] = useState<MetodoRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("metodos-pago");
 
   const load = useCallback(async () => {
     try {
@@ -62,6 +67,22 @@ function AdminMetodosContent() {
     }
   };
 
+  const q = search.trim().toLowerCase();
+  const visible = q
+    ? rows.filter((m) =>
+        [
+          m.codigo,
+          m.nombre,
+          m.descripcion,
+          m.usoOperativo ? "CxC/CxP" : "",
+          m.usoSuscripcion ? "Suscripción" : "",
+          m.orden,
+          m.activo ? "Activo" : "Inactivo",
+          m.esSistema ? "sistema" : "",
+        ].some((v) => String(v ?? "").toLowerCase().includes(q))
+      )
+    : rows;
+
   return (
     <>
       <title>Métodos de pago - Admin - OFSERCONT IA</title>
@@ -83,15 +104,69 @@ function AdminMetodosContent() {
           </Link>
         </div>
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar método..."
+          view={view}
+          onViewChange={setView}
+        />
+
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
             <TableSkeleton rows={6} columns={6} />
-          ) : rows.length === 0 ? (
+          ) : visible.length === 0 ? (
             <EmptyState
               icon={<Wallet className="w-5 h-5" />}
-              title="No hay métodos. Aplica la migración 012 o crea uno."
+              title={
+                search.trim()
+                  ? "No se encontraron métodos."
+                  : "No hay métodos. Aplica la migración 012 o crea uno."
+              }
               compact
             />
+          ) : view === "cuadricula" ? (
+            <div className="p-3">
+              <RecordGrid>
+                {visible.map((m) => (
+                  <RecordCard
+                    key={m.codigo}
+                    title={m.nombre}
+                    subtitle={m.codigo}
+                    fields={[
+                      {
+                        label: "Uso",
+                        value: [m.usoOperativo ? "CxC/CxP" : null, m.usoSuscripcion ? "Suscripción" : null]
+                          .filter(Boolean)
+                          .join(" · ") || "—",
+                      },
+                      { label: "Orden", value: m.orden },
+                      { label: "Estado", value: m.activo ? "Activo" : "Inactivo" },
+                      { label: "Tipo", value: m.esSistema ? "Sistema" : "Custom" },
+                    ]}
+                    actions={
+                      <>
+                        <Link href={`/administracion/metodos-pago/${encodeURIComponent(m.codigo)}`}>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
+                        </Link>
+                        {!m.esSistema ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-brand-red hover:text-brand-red"
+                            onClick={() => handleDelete(m.codigo, m.nombre)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        ) : null}
+                      </>
+                    }
+                  />
+                ))}
+              </RecordGrid>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="w-full text-left border-collapse text-[13px]">
@@ -105,7 +180,7 @@ function AdminMetodosContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-brand-gray-50">
-                  {rows.map((m) => (
+                  {visible.map((m) => (
                     <TableRow key={m.codigo} className="hover:bg-brand-gray-50/40 transition-colors">
                       <TableCell className="py-3 px-4">
                         <div className="font-medium text-brand-gray-800">{m.nombre}</div>

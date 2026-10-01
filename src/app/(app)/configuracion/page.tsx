@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Topbar from "@/components/layout/Topbar";
@@ -16,7 +16,11 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { sriClient, setAuthToken } from "@/lib/sriClient";
+import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
@@ -119,10 +123,20 @@ function ConfiguracionContent() {
   const [certRuc, setCertRuc] = useState("");
   const [uploadingCert, setUploadingCert] = useState(false);
   const [certResult, setCertResult] = useState<any>(null);
+  const [nombreComercial, setNombreComercial] = useState("");
+  const [direccionEmpresa, setDireccionEmpresa] = useState("");
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoInputKey, setLogoInputKey] = useState(0);
+  const [quitarLogo, setQuitarLogo] = useState(false);
+  const [savingEmpresa, setSavingEmpresa] = useState(false);
+  const logoPickGen = useRef(0);
 
   // Estados para Clientes
   const [clientes, setClientes] = useState<any[]>([]);
   const [loadingClientes, setLoadingClientes] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const [userView, setUserView] = useViewMode("config-usuarios");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [clientNombre, setClientNombre] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -248,6 +262,32 @@ function ConfiguracionContent() {
     loadConfig();
   }, [activeRuc]);
 
+  useEffect(() => {
+    if (!perfil) return;
+    setNombreComercial(perfil.nombreComercial || "");
+    setDireccionEmpresa(perfil.direccion || "");
+    setLogoFile(null);
+    setQuitarLogo(false);
+    if (!perfil.tieneLogo) {
+      setLogoPreview(null);
+      return;
+    }
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    const gen = logoPickGen.current;
+    void (async () => {
+      const res = await apiFetch(`/api/sri/emisor/logo?ruc=${encodeURIComponent(perfil.ruc)}`);
+      if (!res.ok || cancelled) return;
+      const blob = await res.blob();
+      objectUrl = URL.createObjectURL(blob);
+      if (!cancelled && logoPickGen.current === gen) setLogoPreview(objectUrl);
+    })();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [perfil]);
+
   const loadClientes = async () => {
     if (user?.rol !== "ADMIN" && user?.rol !== "SUPERADMIN") return;
     setLoadingClientes(true);
@@ -268,6 +308,45 @@ function ConfiguracionContent() {
       loadClientes();
     }
   }, [activeTab]);
+
+  const handleLogoPick = (file: File | null) => {
+    if (!file) return;
+    if (file.type !== "image/png" && file.type !== "image/jpeg") {
+      toast.error("El logo debe ser PNG o JPG");
+      return;
+    }
+    if (file.size > 800 * 1024) {
+      toast.error("El logo debe pesar menos de 800 KB");
+      return;
+    }
+    setLogoFile(file);
+    setQuitarLogo(false);
+    logoPickGen.current += 1;
+    const reader = new FileReader();
+    reader.onload = () => setLogoPreview(typeof reader.result === "string" ? reader.result : null);
+    reader.readAsDataURL(file);
+  };
+
+  const saveEmpresa = async () => {
+    setSavingEmpresa(true);
+    try {
+      const body = new FormData();
+      body.set("nombreComercial", nombreComercial);
+      body.set("direccion", direccionEmpresa);
+      if (logoFile) body.set("logo", logoFile);
+      if (quitarLogo) body.set("quitarLogo", "1");
+      const res = await apiFetch("/api/sri/emisor", { method: "PATCH", body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "No se pudo guardar la empresa");
+      toast.success("Datos de la empresa guardados. El logo aparecerá en el RIDE.");
+      setLogoInputKey((key) => key + 1);
+      await loadConfig();
+    } catch (err: any) {
+      toast.error(err.message || "Error al guardar la empresa");
+    } finally {
+      setSavingEmpresa(false);
+    }
+  };
 
   const handleDisconnectRuc = (ruc: string) => {
     setRucToDisconnect(ruc);
@@ -450,6 +529,13 @@ function ConfiguracionContent() {
       ? "Vinculando"
       : "Desconectado";
 
+  const userQuery = userSearch.trim().toLowerCase();
+  const clientesVisibles = userQuery
+    ? clientes.filter((c) =>
+        `${c.nombre ?? ""} ${c.email ?? ""} ${c.rol ?? ""} ${c.ruc ?? ""}`.toLowerCase().includes(userQuery)
+      )
+    : clientes;
+
   return (
     <>
       <title>Configuración - OFSERCONT IA</title>
@@ -506,7 +592,7 @@ function ConfiguracionContent() {
                         Perfil del Contribuyente
                       </h2>
                       <p className="text-[11px] text-brand-gray-500 mt-0.5">
-                        Información obtenida en tiempo real desde los servidores del SRI.
+                        Nombre comercial, dirección y logo de la empresa vinculada a este RUC. Se usan en el RIDE.
                       </p>
                     </div>
                     <Badge className="bg-success-pale text-success hover:bg-success-pale font-semibold text-[11px] px-2.5 py-0.5">
@@ -516,9 +602,17 @@ function ConfiguracionContent() {
 
                   <div className="p-5 flex flex-col gap-5">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-brand-red via-brand-red-mid to-brand-red-bright rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-md shrink-0">
-                        {initials}
-                      </div>
+                      {logoPreview && !quitarLogo ? (
+                        <img
+                          src={logoPreview}
+                          alt="Logo de la empresa"
+                          className="w-14 h-14 rounded-2xl object-contain bg-white border border-brand-gray-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 bg-gradient-to-br from-brand-red via-brand-red-mid to-brand-red-bright rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-md shrink-0">
+                          {initials}
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <h3 className="text-base font-bold text-brand-gray-900 truncate">
                           {perfil.razonSocial}
@@ -529,6 +623,61 @@ function ConfiguracionContent() {
                         <p className="text-xs font-mono text-brand-gray-400 font-semibold mt-0.5">
                           RUC: {perfil.ruc}
                         </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-brand-gray-100">
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-gray-400">Nombre comercial</span>
+                        <Input
+                          value={nombreComercial}
+                          onChange={(e) => setNombreComercial(e.target.value)}
+                          placeholder="Nombre que aparece en el RIDE"
+                          maxLength={300}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-gray-400">Dirección</span>
+                        <Input
+                          value={direccionEmpresa}
+                          onChange={(e) => setDireccionEmpresa(e.target.value)}
+                          placeholder="Dirección de la matriz"
+                          maxLength={500}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1.5 sm:col-span-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-gray-400">Logo (PNG o JPG, máx. 800 KB)</span>
+                        <Input
+                          key={logoInputKey}
+                          type="file"
+                          accept="image/png,image/jpeg"
+                          onChange={(e) => handleLogoPick(e.target.files?.[0] || null)}
+                        />
+                      </label>
+                      <div className="flex items-center gap-2 sm:col-span-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="bg-brand-red hover:bg-brand-red-bright text-white"
+                          disabled={savingEmpresa}
+                          onClick={saveEmpresa}
+                        >
+                          {savingEmpresa ? "Guardando…" : "Guardar empresa"}
+                        </Button>
+                        {(logoPreview || perfil.tieneLogo) && !quitarLogo ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setQuitarLogo(true);
+                              setLogoFile(null);
+                              setLogoPreview(null);
+                            }}
+                          >
+                            Quitar logo
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
 
@@ -962,7 +1111,14 @@ function ConfiguracionContent() {
                     </Button>
                   </div>
 
-                  <div className="p-5">
+                  <div className="p-5 flex flex-col gap-4">
+                    <ListToolbar
+                      search={userSearch}
+                      onSearchChange={setUserSearch}
+                      placeholder="Buscar por nombre, correo o RUC..."
+                      view={userView}
+                      onViewChange={setUserView}
+                    />
                     {loadingClientes ? (
                       <TableSkeleton rows={5} columns={6} />
                     ) : clientes.length === 0 ? (
@@ -971,7 +1127,9 @@ function ConfiguracionContent() {
                         title="No hay usuarios registrados en tu oficina contable."
                         compact
                       />
-                    ) : (
+                    ) : clientesVisibles.length === 0 ? (
+                      <p className="text-sm text-brand-gray-400">Ningún resultado para la búsqueda.</p>
+                    ) : userView === "lista" ? (
                       <div className="overflow-x-auto">
                         <Table>
                           <TableHeader>
@@ -985,7 +1143,7 @@ function ConfiguracionContent() {
                             </TableRow>
                           </TableHeader>
                           <TableBody className="divide-y divide-brand-gray-100">
-                            {clientes.map((c) => (
+                            {clientesVisibles.map((c) => (
                               <TableRow key={c.id}>
                                 <TableCell className="py-3.5 font-bold text-xs text-brand-gray-800">
                                   <div className="flex items-center gap-2">
@@ -1072,6 +1230,79 @@ function ConfiguracionContent() {
                           </TableBody>
                         </Table>
                       </div>
+                    ) : (
+                      <RecordGrid>
+                        {clientesVisibles.map((c) => (
+                          <RecordCard
+                            key={c.id}
+                            title={c.nombre || "Usuario"}
+                            subtitle={c.email}
+                            fields={[
+                              { label: "Rol", value: c.rol === "ADMIN" ? "Administrador" : "Cliente" },
+                              {
+                                label: "Empresa / RUC",
+                                value:
+                                  c.rol === "ADMIN"
+                                    ? "Acceso Global"
+                                    : c.ruc || "Desasociado",
+                              },
+                              { label: "Estado", value: c.activo ? "Activo" : "Inactivo" },
+                            ]}
+                            actions={
+                              <>
+                                {c.rol !== "ADMIN" && (
+                                  <select
+                                    value={c.ruc || ""}
+                                    onChange={(e) => handleUpdateClientRuc(c.id, e.target.value)}
+                                    className="bg-brand-gray-50 border border-brand-gray-200 rounded-xl px-2.5 py-1.5 text-xs text-brand-gray-800 focus:border-brand-red outline-none cursor-pointer font-medium max-w-full"
+                                    aria-label="Empresa asociada"
+                                  >
+                                    <option value="">Desasociado (Ninguno)</option>
+                                    {emisores.map((e) => (
+                                      <option key={e.ruc} value={e.ruc}>
+                                        {e.razonSocial}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                                <button
+                                  onClick={() => handleToggleClientStatus(c.id, c.activo)}
+                                  className={`relative w-9 h-5 rounded-full transition-colors shrink-0 cursor-pointer ${
+                                    c.activo ? "bg-success" : "bg-brand-gray-200"
+                                  }`}
+                                  aria-label={c.activo ? "Desactivar usuario" : "Activar usuario"}
+                                >
+                                  <div
+                                    className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${
+                                      c.activo ? "left-[18px]" : "left-0.5"
+                                    }`}
+                                  />
+                                </button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleOpenEditModal(c)}
+                                  className="text-xs font-semibold rounded-lg text-brand-red hover:text-brand-red-bright hover:bg-brand-red-subtle"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                  Editar
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDeleteClient(c.id, c.nombre)}
+                                  className="text-xs font-semibold rounded-lg text-brand-red hover:bg-brand-red-subtle border-brand-red-pale"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  Eliminar
+                                </Button>
+                              </>
+                            }
+                          />
+                        ))}
+                      </RecordGrid>
                     )}
                   </div>
                 </section>

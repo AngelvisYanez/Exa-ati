@@ -51,11 +51,13 @@ export function KpiCard({
   label,
   value,
   count,
+  detail,
   loading,
 }: {
   label: string;
   value: string;
   count?: number;
+  detail?: string;
   loading?: boolean;
 }) {
   return (
@@ -67,6 +69,9 @@ export function KpiCard({
         <p className="text-xl font-bold text-brand-gray-900 mt-1 tabular-nums">{loading ? "—" : value}</p>
         {count !== undefined && (
           <p className="text-[11px] text-brand-gray-500 mt-0.5">{count} documentos</p>
+        )}
+        {detail && (
+          <p className="text-[11px] text-brand-gray-500 mt-0.5">{detail}</p>
         )}
       </CardContent>
     </Card>

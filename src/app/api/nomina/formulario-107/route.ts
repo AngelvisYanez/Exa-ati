@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
 import { db } from '@/services/sri-api/db';
 import { generateF107Pdf, generateF107Xml, Formulario107Data } from '@/services/nomina/f107-generator';
+import { getUserRuc } from '@/services/sri-api/user-resolver';
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,10 +19,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Obtener emisor
+    const linkedRuc = await getUserRuc(user, req);
     const emisor = await db.queryOne<any>(
-      'SELECT ruc, razon_social FROM emisores WHERE tenant_id = $1 LIMIT 1',
-      [tenantId]
-    ) || { ruc: '0999000000001', razon_social: 'EMPRESA EJEMPLO S.A.' };
+      `SELECT ruc, razon_social, nombre_comercial
+       FROM emisores
+       WHERE tenant_id = $1 AND ruc = $2 AND activo = true
+       LIMIT 1`,
+      [tenantId, linkedRuc]
+    ) || { ruc: linkedRuc, razon_social: '', nombre_comercial: null };
 
     // Obtener acumulados de planillas del año
     const startPeriod = anioFiscal * 100 + 1;
@@ -56,7 +61,8 @@ export async function POST(req: NextRequest) {
       anioFiscal: parseInt(anioFiscal, 10),
       emisor: {
         ruc: emisor.ruc,
-        razonSocial: emisor.razon_social,
+        razonSocial: emisor.razon_social || '',
+        nombreComercial: emisor.nombre_comercial,
       },
       empleado: {
         cedula,

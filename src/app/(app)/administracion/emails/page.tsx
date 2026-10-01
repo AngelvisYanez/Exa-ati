@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Topbar from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { ModuleGate } from "@/components/auth/ModuleGate";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { apiFetch } from "@/lib/apiFetch";
 import { toast } from "sonner";
 import { Mail, Eye, Loader2 } from "lucide-react";
@@ -22,6 +26,8 @@ interface PlantillaRow {
 function EmailsListContent() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<PlantillaRow[]>([]);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("emails");
 
   useEffect(() => {
     const load = async () => {
@@ -39,6 +45,15 @@ function EmailsListContent() {
     void load();
   }, []);
 
+  const q = search.trim().toLowerCase();
+  const visible = q
+    ? rows.filter((p) =>
+        [p.nombre, p.codigo, p.descripcion, p.asunto, p.activo ? "Activa" : "Inactiva"].some((v) =>
+          String(v ?? "").toLowerCase().includes(q)
+        )
+      )
+    : rows;
+
   return (
     <>
       <Topbar title="Emails" backLink={{ href: "/administracion", label: "Admin" }} />
@@ -54,43 +69,87 @@ function EmailsListContent() {
           </p>
         </div>
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar plantilla..."
+          view={view}
+          onViewChange={setView}
+        />
+
         {loading ? (
           <div className="flex justify-center py-16 text-brand-gray-400">
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
-        ) : (
-          <div className="space-y-3">
-            {rows.map((p) => (
-              <div
+        ) : visible.length === 0 ? (
+          <p className="py-10 text-center text-sm text-brand-gray-500">No se encontraron plantillas.</p>
+        ) : view === "cuadricula" ? (
+          <RecordGrid>
+            {visible.map((p) => (
+              <RecordCard
                 key={p.codigo}
-                className="bg-white border border-brand-gray-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-sm font-bold text-brand-gray-900">{p.nombre}</h2>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        p.activo
-                          ? "bg-success-pale text-success"
-                          : "bg-brand-gray-100 text-brand-gray-500"
-                      }`}
-                    >
-                      {p.activo ? "Activa" : "Inactiva"}
-                    </span>
-                    <code className="text-[10px] text-brand-gray-400 font-mono">{p.codigo}</code>
-                  </div>
-                  <p className="text-[11px] text-brand-gray-500 mt-1 line-clamp-2">
-                    {p.descripcion || p.asunto}
-                  </p>
-                </div>
-                <Link href={`/administracion/emails/${encodeURIComponent(p.codigo)}`}>
-                  <Button variant="outline" size="sm" className="shrink-0">
-                    <Eye className="size-3.5 mr-1.5" />
-                    Editar / preview
-                  </Button>
-                </Link>
-              </div>
+                title={p.nombre}
+                subtitle={p.codigo}
+                fields={[
+                  { label: "Estado", value: p.activo ? "Activa" : "Inactiva" },
+                  { label: "Asunto", value: p.asunto },
+                  { label: "Descripción", value: p.descripcion || "—" },
+                  { label: "Variables", value: p.variables.length },
+                ]}
+                actions={
+                  <Link href={`/administracion/emails/${encodeURIComponent(p.codigo)}`}>
+                    <Button variant="outline" size="sm" className="shrink-0">
+                      <Eye className="size-3.5 mr-1.5" />
+                      Editar / preview
+                    </Button>
+                  </Link>
+                }
+              />
             ))}
+          </RecordGrid>
+        ) : (
+          <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table className="w-full text-left border-collapse text-[13px]">
+                <TableHeader>
+                  <TableRow className="border-b border-brand-gray-100 text-[10px] font-bold text-brand-gray-400 uppercase tracking-wider bg-brand-gray-50/50">
+                    <TableHead className="py-3 px-4 font-semibold">Nombre</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Código</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Asunto</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold">Estado</TableHead>
+                    <TableHead className="py-3 px-4 font-semibold text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-brand-gray-50">
+                  {visible.map((p) => (
+                    <TableRow key={p.codigo} className="hover:bg-brand-gray-50/40 transition-colors">
+                      <TableCell className="py-3 px-4 font-medium text-brand-gray-800">{p.nombre}</TableCell>
+                      <TableCell className="py-3 px-4 font-mono text-xs text-brand-gray-500">{p.codigo}</TableCell>
+                      <TableCell className="py-3 px-4 text-xs text-brand-gray-600">{p.asunto}</TableCell>
+                      <TableCell className="py-3 px-4">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            p.activo
+                              ? "bg-success-pale text-success"
+                              : "bg-brand-gray-100 text-brand-gray-500"
+                          }`}
+                        >
+                          {p.activo ? "Activa" : "Inactiva"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-3 px-4 text-right">
+                        <Link href={`/administracion/emails/${encodeURIComponent(p.codigo)}`}>
+                          <Button variant="outline" size="sm" className="shrink-0">
+                            <Eye className="size-3.5 mr-1.5" />
+                            Editar / preview
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         )}
       </main>

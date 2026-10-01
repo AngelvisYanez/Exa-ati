@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Plus, Search, Calculator, RotateCcw } from "lucide-react";
 
@@ -29,6 +32,8 @@ export default function MensualPage() {
   const [loading, setLoading] = useState(true);
   const [recalculando, setRecalculando] = useState(false);
   const [periodo, setPeriodo] = useState("");
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("ct-mensual");
 
   const load = useCallback(async () => {
     try {
@@ -69,6 +74,13 @@ export default function MensualPage() {
     }
   };
 
+  const q = search.trim().toLowerCase();
+  const visibles = q
+    ? items.filter((item) =>
+        `${item.periodo} ${item.ruc}`.toLowerCase().includes(q)
+      )
+    : items;
+
   return (
     <>
       <title>Declaraci\u00f3n Mensual - Control Tributario</title>
@@ -98,6 +110,14 @@ export default function MensualPage() {
           </div>
         </div>
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar por periodo o RUC..."
+          view={view}
+          onViewChange={setView}
+        />
+
         {loading ? (
           <p className="text-sm text-brand-gray-400">Cargando...</p>
         ) : items.length === 0 ? (
@@ -114,9 +134,11 @@ export default function MensualPage() {
               />
             </CardContent>
           </Card>
-        ) : (
+        ) : visibles.length === 0 ? (
+          <p className="text-sm text-brand-gray-400">Ningún resultado para la búsqueda.</p>
+        ) : view === "cuadricula" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {items.map((item) => (
+            {visibles.map((item) => (
               <Card key={item.id} className="border-brand-gray-200">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-semibold">Periodo {item.periodo}</CardTitle>
@@ -142,6 +164,33 @@ export default function MensualPage() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        ) : (
+          <div className="overflow-x-auto bg-white border border-brand-gray-200 rounded-xl">
+            <Table className="w-full text-sm">
+              <TableHeader>
+                <TableRow className="border-b text-left text-brand-gray-500 text-xs uppercase tracking-wider">
+                  <TableHead className="py-2 px-3">Periodo</TableHead>
+                  <TableHead className="py-2 px-3">RUC</TableHead>
+                  <TableHead className="py-2 px-3 text-right">Ventas</TableHead>
+                  <TableHead className="py-2 px-3 text-right">Compras</TableHead>
+                  <TableHead className="py-2 px-3 text-right">IVA a pagar</TableHead>
+                  <TableHead className="py-2 px-3 text-right">Crédito pendiente</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibles.map((item) => (
+                  <TableRow key={item.id} className="border-b hover:bg-gray-50">
+                    <TableCell className="py-2 px-3 font-medium">{item.periodo}</TableCell>
+                    <TableCell className="py-2 px-3 font-mono text-xs">{item.ruc}</TableCell>
+                    <TableCell className="py-2 px-3 text-right">${Number(item.totalVentas ?? 0).toFixed(2)}</TableCell>
+                    <TableCell className="py-2 px-3 text-right">${Number(item.totalCompras ?? 0).toFixed(2)}</TableCell>
+                    <TableCell className="py-2 px-3 text-right font-semibold text-brand-red">${Number(item.ivaAPagar ?? 0).toFixed(2)}</TableCell>
+                    <TableCell className="py-2 px-3 text-right text-amber-600">${Number(item.creditoPendiente ?? 0).toFixed(2)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
       </main>

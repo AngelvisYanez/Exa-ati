@@ -7,6 +7,9 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import DateRangeFilter, {
   DateRange,
   formatDateRangeLabel,
@@ -35,6 +38,8 @@ export default function ComprobantesPage() {
   const { activeRuc } = useAuth();
   const [comprobantes, setComprobantes] = useState<DeclaracionRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("comprobantes");
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -95,6 +100,13 @@ export default function ComprobantesPage() {
 
   const totalIva = comprobantes.reduce((s, c) => s + c.iva, 0);
   const aceptadas = comprobantes.filter((c) => c.estado === "REGISTRADA" || c.estado === "ACEPTADA").length;
+  const q = search.trim().toLowerCase();
+  const visibles = q
+    ? comprobantes.filter((c) =>
+        [c.periodo, c.tipo, c.tramite, c.fecha, c.estado, c.iva.toFixed(2)]
+          .some((v) => String(v ?? "").toLowerCase().includes(q))
+      )
+    : comprobantes;
 
   return (
     <>
@@ -113,7 +125,15 @@ export default function ComprobantesPage() {
         </main>
       ) : (
       <main className="ui-page flex-1">
-        <DateRangeFilter value={dateRange} onChange={setDateRange} filterLabel="Período tributario" className="bg-white border border-brand-gray-200 rounded-xl px-4 py-3" />
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar período, tipo, trámite..."
+          view={view}
+          onViewChange={setView}
+        >
+          <DateRangeFilter value={dateRange} onChange={setDateRange} filterLabel="Período tributario" className="bg-white border border-brand-gray-200 rounded-xl px-4 py-3" />
+        </ListToolbar>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <PageHeader
             title="Historial de Declaraciones"
@@ -161,17 +181,17 @@ export default function ComprobantesPage() {
             <span className="text-[13px] font-bold text-brand-gray-700">Comprobantes de Presentación</span>
             <span className="text-[11px] text-brand-gray-400">Datos desde auditoría del sistema</span>
           </div>
-          <div className="overflow-x-auto">
-            {loading ? (
-              <TableSkeleton rows={6} columns={5} />
-            ) : comprobantes.length === 0 ? (
-              <EmptyState
-                icon={<FileCode2 className="w-5 h-5" />}
-                title="Aún no hay declaraciones registradas."
-                description="Presenta tu primera declaración desde el asistente."
-                compact
-              />
-            ) : (
+          {loading ? (
+            <TableSkeleton rows={6} columns={5} />
+          ) : visibles.length === 0 ? (
+            <EmptyState
+              icon={<FileCode2 className="w-5 h-5" />}
+              title="Aún no hay declaraciones registradas."
+              description="Presenta tu primera declaración desde el asistente."
+              compact
+            />
+          ) : view === "lista" ? (
+            <div className="overflow-x-auto">
               <Table className="w-full">
                 <TableHeader>
                   <TableRow className="bg-brand-gray-50 border-b border-brand-gray-100">
@@ -183,7 +203,7 @@ export default function ComprobantesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-brand-gray-50">
-                  {comprobantes.map((c) => (
+                  {visibles.map((c) => (
                     <TableRow key={c.id} className="hover:bg-brand-gray-50 transition-colors">
                       <TableCell className="px-5 py-3.5 text-[13px] font-semibold text-brand-gray-900">{c.periodo}</TableCell>
                       <TableCell className="px-5 py-3.5">
@@ -207,8 +227,34 @@ export default function ComprobantesPage() {
                   ))}
                 </TableBody>
               </Table>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="p-3">
+              <RecordGrid>
+                {visibles.map((c) => (
+                  <RecordCard
+                    key={c.id}
+                    title={c.periodo}
+                    subtitle={c.tipo}
+                    fields={[
+                      { label: "No. trámite", value: c.tramite || "—" },
+                      { label: "Fecha", value: c.fecha },
+                      { label: "IVA pagado", value: `$${c.iva.toFixed(2)}` },
+                      { label: "Estado", value: c.estado },
+                    ]}
+                    actions={
+                      <Link
+                        href="/declaraciones"
+                        className="flex items-center gap-1.5 text-[12px] font-semibold text-brand-red hover:text-brand-red-bright transition-colors"
+                      >
+                        Ver detalle
+                      </Link>
+                    }
+                  />
+                ))}
+              </RecordGrid>
+            </div>
+          )}
         </div>
       </main>
       )}

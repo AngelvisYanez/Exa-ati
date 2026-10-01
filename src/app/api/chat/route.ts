@@ -468,7 +468,7 @@ export async function POST(req: Request) {
           success: true,
           sender: 'ai',
           ...chatHtmlPayload(
-            `<strong>¡Entendido!</strong> He iniciado la descarga de tus <strong>${tipoLabel}</strong> del SRI desde el <strong>${rango}</strong> para el RUC <code>${finalRuc}</code>.<br/><br/>La tarea se está ejecutando en segundo plano. Puedes ver el estado de la descarga en vivo en el <a href="/documentos?descargas=1" class="underline font-semibold">Historial de descargas</a> o en el panel de control.`,
+            `<strong>¡Entendido!</strong> He iniciado la descarga de tus <strong>${tipoLabel}</strong> del SRI desde el <strong>${rango}</strong> para el RUC <code>${finalRuc}</code>.<br/><br/>La tarea se está ejecutando en segundo plano. Puedes ver el progreso en <a href="/documentos" class="underline font-semibold">Documentos</a>.`,
             `He iniciado la descarga de tus comprobantes del SRI del ${rango} para el RUC ${finalRuc} en segundo plano.`
           ),
           time: new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }),

@@ -89,11 +89,12 @@ interface BillingStats {
 }
 
 export default function AdminDashboardPage() {
-  const { hasModule } = useAuth();
+  const { user, hasModule } = useAuth();
   const canManageEmpresas = hasModule("admin.empresas");
   const canManagePlanes = hasModule("admin.planes");
   const canManageEmails = hasModule("admin.emails");
   const canManageMetodos = hasModule("admin.metodos-pago");
+  const canManageRide = user?.rol === "SUPERADMIN";
   const [loading, setLoading] = useState(true);
   const [billingLoading, setBillingLoading] = useState(true);
   const [stats, setStats] = useState<{
@@ -211,6 +212,15 @@ export default function AdminDashboardPage() {
                   icon={<FileText className="w-5 h-5 text-white" />}
                   href="/administracion/emails"
                   color="bg-brand-sky"
+                />
+              ) : null}
+              {canManageRide ? (
+                <StatCard
+                  label="Diseño RIDE"
+                  value="Plantillas"
+                  icon={<FileText className="w-5 h-5 text-white" />}
+                  href="/administracion/ride-diseno"
+                  color="bg-emerald-700"
                 />
               ) : null}
               <StatCard

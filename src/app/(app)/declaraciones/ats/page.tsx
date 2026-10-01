@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import ListToolbar from "@/components/lists/ListToolbar";
+import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
+import { useViewMode } from "@/components/lists/useViewMode";
 import { toast } from "sonner";
 import { Plus, Download, Eye, Trash2, FileSpreadsheet } from "lucide-react";
 
@@ -29,6 +32,8 @@ const ESTADO_BADGE: Record<string, string> = {
 export default function AtsPage() {
   const [items, setItems] = useState<Ats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useViewMode("ats");
 
   const load = useCallback(async () => {
     try {
@@ -74,6 +79,18 @@ export default function AtsPage() {
     }
   };
 
+  const q = search.trim().toLowerCase();
+  const visible = q
+    ? items.filter((a) =>
+        [
+          a.periodo,
+          a.estado,
+          a.fechaGeneracion ? new Date(a.fechaGeneracion).toLocaleDateString("es-EC") : "",
+          a.fechaPresentacion ? new Date(a.fechaPresentacion).toLocaleDateString("es-EC") : "",
+        ].some((v) => String(v ?? "").toLowerCase().includes(q))
+      )
+    : items;
+
   return (
     <>
       <title>ATS - OFSERCONT IA</title>
@@ -91,15 +108,55 @@ export default function AtsPage() {
           </Link>
         </div>
 
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Buscar ATS..."
+          view={view}
+          onViewChange={setView}
+        />
+
         <div className="bg-white border border-brand-gray-200 rounded-xl overflow-hidden">
           {loading ? (
             <TableSkeleton rows={6} columns={5} />
-          ) : items.length === 0 ? (
+          ) : visible.length === 0 ? (
             <EmptyState
               icon={<FileSpreadsheet className="w-5 h-5" />}
               title="No hay ATS generados."
               compact
             />
+          ) : view === "cuadricula" ? (
+            <div className="p-3">
+              <RecordGrid>
+                {visible.map((a) => (
+                  <RecordCard
+                    key={a.id}
+                    title={a.periodo}
+                    fields={[
+                      { label: "Estado", value: a.estado },
+                      {
+                        label: "Generación",
+                        value: a.fechaGeneracion ? new Date(a.fechaGeneracion).toLocaleDateString("es-EC") : "—",
+                      },
+                      {
+                        label: "Presentación",
+                        value: a.fechaPresentacion ? new Date(a.fechaPresentacion).toLocaleDateString("es-EC") : "—",
+                      },
+                    ]}
+                    actions={
+                      <>
+                        <button onClick={() => handleDownloadXml(a.id)} className="inline-flex items-center gap-1 text-brand-red hover:text-brand-red-bright text-xs font-semibold border border-brand-gray-200 hover:bg-brand-gray-50 px-2 py-1 rounded-lg transition-colors cursor-pointer">
+                          <Download className="w-3 h-3" /> XML
+                        </button>
+                        <button onClick={() => handleDelete(a.id)} className="inline-flex items-center gap-1 text-red-500 hover:text-brand-red text-xs font-semibold border border-red-100 hover:bg-brand-red-subtle px-2 py-1 rounded-lg transition-colors cursor-pointer">
+                          <Trash2 className="w-3 h-3" /> Eliminar
+                        </button>
+                      </>
+                    }
+                  />
+                ))}
+              </RecordGrid>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="w-full text-left border-collapse text-[13px]">
@@ -113,7 +170,7 @@ export default function AtsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-brand-gray-50">
-                  {items.map((a) => (
+                  {visible.map((a) => (
                     <TableRow key={a.id} className="hover:bg-brand-gray-50/40 transition-colors">
                       <TableCell className="py-3 px-4 font-mono text-sm font-semibold text-brand-gray-800">{a.periodo}</TableCell>
                       <TableCell className="py-3 px-4">

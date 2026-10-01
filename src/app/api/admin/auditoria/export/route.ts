@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { verifyAuth, requireTenantId } from '@/services/sri-api/auth-helper';
+import { getLinkedCompany } from '@/services/sri-api/user-resolver';
 import { db } from '@/services/sri-api/db';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { BrandPdf } from '@/services/pdf/layout';
 
 async function getFilteredLogs(req: Request, user: any) {
   const { searchParams } = new URL(req.url);
@@ -46,64 +47,39 @@ export async function GET(req: Request) {
     const logs = await getFilteredLogs(req, user);
 
     if (format === 'pdf') {
-      const pdfDoc = await PDFDocument.create();
-      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-      const page = pdfDoc.addPage([612, 792]);
-      const { width, height } = page.getSize();
-      let y = height - 50;
-
-      page.drawText('Reporte de Auditoria - EXA-ATI', {
-        x: 50, y, size: 16, font: fontBold, color: rgb(0.1, 0.1, 0.2),
+      const company = await getLinkedCompany(user, req);
+      const pdf = await BrandPdf.create(company);
+      pdf.drawHeader({
+        documentTitle: 'Auditoría',
+        subtitle: `Generado ${new Date().toLocaleString('es-EC')} · ${logs.length} registros`,
       });
-      y -= 10;
-      page.drawText(`Generado: ${new Date().toLocaleString('es-EC')}`, {
-        x: 50, y, size: 9, font, color: rgb(0.4, 0.4, 0.4),
-      });
-      y -= 8;
-      page.drawText(`Total registros: ${logs.length}`, {
-        x: 50, y, size: 9, font, color: rgb(0.4, 0.4, 0.4),
-      });
-      y -= 25;
 
-      const colX = [50, 160, 230, 300, 400];
-      const headers = ['Fecha', 'Usuario', 'Accion', 'Recurso', 'Descripcion'];
+      const descW = pdf.contentWidth - 92 - 110 - 70 - 70;
+      pdf.drawTable(
+        [
+          { header: 'Fecha', width: 92 },
+          { header: 'Usuario', width: 110 },
+          { header: 'Acción', width: 70 },
+          { header: 'Recurso', width: 70 },
+          { header: 'Descripción', width: descW },
+        ],
+        logs.map((log) => {
+          const fecha = log.created_at
+            ? new Date(log.created_at).toLocaleString('es-EC', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : '—';
+          return [fecha, log.usuario_email || '—', log.accion || '—', log.recurso || '—', log.descripcion || '—'];
+        })
+      );
 
-      page.drawLine({ start: { x: 50, y }, end: { x: 562, y }, thickness: 1, color: rgb(0.2, 0.2, 0.2) });
-      y -= 4;
+      const pdfBuffer = await pdf.toBuffer();
 
-      headers.forEach((h, i) => {
-        page.drawText(h, { x: colX[i], y, size: 8, font: fontBold, color: rgb(0.1, 0.1, 0.2) });
-      });
-      y -= 4;
-      page.drawLine({ start: { x: 50, y }, end: { x: 562, y }, thickness: 1, color: rgb(0.2, 0.2, 0.2) });
-      y -= 12;
-
-      for (const log of logs) {
-        if (y < 60) {
-          const newPage = pdfDoc.addPage([612, 792]);
-          y = height - 50;
-        }
-
-        const fecha = log.created_at
-          ? new Date(log.created_at).toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-          : '—';
-
-        const desc = (log.descripcion || '—').substring(0, 60);
-
-        page.drawText(fecha, { x: colX[0], y, size: 7, font, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(log.usuario_email || '—', { x: colX[1], y, size: 7, font, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(log.accion, { x: colX[2], y, size: 7, font, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(log.recurso || '—', { x: colX[3], y, size: 7, font, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(desc, { x: colX[4], y, size: 7, font, color: rgb(0.2, 0.2, 0.2) });
-
-        y -= 14;
-      }
-
-      const pdfBytes = await pdfDoc.save();
-      const pdfBuffer = Buffer.from(pdfBytes);
-
-      return new NextResponse(pdfBuffer, {
+      return new NextResponse(new Uint8Array(pdfBuffer), {
         status: 200,
         headers: {
           'Content-Type': 'application/pdf',
