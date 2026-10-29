@@ -4,6 +4,8 @@ services:
   app:
     image: exa-ati:${EXA_ATI_IMAGE_TAG:?Configura el SHA publicado}
     container_name: exa-ati-prod-app
+    mem_limit: 1g
+    memswap_limit: 1g
     env_file:
       - .env.plesk-production
     environment:

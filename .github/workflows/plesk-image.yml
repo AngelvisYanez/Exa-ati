@@ -29,7 +29,7 @@ jobs:
             --tag exa-ati:$GITHUB_SHA .
       - name: Check runtime and browser
         run: |
-          docker run --rm --entrypoint node exa-ati:$GITHUB_SHA -e 'require("fs").accessSync("scripts/entrypoint.sh"); require("playwright").chromium.launch({headless:true,executablePath:"/usr/bin/google-chrome",args:["--no-sandbox"]}).then(b=>b.close()).catch(e=>{console.error(e.message);process.exit(1)})'
+          docker run --rm --memory=1g --memory-swap=1g --entrypoint node exa-ati:$GITHUB_SHA -e 'const fs=require("fs");fs.accessSync("scripts/entrypoint.sh");for(const p of ["downloads","browser_session","logs","tmp",process.env.XDG_CONFIG_HOME,process.env.XDG_CACHE_HOME]){fs.mkdirSync(p,{recursive:true});fs.accessSync(p,fs.constants.W_OK)} require("playwright").chromium.launch({headless:true,executablePath:"/usr/bin/google-chrome",args:["--no-sandbox"]}).then(b=>b.close()).catch(e=>{console.error(e.message);process.exit(1)})'
       - name: Export image and checksum
         run: |
           docker save exa-ati:$GITHUB_SHA | gzip -1 > $RUNNER_TEMP/exa-ati-image.tar.gz

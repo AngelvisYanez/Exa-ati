@@ -17,6 +17,8 @@ sh scripts/deploy/plesk.sh staging start
 
 El puerto es 127.0.0.1:3101. Validar el dominio ati.exacontable.com mediante resolucion dirigida a Plesk antes de cambiar DNS. Importar los XML/PDF al volumen test_downloads con estructura y propietario UID 1001. Comprobar salud, acceso real, aislamiento de empresas, descargas, escritura y navegador. No ejecutar migraciones ni seeds automaticamente.
 
+El contenedor de EXA-ATI tiene un limite de 1 GiB de RAM, sin swap adicional, para conservar la capacidad del servidor compartido. Si las pruebas reales de scraping superan ese limite, ampliar primero la capacidad del servidor; no retirar el limite sin comprobar recursos. Chrome usa configuracion y cache dentro de /app/tmp, escribibles por el usuario sin privilegios.
+
 ## Corte de produccion
 
 Reducir TTL a 300 y esperar el TTL previo. Preparar HTTPS de ati.exacontable.com en Plesk. Congelar escrituras y trabajos en cPanel, capturar archivos finales y crear una nueva rama Neon desde el origen actualizado: no promover la rama usada para pruebas.

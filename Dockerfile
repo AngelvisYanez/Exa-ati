@@ -40,6 +40,8 @@ ENV NODE_ENV=production
 ENV HEADLESS=true
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV XDG_CONFIG_HOME=/app/tmp/config
+ENV XDG_CACHE_HOME=/app/tmp/cache
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
   tini \
@@ -62,8 +64,9 @@ COPY --from=builder --chown=nextjs:nextjs /app/scripts/deploy/entrypoint.sh ./sc
 # El bridge usa Google Chrome del sistema: instalarlo en la imagen final.
 RUN npx playwright install chrome
 
-RUN mkdir -p /app/downloads/xmls /app/downloads/certs /app/downloads/pdfs /app/downloads/templates /app/downloads/debug /app/downloads/RIDE /app/browser_session /app/logs /app/tmp \
+RUN mkdir -p /app/downloads/xmls /app/downloads/certs /app/downloads/pdfs /app/downloads/templates /app/downloads/debug /app/downloads/RIDE /app/browser_session /app/logs /app/tmp/config /app/tmp/cache \
   && chmod +x /app/scripts/entrypoint.sh \
+  && chown nextjs:nextjs /app \
   && chown -R nextjs:nextjs /app/downloads /app/browser_session /app/logs /app/tmp /app/scripts
 
 EXPOSE 3001
