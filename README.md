@@ -138,7 +138,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ## Documentación adicional
 
-- `docs/plesk-docker-deploy.md` — Despliegue en Plesk + Docker
+- `docs/PLESK_MIGRATION.md` — Despliegue en Plesk + Docker
 - `docs/SRI_CONNECTOR.md` — Conexión SOAP al SRI
 - `docs/SriPlaywrightScraper.md` — Scraping del portal SRI
 - `docs/ARCHITECTURE.md` — Arquitectura del sistema

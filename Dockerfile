@@ -8,14 +8,14 @@
 FROM mcr.microsoft.com/playwright:v1.61.0-jammy AS deps
 
 WORKDIR /app
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 COPY package*.json ./
 COPY prisma/schema.prisma ./prisma/schema.prisma
 COPY prisma.config.ts ./prisma.config.ts
 
 RUN npm ci
-
-RUN npx playwright install chrome
 
 RUN npx prisma generate
 
@@ -24,6 +24,8 @@ FROM deps AS builder
 
 WORKDIR /app
 ENV CACHE_BUST=4
+ARG NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
 COPY . .
 
@@ -57,9 +59,12 @@ COPY --from=builder --chown=nextjs:nextjs /app/tsconfig.json ./
 COPY --from=deps --chown=nextjs:nextjs /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder --chown=nextjs:nextjs /app/scripts/deploy/entrypoint.sh ./scripts/entrypoint.sh
 
-RUN mkdir -p /app/downloads/xmls /app/downloads/certs /app/downloads/pdfs /app/downloads/templates /app/downloads/debug /app/downloads/RIDE /app/browser_session /app/logs \
+# El bridge usa Google Chrome del sistema: instalarlo en la imagen final.
+RUN npx playwright install chrome
+
+RUN mkdir -p /app/downloads/xmls /app/downloads/certs /app/downloads/pdfs /app/downloads/templates /app/downloads/debug /app/downloads/RIDE /app/browser_session /app/logs /app/tmp \
   && chmod +x /app/scripts/entrypoint.sh \
-  && chown nextjs:nextjs /app
+  && chown -R nextjs:nextjs /app/downloads /app/browser_session /app/logs /app/tmp /app/scripts
 
 EXPOSE 3001
 

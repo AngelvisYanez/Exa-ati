@@ -27,6 +27,8 @@ yarn-error.log*
 .env*
 !.env.example
 !.env.plesk.example
+!.env.plesk-test.example
+!.env.plesk-production.example
 # Neon CLI local context (org/project/branch pointer)
 .neon
 

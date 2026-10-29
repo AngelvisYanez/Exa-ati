@@ -1,0 +1,46 @@
+name: Build EXA-ATI Plesk image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plesk-image
+  cancel-in-progress: false
+
+jobs:
+  image:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check available memory
+        run: |
+          test "$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)" -ge 3145728
+      - name: Build the published commit without production credentials
+        run: |
+          docker buildx create --name exa-ati-ci --driver docker-container --driver-opt memory=2g,memory-swap=2g
+          docker buildx build --builder exa-ati-ci --load --progress plain \
+            --label org.opencontainers.image.revision=$GITHUB_SHA \
+            --build-arg NEXT_PUBLIC_APP_URL=https://ati.exacontable.com \
+            --tag exa-ati:$GITHUB_SHA .
+      - name: Check runtime and browser
+        run: |
+          docker run --rm --entrypoint node exa-ati:$GITHUB_SHA -e 'require("fs").accessSync("scripts/entrypoint.sh"); require("playwright").chromium.launch({headless:true,executablePath:"/usr/bin/google-chrome",args:["--no-sandbox"]}).then(b=>b.close()).catch(e=>{console.error(e.message);process.exit(1)})'
+      - name: Export image and checksum
+        run: |
+          docker save exa-ati:$GITHUB_SHA | gzip -1 > $RUNNER_TEMP/exa-ati-image.tar.gz
+          cd $RUNNER_TEMP
+          sha256sum exa-ati-image.tar.gz > exa-ati-image.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exa-ati-image-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/exa-ati-image.tar.gz
+            ${{ runner.temp }}/exa-ati-image.sha256
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error

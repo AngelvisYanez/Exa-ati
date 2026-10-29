@@ -22,6 +22,25 @@ yarn-error.log*
 .env*.local
 .env.local
 .env.development
+.env*
+!.env.plesk.example
+!.env.plesk-test.example
+!.env.plesk-production.example
+
+# Sesiones, credenciales y borradores locales
+.ssh
+.wwebjs_auth
+.wwebjs_cache
+.claude
+.codex
+.cursor
+.agents
+.neon
+.vercel
+tmp
+tmp-preview
+*.tgz
+*.tmp.png
 
 # Git
 .git
@@ -62,6 +81,7 @@ scripts/buster
 scripts/migrations
 scripts/scratch
 scripts/worker
+scripts/tmp*
 
 # Capturas de test / debug
 sri-dom-dump.html

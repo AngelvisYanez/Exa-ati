@@ -1,0 +1,31 @@
+name: exa-ati-prod
+
+services:
+  app:
+    image: exa-ati:${EXA_ATI_IMAGE_TAG:?Configura el SHA publicado}
+    container_name: exa-ati-prod-app
+    env_file:
+      - .env.plesk-production
+    environment:
+      NODE_ENV: production
+      HEADLESS: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - "127.0.0.1:3101:3001"
+    volumes:
+      - prod_downloads:/app/downloads
+      - prod_browser_session:/app/browser_session
+      - prod_logs:/app/logs
+      - prod_tmp:/app/tmp
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  prod_downloads:
+  prod_browser_session:
+  prod_logs:
+  prod_tmp:
