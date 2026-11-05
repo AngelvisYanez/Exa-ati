@@ -24,7 +24,7 @@ conflicto, manda el documento.
 3. La imagen se construye una vez (`EXA_ATI_IMAGE_TAG == HEAD`) y se promueve sin reconstruir.
 4. Pruebas y producción usan ramas Neon **distintas**.
 5. WSDL de pruebas: `celcer.sri.gob.ec`. Producción **no** puede usarlos.
-6. Producción exige `EXA_ATI_PRODUCTION_READY=true` + compuerta de la sección 10.
+6. Producción exige `EXA_ATI_PRODUCTION_READY=true` + compuerta de la sección 7.
 7. Pruebas y producción comparten el puerto 3101: son mutuamente excluyentes.
 8. Nunca imprimas `.env*`, secretos ni el contenido del helper de Plesk.
 

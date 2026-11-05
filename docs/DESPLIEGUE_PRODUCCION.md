@@ -19,9 +19,9 @@ No usar `httpdocs`, Vercel ni instrucciones de `exa-tareas-app` / `gestion.exaco
 
 1. Desplegar exactamente el SHA publicado en `origin/main`, desde un clon limpio en `/opt/exa-ati/releases/<sha>`.
 2. Construir `exa-ati:<sha>` una vez. Promover esa misma imagen a producción sin reconstruir. `EXA_ATI_IMAGE_TAG` debe igualar el `HEAD` de la release.
-3. Usar ramas Neon distintas para pruebas y producción. Producción nunca apunta a la rama de pruebas ni al host de cPanel.
+3. Usar ramas Neon distintas para pruebas y producción. Producción nunca apunta a la rama de pruebas. Verificar el host de producción configurado sin imprimir la URL.
 4. WSDL de pruebas: `celcer.sri.gob.ec`. WSDL de producción: endpoint real, nunca `celcer.sri.gob.ec`.
-5. `EXA_ATI_PRODUCTION_READY=true` solo después de la captura final y la congelación de escrituras de cPanel.
+5. `EXA_ATI_PRODUCTION_READY=true` solo cuando la base, los archivos y las integraciones de producción en Plesk estén comprobados. La migración desde cPanel ya no es una compuerta de cada despliegue.
 6. Los dos stacks usan el mismo puerto 3101: detener pruebas antes de arrancar producción.
 7. No ejecutar migraciones ni seeds automáticamente. Aplicar las migraciones requeridas de forma controlada sobre la rama correcta, con copia de seguridad y verificación.
 8. Verificar cada mutación con un comando posterior de solo lectura. Ante un fallo obligatorio, detenerse y reportar lo pendiente.
@@ -72,7 +72,7 @@ Antes de afirmar que está en producción, comprobar el nombre del contenedor y 
 | Compose | `compose.plesk-test.yaml` | `compose.plesk-production.yaml` |
 | `EXA_ATI_PRODUCTION_READY` | ausente o `false` | `true` |
 | SRI WSDL | `celcer.sri.gob.ec` | endpoint real |
-| Base de datos | rama Neon de pruebas | rama Neon final distinta de pruebas y cPanel |
+| Base de datos | rama Neon de pruebas | rama Neon de producción distinta de pruebas |
 
 Si cualquier señal indica pruebas, el veredicto es **«no está en producción»**, aunque `/api/health` responda `200`. No inferir el entorno solo por el DNS o el health.
 
@@ -85,7 +85,7 @@ git checkout <sha>
 git status --porcelain=v1
 ```
 
-Usar `.env.plesk-test` y `.env.plesk-production` fuera de Git, derivados de sus ejemplos y con permisos `600`. Validar los nombres necesarios sin mostrar valores. `DATABASE_URL` y `DIRECT_DATABASE_URL` deben ser de la misma rama de su entorno; `EXA_ATI_SOURCE_DB_HOST` permite comprobar aislamiento. `NEXT_PUBLIC_APP_URL` debe ser `https://ati.exacontable.com`.
+Usar `.env.plesk-test` y `.env.plesk-production` fuera de Git, derivados de sus ejemplos y con permisos `600`. Validar los nombres necesarios sin mostrar valores. `DATABASE_URL` y `DIRECT_DATABASE_URL` deben ser de la misma rama de su entorno. Comprobar que la rama de producción difiere de la de pruebas. `NEXT_PUBLIC_APP_URL` debe ser `https://ati.exacontable.com`.
 
 ```sh
 sh scripts/deploy/plesk.sh staging validate
@@ -104,23 +104,20 @@ curl -fsS http://127.0.0.1:3101/api/health
 
 El contenedor de pruebas debe llamarse `exa-ati-test-app`. Validar la aplicación mediante resolución dirigida a Plesk antes del corte DNS. Comprobar login, panel con una cuenta legítima, aislamiento de empresas, descargas, escritura y navegador. No fabricar sesiones ni leer secretos de autenticación.
 
-## 7. Compuerta de producción
+## 7. Compuerta de producción en Plesk
 
 **Un push no activa producción.** Ejecutar en este orden:
 
-1. Reducir TTL DNS a 300 y esperar que expire el TTL anterior.
-2. Preparar HTTPS de `ati.exacontable.com` en Plesk con renovación automática.
-3. Congelar escrituras y trabajos en cPanel.
-4. Capturar los archivos finales de `downloads` en cPanel.
-5. Crear una rama Neon **nueva** desde el origen actualizado, no promover la rama de pruebas.
-6. Preparar `.env.plesk-production` con esa rama, el mismo SHA, secretos e integraciones reales. Confirmar WSDL reales y ausencia del host de pruebas y de cPanel.
-7. Activar `EXA_ATI_PRODUCTION_READY=true` solo tras las verificaciones anteriores.
-8. Validar configuración: `sh scripts/deploy/plesk.sh production validate`.
-9. Detener **solo** `exa-ati-test-app` para liberar 3101 y arrancar `sh scripts/deploy/plesk.sh production start` con la imagen ya construida.
-10. Importar y comprobar los archivos finales en `prod_downloads` antes de admitir usuarios.
-11. Cambiar el registro A de `ati.exacontable.com` a `199.89.55.69` y mantener cPanel en mantenimiento durante la propagación.
+1. Comprobar que DNS y HTTPS de `ati.exacontable.com` sirven desde Plesk y que la renovación del certificado está configurada.
+2. Comprobar que la rama Neon de producción existe, es distinta de pruebas y contiene los datos vigentes. No promover la rama de pruebas.
+3. Comprobar que los archivos persistentes de producción están en `prod_downloads` y tienen propietario y permisos correctos.
+4. Preparar `.env.plesk-production` con la rama de producción, el SHA de la imagen, secretos e integraciones reales. Confirmar WSDL reales y ausencia del host de pruebas.
+5. Activar `EXA_ATI_PRODUCTION_READY=true` solo tras las verificaciones anteriores.
+6. Validar configuración: `sh scripts/deploy/plesk.sh production validate`.
+7. Detener **solo** `exa-ati-test-app` para liberar 3101 y arrancar `sh scripts/deploy/plesk.sh production start` con la imagen ya construida.
+8. Verificar contenedor, base, SRI, archivos y rutas públicas antes de admitir usuarios.
 
-Si falta cualquiera de los puntos 1–7, **detenerse**. No sustituir una rama Neon de producción con la de pruebas. No tocar el 3010 ni `waha`.
+Si falta cualquiera de los puntos 1–5, **detenerse**. No sustituir una rama Neon de producción con la de pruebas. No tocar el 3010 ni `waha`. La migración histórica desde cPanel no se repite en despliegues posteriores.
 
 ## 8. Verificación externa y reporte
 
@@ -143,4 +140,4 @@ Pendientes:            <lista>
 Riesgos abiertos:      <lista>
 ```
 
-No declarar producción sin todas las señales y pruebas requeridas. Conservar origen y respaldos siete días. Si hay escrituras nuevas en Plesk, congelar Plesk y reconciliar datos antes de revertir a cPanel.
+No declarar producción sin todas las señales y pruebas requeridas. Conservar respaldos y la release anterior para rollback. Si hay escrituras nuevas, reconciliar datos antes de revertir a una base anterior.

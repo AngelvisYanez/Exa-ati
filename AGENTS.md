@@ -29,10 +29,10 @@ Vercel y **no** comparte arquitectura con `exa-tareas-app`/`gestion.exacontable.
 3. La imagen se construye **una vez** y se promueve sin reconstruir.
    `EXA_ATI_IMAGE_TAG` debe ser idéntico al `HEAD` de la release.
 4. Pruebas y producción usan **ramas Neon distintas**. Producción nunca apunta a
-   la rama de pruebas ni al host de cPanel.
+   la rama de pruebas.
 5. En pruebas los WSDL son `celcer.sri.gob.ec`; en producción **no** pueden serlo.
-6. Producción solo arranca con `EXA_ATI_PRODUCTION_READY=true`, y eso solo se activa
-   tras la captura final y la congelación de escrituras en cPanel.
+6. Producción solo arranca con `EXA_ATI_PRODUCTION_READY=true`, después de verificar
+   en Plesk la rama Neon, los archivos y las integraciones de producción.
 7. Los stacks de pruebas (`exa-ati-test-app`) y producción (`exa-ati-prod-app`)
    usan **el mismo puerto 3101**: son mutuamente excluyentes.
 8. No toques `gestion.exacontable.com` (3010) ni el contenedor `waha`: el servidor

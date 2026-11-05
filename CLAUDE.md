@@ -13,5 +13,5 @@ Puntos que más se olvidan:
   Antes de arrancar producción hay que detener pruebas.
 - Si el contenedor es `exa-ati-test-app` o falta `EXA_ATI_PRODUCTION_READY=true`,
   **no está en producción**, aunque `/api/health` responda `200`.
-- Producción no se activa por un push: requiere la compuerta de la sección 10.
+- Producción no se activa por un push: requiere la compuerta de la sección 7.
 - Verifica siempre desde fuera con `node scripts/deploy/preflight.mjs --sha <sha>`.

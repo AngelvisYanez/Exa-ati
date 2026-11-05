@@ -19,5 +19,5 @@ Resumen mínimo:
 - Solo se despliega el SHA publicado en `origin/main`.
 - Pruebas y producción usan el mismo puerto 3101 y son mutuamente excluyentes.
 - Producción solo arranca con `EXA_ATI_PRODUCTION_READY=true` y la compuerta de la
-  sección 10 del documento.
+  sección 7 del documento.
 - Verificación de solo lectura: `node scripts/deploy/preflight.mjs --sha <sha>`.
