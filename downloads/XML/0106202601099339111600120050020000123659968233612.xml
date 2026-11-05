@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<autorizacion>
+<estado>AUTORIZADO</estado>
+<numeroAutorizacion>0106202601099339111600120050020000123659968233612</numeroAutorizacion>
+<fechaAutorizacion>2026-06-01T22:11:21-05:00</fechaAutorizacion>
+<ambiente>PRODUCCIÓN</ambiente>
+<comprobante><![CDATA[<?xml version="1.0" encoding="utf-8"?>
+<factura id="comprobante" version="1.1.0">
+  <infoTributaria>
+    <ambiente>2</ambiente>
+    <tipoEmision>1</tipoEmision>
+    <razonSocial>MUMUSO ECUADOR</razonSocial>
+    <nombreComercial>MUMUSO</nombreComercial>
+    <ruc>0993391116001</ruc>
+    <claveAcceso>0106202601099339111600120050020000123659968233612</claveAcceso>
+    <codDoc>01</codDoc>
+    <estab>005</estab>
+    <ptoEmi>002</ptoEmi>
+    <secuencial>000012365</secuencial>
+    <dirMatriz>AV. FCO. DE ORELLANA Edificio: CC RIOCENTRO NORTE Numero de oficina:LOC155-A Numero de piso: 2 Referencia: JUNTO A SUPER PACO</dirMatriz>
+  </infoTributaria>
+  <infoFactura>
+    <fechaEmision>01/06/2026</fechaEmision>
+    <dirEstablecimiento>AV PAQUISHA</dirEstablecimiento>
+    <obligadoContabilidad>SI</obligadoContabilidad>
+    <tipoIdentificacionComprador>04</tipoIdentificacionComprador>
+    <razonSocialComprador>FRANCISCO TORRES / FRANCISCO TORRES</razonSocialComprador>
+    <identificacionComprador>0704439892001</identificacionComprador>
+    <direccionComprador>MACHALA</direccionComprador>
+    <totalSinImpuestos>27.25</totalSinImpuestos>
+    <totalDescuento>8.76</totalDescuento>
+    <totalConImpuestos>
+      <totalImpuesto>
+        <codigo>2</codigo>
+        <codigoPorcentaje>0</codigoPorcentaje>
+        <descuentoAdicional>0</descuentoAdicional>
+        <baseImponible>0</baseImponible>
+        <valor>0</valor>
+      </totalImpuesto>
+      <totalImpuesto>
+        <codigo>2</codigo>
+        <codigoPorcentaje>4</codigoPorcentaje>
+        <descuentoAdicional>0</descuentoAdicional>
+        <baseImponible>27.25</baseImponible>
+        <valor>4.09</valor>
+      </totalImpuesto>
+    </totalConImpuestos>
+    <propina>0</propina>
+    <importeTotal>31.3400</importeTotal>
+    <moneda>DOLAR</moneda>
+    <pagos>
+      <pago>
+        <formaPago>16</formaPago>
+        <total>31.34</total>
+      </pago>
+    </pagos>
+  </infoFactura>
+  <detalles>
+    <detalle>
+      <codigoPrincipal>6975528760252</codigoPrincipal>
+      <codigoAuxiliar>1701150771</codigoAuxiliar>
+      <descripcion>TABLETOP SOCCER GOAL SET FOR KIDS?????</descripcion>
+      <cantidad>1.0000</cantidad>
+      <precioUnitario>11.2</precioUnitario>
+      <descuento>0</descuento>
+      <precioTotalSinImpuesto>11.2</precioTotalSinImpuesto>
+      <impuestos>
+        <impuesto>
+          <codigo>2</codigo>
+          <codigoPorcentaje>4</codigoPorcentaje>
+          <tarifa>15</tarifa>
+          <baseImponible>11.2</baseImponible>
+          <valor>1.68</valor>
+        </impuesto>
+      </impuestos>
+    </detalle>
+    <detalle>
+      <codigoPrincipal>6975096199553</codigoPrincipal>
+      <codigoAuxiliar>1601044496</codigoAuxiliar>
+      <descripcion>NOTA ADHESIVA DE 6 DOBLECES (FIESTA DE ANIMALES)</descripcion>
+      <cantidad>3.0000</cantidad>
+      <precioUnitario>2.43</precioUnitario>
+      <descuento>0</descuento>
+      <precioTotalSinImpuesto>7.3</precioTotalSinImpuesto>
+      <impuestos>
+        <impuesto>
+          <codigo>2</codigo>
+          <codigoPorcentaje>4</codigoPorcentaje>
+          <tarifa>15</tarifa>
+          <baseImponible>7.3</baseImponible>
+          <valor>1.1</valor>
+        </impuesto>
+      </impuestos>
+    </detalle>
+    <detalle>
+      <codigoPrincipal>6972072295339</codigoPrincipal>
+      <codigoAuxiliar>1701125101</codigoAuxiliar>
+      <descripcion>JUGUETE DE BLOQUES DE CONSTRUCCION AMARILLO</descripcion>
+      <cantidad>2.0000</cantidad>
+      <precioUnitario>8.76</precioUnitario>
+      <descuento>8.76</descuento>
+      <precioTotalSinImpuesto>8.75</precioTotalSinImpuesto>
+      <detallesAdicionales>
+        <detAdicional nombre="Descuento" valor="50.0000" />
+      </detallesAdicionales>
+      <impuestos>
+        <impuesto>
+          <codigo>2</codigo>
+          <codigoPorcentaje>4</codigoPorcentaje>
+          <tarifa>15</tarifa>
+          <baseImponible>8.75</baseImponible>
+          <valor>1.31</valor>
+        </impuesto>
+      </impuestos>
+    </detalle>
+  </detalles>
+  <infoAdicional>
+    <campoAdicional nombre="Direccion">MACHALA </campoAdicional>
+    <campoAdicional nombre="Telefono">0982553876 </campoAdicional>
+    <campoAdicional nombre="Email">fstc90@hotmail.com </campoAdicional>
+    <campoAdicional nombre="Vendedor">Dayana Lizbeth Guaman Mora</campoAdicional>
+    <campoAdicional nombre="Ciudad">MACHALA </campoAdicional>
+    <campoAdicional nombre="Provincia">EL ORO </campoAdicional>
+    <campoAdicional nombre="Pais">Ecuador </campoAdicional>
+    <campoAdicional nombre="Moneda">USD </campoAdicional>
+  </infoAdicional>
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Signature-d273d37a-eab1-4722-8708-bfe75ac88842"><ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315" /><ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256" /><ds:Reference Id="Reference-342357e8-7007-48fa-abad-8b1297666bfd" URI="#comprobante"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" /><ds:DigestValue>3t3UFYfAvbzqQkx416I1XH9TK59lVvTwfVs1O40hmTw=</ds:DigestValue></ds:Reference><ds:Reference Id="ReferenceKeyInfo" URI="#KeyInfoId-Signature-d273d37a-eab1-4722-8708-bfe75ac88842"><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" /><ds:DigestValue>ReJjxuYLD0abbIjvgS56AK4tPDOA34Rg8oQqJd8s9lc=</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#SignedProperties-Signature-d273d37a-eab1-4722-8708-bfe75ac88842"><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" /><ds:DigestValue>tqZbo/7ip50QgbHxHAfyIct2YwXDpgsezTg5rrS+2AM=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue Id="SignatureValue-d273d37a-eab1-4722-8708-bfe75ac88842">r4BCeg8cXyGwkd6pGWS4hBL4CHs5+XPMsEOQ4iRA2mI91bQYj4hgVBv9b0uOmzvtX9Kv+ogX77A2hggm31hzc8pZc7peHIVZgT2RSYzftBFsTHaSuKJFJTbPrZQJFX4+HwsWsBTGS+vkonnCm3lhSW8+G/VvvN+xJpkxf7slmtPCY5Hw7MrxMptxH4rzaUqQ4ISAKfE4Pwm07k217HEs6N0OD/gLgSKR+bc6dZjGlAB+qe9zCFwXQ+diJ8fff1ENsHUfq0dcSuEMrC4d6yZ36bgC2tHDsNaNcT867sp+lcjlUgniy4NlvdK9VkJuSj9FkBDfmoag9Sd1H+xZbzBMmg==</ds:SignatureValue><ds:KeyInfo Id="KeyInfoId-Signature-d273d37a-eab1-4722-8708-bfe75ac88842"><ds:X509Data><ds:X509Certificate>MIIL9DCCCdygAwIBAgIEFH8E3TANBgkqhkiG9w0BAQsFADCBmTELMAkGA1UEBhMCRUMxHTAbBgNVBAoMFFNFQ1VSSVRZIERBVEEgUy5BLiAyMTAwLgYDVQQLDCdFTlRJREFEIERFIENFUlRJRklDQUNJT04gREUgSU5GT1JNQUNJT04xOTA3BgNVBAMMMEFVVE9SSURBRCBERSBDRVJUSUZJQ0FDSU9OIFNVQkNBLTIgU0VDVVJJVFkgREFUQTAeFw0yNDA4MTUyMDU3MjJaFw0yODA4MTUyMDU3MjJaMIGlMSMwIQYDVQQDDBpKT1NFIExVSVMgQ0FTVFJPIFJPRFJJR1VFWjEgMB4GA1UEBRMXMDEwMzkxNzAxOS0xNTA4MjQxNjA3MTAxMDAuBgNVBAsMJ0VOVElEQUQgREUgQ0VSVElGSUNBQ0lPTiBERSBJTkZPUk1BQ0lPTjEdMBsGA1UECgwUU0VDVVJJVFkgREFUQSBTLkEuIDIxCzAJBgNVBAYTAkVDMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4wnSY2D8najnYtIVWMeQ8nas29oYDGb5xjK7IC8D3tmqh62XM1F+C++qM/pwtV+kE7sTrGacVjbWZTf8s0zVsshS1jr3ZV3DBUsyN6khG5liCt/j8xDiAxD5RSpkwTyqZ643wEyE7Cj3yXEvj2swBic/E8+STMJeUKKUSx0OnLTQ6NFkSLGAcP5wzHdCvaCp1BUB3EWgEQ7aHpQpSAtX/XvUS5Ez4DtsQQQPMXh4PGmNOmZq/mGKnY4ghL3jC25hHB8vGfkFsSvn9uB7obZ2bCHzYliGLaWB8ObfnSpHSjS0RnDWkj84o+3zAG+py63lmAi6O2bpHzbdaUPzkIVBHwIDAQABo4IHNDCCBzAwDAYDVR0TAQH/BAIwADAfBgNVHSMEGDAWgBSMusoRV3glgB1rCktVv42uYt29jzBZBggrBgEFBQcBAQRNMEswSQYIKwYBBQUHMAGGPWh0dHA6Ly9vY3NwZ3cuc2VjdXJpdHlkYXRhLm5ldC5lYy9lamJjYS9wdWJsaWN3ZWIvc3RhdHVzL29jc3Awgc8GA1UdLgSBxzCBxDCBwaCBvqCBu4aBuGxkYXA6Ly9sZGFwc2RjYTIuc2VjdXJpdHlkYXRhLm5ldC5lYy9DTj1BVVRPUklEQUQgREUgQ0VSVElGSUNBQ0lPTiBTVUJDQS0yIFNFQ1VSSVRZIERBVEEsT1U9RU5USURBRCBERSBDRVJUSUZJQ0FDSU9OIERFIElORk9STUFDSU9OLE89U0VDVVJJVFkgREFUQSBTLkEuIDIsQz1FQz9kZWx0YVJldm9jYXRpb25MaXN0P2Jhc2UwKwYDVR0RBCQwIoEgam9zZWx1aXNjYXN0cm9AZGlnaXRhbC1wbGFjZS5uZXQwggEVBgNVHSAEggEMMIIBCDBiBgorBgEEAYKmcgIJMFQwUgYIKwYBBQUHAgIwRh5EAEMAZQByAHQAaQBmAGkAYwBhAGQAbwAgAGQAZQAgAFIAZQBwAHIAZQBzAGUAbgB0AGEAbgB0AGUAIABMAGUAZwBhAGwwgaEGCisGAQQBgqZyAgMwgZIwgY8GCCsGAQUFBwIBFoGCaHR0cHM6Ly93d3cuc2VjdXJpdHlkYXRhLm5ldC5lYy93cC1jb250ZW50L2Rvd25sb2Fkcy9Ob3JtYXRpdmFzL1BfZGVfQ2VydGlmaWNhZG9zL1BvbGl0aWNhcyBkZSBDZXJ0aWZpY2FkbyBSZXByZXNlbnRhbnRlIExlZ2FsLnBkZjCCAqIGA1UdHwSCApkwggKVMIHloEGgP4Y9aHR0cDovL29jc3Bndy5zZWN1cml0eWRhdGEubmV0LmVjL2VqYmNhL3B1YmxpY3dlYi9zdGF0dXMvb2NzcKKBn6SBnDCBmTE5MDcGA1UEAwwwQVVUT1JJREFEIERFIENFUlRJRklDQUNJT04gU1VCQ0EtMiBTRUNVUklUWSBEQVRBMTAwLgYDVQQLDCdFTlRJREFEIERFIENFUlRJRklDQUNJT04gREUgSU5GT1JNQUNJT04xHTAbBgNVBAoMFFNFQ1VSSVRZIERBVEEgUy5BLiAyMQswCQYDVQQGEwJFQzCBx6CBxKCBwYaBvmxkYXA6Ly9sZGFwc2RjYTIuc2VjdXJpdHlkYXRhLm5ldC5lYy9DTj1BVVRPUklEQUQgREUgQ0VSVElGSUNBQ0lPTiBTVUJDQS0yIFNFQ1VSSVRZIERBVEEsT1U9RU5USURBRCBERSBDRVJUSUZJQ0FDSU9OIERFIElORk9STUFDSU9OLE89U0VDVVJJVFkgREFUQSBTLkEuIDIsQz1FQz9jZXJ0aWZpY2F0ZVJldm9jYXRpb25MaXN0P2Jhc2UwgeCggd2ggdqGgddodHRwczovL3BvcnRhbC1vcGVyYWRvcjIuc2VjdXJpdHlkYXRhLm5ldC5lYy9lamJjYS9wdWJsaWN3ZWIvd2ViZGlzdC9jZXJ0ZGlzdD9jbWQ9Y3JsJmlzc3Vlcj1DTj1BVVRPUklEQUQgREUgQ0VSVElGSUNBQ0lPTiBTVUJDQS0yIFNFQ1VSSVRZIERBVEEsT1U9RU5USURBRCBERSBDRVJUSUZJQ0FDSU9OIERFIElORk9STUFDSU9OLE89U0VDVVJJVFkgREFUQSBTLkEuIDIsQz1FQzAdBgNVHQ4EFgQUbHhoF+tmi6UnNTOxWkWzcJqMlicwKwYDVR0QBCQwIoAPMjAyNDA4MTUyMDU3MjJagQ8yMDI4MDgxNTIwNTcyMlowCwYDVR0PBAQDAgXgMBcGCisGAQQBgqZyAwUECQwHR0VSRU5URTAaBgorBgEEAYKmcgMBBAwMCjAxMDM5MTcwMTkwFgYKKwYBBAGCpnIDCQQIDAZUQVJRVUkwEQYKKwYBBAGCpnIDIgQDDAEuMCIGCisGAQQBgqZyAwcEFAwSQVYgRkNPIERFIE9SRUxMQU5BMBkGCisGAQQBgqZyAwIECwwJSk9TRSBMVUlTMB8GCisGAQQBgqZyAyAEEQwPMDAxMDAyMDAwNjI5Mjk4MBMGCisGAQQBgqZyAyEEBQwDUEZYMBcGCisGAQQBgqZyAwwECQwHRUNVQURPUjAWBgorBgEEAYKmcgMDBAgMBkNBU1RSTzAeBgorBgEEAYKmcgMKBBAMDk1VTVVTTyBFQ1VBRE9SMB0GCisGAQQBgqZyAwsEDwwNMDk5MzM5MTExNjAwMTARBgorBgEEAYKmcgMdBAMMAS4wGQYKKwYBBAGCpnIDBAQLDAlST0RSSUdVRVowGgYKKwYBBAGCpnIDCAQMDAowOTc5MzQyMTEzMA0GCSqGSIb3DQEBCwUAA4ICAQA9cRmqJybE2yvsI/v69WZLqxGq9b+ICHAKcsTO1NF+cmbeJUf2rLJuGBiKGDdC9aBqgeNNvHOV+5gaxOe6fLAGQj//IT+SZue1Kxy/1CEgqnDGaTxj7PllY6Gr/MK6yGfk24FiOUx8lkeZn/2mAyu7H3KbpCOHncHYBg6qvD3ImQHzNto74ZRiLyKnv3I0SrNvI10khQT8jpQF0bdNY4oJ7+cl5XUBjLna0v3M6bnVLv8GSHBkzJ3+RKCEcdsST/dddMt6FzkDCJRruk9WJg6S23roeYE5S00XN1yut/GDCmp1MWTUQIsChCied1zsbjAqctc3d92XZ4VRHh3Fxb6gSYFAq9Lmd89XWv3iXyKfATU8cDqF4lmg1f2587MoF/j8XyCu77wxGO377igbaoEQwrNapTMA2+ybf/WGY5eyyblIcxkz20Xy4FDYSQHDpYYJ22O6wJXHL3cN7fZnYgnQjOXEuWtONFbWPLJsOp62+2KHKkx/ncXGWcM8ms6u+hdYqT2v9QpGF0/WQAKBVNy4WDelQt2rAYR7sAW8aKBK4DDf4gm4v95gON5fQKpXRRs+Ds0apUSQpfO4atF7gxKNmm6kgdADx07TpbznUxNU0MP4FE7LEcAr9wvdOsvHpSzw5ENHynnthxbALkzr88jJe82n1jWNSGQ2+QZNoUhpSQ==</ds:X509Certificate></ds:X509Data><ds:KeyValue><ds:RSAKeyValue><ds:Modulus>4wnSY2D8najnYtIVWMeQ8nas29oYDGb5xjK7IC8D3tmqh62XM1F+C++qM/pwtV+kE7sTrGacVjbWZTf8s0zVsshS1jr3ZV3DBUsyN6khG5liCt/j8xDiAxD5RSpkwTyqZ643wEyE7Cj3yXEvj2swBic/E8+STMJeUKKUSx0OnLTQ6NFkSLGAcP5wzHdCvaCp1BUB3EWgEQ7aHpQpSAtX/XvUS5Ez4DtsQQQPMXh4PGmNOmZq/mGKnY4ghL3jC25hHB8vGfkFsSvn9uB7obZ2bCHzYliGLaWB8ObfnSpHSjS0RnDWkj84o+3zAG+py63lmAi6O2bpHzbdaUPzkIVBHw==</ds:Modulus><ds:Exponent>AQAB</ds:Exponent></ds:RSAKeyValue></ds:KeyValue></ds:KeyInfo><ds:Object Id="XadesObjectId-60bdf768-0de7-42a4-ba19-ad2cfd2f32c2"><xades:QualifyingProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="QualifyingProperties-bde21990-017b-4912-aef5-494d247e79a7" Target="#Signature-d273d37a-eab1-4722-8708-bfe75ac88842"><xades:SignedProperties Id="SignedProperties-Signature-d273d37a-eab1-4722-8708-bfe75ac88842"><xades:SignedSignatureProperties><xades:SigningTime>2026-06-01T22:11:18-05:00</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" /><ds:DigestValue>bp1mRZ3813MRC5Y89jG2QnEtfLq4vd0U6Wf/sLX2Cz4=</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>CN=AUTORIDAD DE CERTIFICACION SUBCA-2 SECURITY DATA, OU=ENTIDAD DE CERTIFICACION DE INFORMACION, O=SECURITY DATA S.A. 2, C=EC</ds:X509IssuerName><ds:X509SerialNumber>343868637</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties><xades:SignedDataObjectProperties><xades:DataObjectFormat ObjectReference="#Reference-342357e8-7007-48fa-abad-8b1297666bfd"><xades:MimeType>text/xml</xades:MimeType><xades:Encoding>UTF-8</xades:Encoding></xades:DataObjectFormat></xades:SignedDataObjectProperties></xades:SignedProperties></xades:QualifyingProperties></ds:Object></ds:Signature></factura>
+]]></comprobante>
+<mensajes/>
+</autorizacion>
+

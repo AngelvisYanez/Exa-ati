@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sri-mcp-server",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "browser": {
+    "binding": "MYBROWSER"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SRI_MCP",
+        "class_name": "SriMcpAgent"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["SriMcpAgent"]
+    }
+  ],
+  "vars": {
+    "TENANT_ID": ""
+  }
+}

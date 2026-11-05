@@ -1,0 +1,65 @@
+# ===================================================
+# Compose para Plesk UI — Exa-ATI
+# ===================================================
+# Copiar todo el proyecto a:
+#   /opt/psa/var/modules/docker/stacks/exa-ati/
+#
+# Luego ejecutar en Plesk:
+#   docker compose up -d --build
+# ===================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: exa-ati-db
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: exa_ati
+    volumes:
+      - exa-ati-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d exa_ati"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - exa-ati-net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: exa-ati-app
+    user: "1001:1001"
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - exa-ati-downloads:/app/downloads
+      - exa-ati-browser-session:/app/browser_session
+      - exa-ati-logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HEADLESS: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+    networks:
+      - exa-ati-net
+
+volumes:
+  exa-ati-postgres:
+  exa-ati-downloads:
+  exa-ati-browser-session:
+  exa-ati-logs:
+
+networks:
+  exa-ati-net:
+    driver: bridge

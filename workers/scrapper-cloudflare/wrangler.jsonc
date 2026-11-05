@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "scrapper-cloudflare",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "browser": {
+    "binding": "MYBROWSER"
+  },
+  "vars": {
+    "R2_ENABLED": "false",
+    "TENANT_ID": ""
+  }
+}

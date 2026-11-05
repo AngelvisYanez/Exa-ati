@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<autorizacion>
+<estado>AUTORIZADO</estado>
+<numeroAutorizacion>0306202601079174015000120030260004658170046581714</numeroAutorizacion>
+<fechaAutorizacion>2026-06-03T09:47:10-05:00</fechaAutorizacion>
+<ambiente>PRODUCCIÓN</ambiente>
+<comprobante><![CDATA[<?xml version='1.0' encoding='UTF-8'?>
+<factura id="comprobante" version="1.1.0"><infoTributaria><ambiente>2</ambiente><tipoEmision>1</tipoEmision><razonSocial>CRESIO CIA. LTDA.</razonSocial><nombreComercial>CRESIO CIA. LTDA.</nombreComercial><ruc>0791740150001</ruc><claveAcceso>0306202601079174015000120030260004658170046581714</claveAcceso><codDoc>01</codDoc><estab>003</estab><ptoEmi>026</ptoEmi><secuencial>000465817</secuencial><dirMatriz>LA ESPERANZA REFERENCIA  VIA PANAMERICANA FRENTE A LA GASOLINERA TERPEL</dirMatriz><agenteRetencion>1</agenteRetencion></infoTributaria><infoFactura><fechaEmision>03/06/2026</fechaEmision><dirEstablecimiento>BOLIVAR 902 Y 9 DE MAYO ESQ</dirEstablecimiento><contribuyenteEspecial>289</contribuyenteEspecial><obligadoContabilidad>SI</obligadoContabilidad><tipoIdentificacionComprador>04</tipoIdentificacionComprador><razonSocialComprador>TORRES CARRION FRANCISCO SAMUEL</razonSocialComprador><identificacionComprador>0704439892001</identificacionComprador><direccionComprador>MACHALA</direccionComprador><totalSinImpuestos>10.54</totalSinImpuestos><totalDescuento>3.52</totalDescuento><totalConImpuestos><totalImpuesto><codigo>2</codigo><codigoPorcentaje>0</codigoPorcentaje><baseImponible>10.54</baseImponible><valor>0.00</valor></totalImpuesto></totalConImpuestos><propina>0.00</propina><importeTotal>10.54</importeTotal><moneda>DOLAR</moneda><pagos><pago><formaPago>01</formaPago><total>10.54</total></pago></pagos></infoFactura><detalles><detalle><codigoPrincipal>60997</codigoPrincipal><codigoAuxiliar>7501298224152</codigoAuxiliar><descripcion>NEUROBION DC SOLINYx25000UI 2MLx1</descripcion><cantidad>1.0</cantidad><precioUnitario>14.060000</precioUnitario><descuento>3.52</descuento><precioTotalSinImpuesto>10.54</precioTotalSinImpuesto><impuestos><impuesto><codigo>2</codigo><codigoPorcentaje>0</codigoPorcentaje><tarifa>0.00</tarifa><baseImponible>10.54</baseImponible><valor>0.00</valor></impuesto></impuestos></detalle></detalles><infoAdicional><campoAdicional nombre="Gran Contribuyente">GRANDES CONTRIBUYENTES  No 243    RESOLUCION No 13 de diciembre de 2022 oficio Nro NACAGCOGEC2200000849M</campoAdicional><campoAdicional nombre="Correo">fst90 hotmailcom</campoAdicional><campoAdicional nombre="Telefono">09784524522</campoAdicional><campoAdicional nombre="Direccion">MACHALA</campoAdicional><campoAdicional nombre="Vendedor">vromeroc</campoAdicional></infoAdicional><ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Signature865330">
+<ds:SignedInfo>
+<ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+<ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/>
+<ds:Reference Id="SignedPropertiesID685238" URI="#Signature865330-SignedPropertiesID510205" Type="http://uri.etsi.org/01903#SignedProperties">
+<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+<ds:DigestValue>A59JyIpByh5nOCx5JCpMto7n9Pc=</ds:DigestValue>
+</ds:Reference>
+<ds:Reference URI="#Certificate169646">
+<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+<ds:DigestValue>E0INJV5IOp39QYrA2hyVnPIcT+Y=</ds:DigestValue>
+</ds:Reference>
+<ds:Reference Id="Reference-ID-166303" URI="#comprobante">
+<ds:Transforms>
+<ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+</ds:Transforms>
+<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+<ds:DigestValue>N1DEKSXhst3E7a7E5X3jh58jTPg=</ds:DigestValue>
+</ds:Reference>
+</ds:SignedInfo>
+<ds:SignatureValue>PdQgKIbG/dy/4oEc40emqdb2DaCnC5ejt4kKDg0imYcCfDAePY1Q0xe4qwpKpKPb
+jNyETYHm/Qt8gOuGr9twUM76YoVwRoG7xT4hD3XVV5BQQn+4dN2AeyvT4eRVImNh
+MEcOCIjZrf5X8S9s1w/ZDTmckhIVAoEOK/huLZ8O+6ojFWDGh7N1Tcsn4oeGStgS
+aMk+JokxZzdcvg6EGHxWpxhlPy8Ny3Ghpd0mcvAmJg9vzouXQ/mshNWkJtos6JkX
+ftuUkBmFWwOjJ5wHzuNr74kGD/Wj2haxvpEqhzQw20rbdNr4L36ZPSycksj0oVTt
+MW65DEprGUR1OSeAPihMwQ==</ds:SignatureValue>
+<ds:KeyInfo Id="Certificate169646">
+<ds:X509Data>
+<ds:X509Certificate>MIIIBjCCBe6gAwIBAgIRAOCog3+V1nbFIeFC77kghE4wDQYJKoZIhvcNAQELBQAw
+gcIxCzAJBgNVBAYTAkVDMRswGQYDVQQKDBJGSVJNQVNFR1VSQSBTLkEuUy4xMDAu
+BgNVBAsMJ0VOVElEQUQgREUgQ0VSVElGSUNBQ0lPTiBERSBJTkZPUk1BQ0lPTjET
+MBEGA1UECAwKVFVOR1VSQUhVQTE+MDwGA1UEAww1QVVUT1JJREFEIERFIENFUlRJ
+RklDQUNJT04gU1VCQ0EtMSBGSVJNQVNFR1VSQSBTLkEuUy4xDzANBgNVBAcMBkFN
+QkFUTzAeFw0yNTA3MDExNjUxNDVaFw0yNzA3MDExNzUxNDRaMIHZMS0wKwYDVQQF
+EyQ4ZDRkYThhZi05ZDBlLTQ1NWMtYTg0MC02YWNiNTVjNjk5ZmMxKDAmBgkqhkiG
+9w0BCQEWGWxvcmVuYWNvc3RhYTc2MEBnbWFpbC5jb20xIjAgBgNVBAMTGURPUklT
+IEFJVEFNQVIgR1JBTkRBIEFCQUQxMDAuBgNVBAsTJ0VOVElEQUQgREUgQ0VSVElG
+SUNBQ0lPTiBERSBJTkZPUk1BQ0lPTjEbMBkGA1UEChMSRklSTUFTRUdVUkEgUy5B
+LlMuMQswCQYDVQQGEwJFQzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
+AJk7WyxPdTBgvStVp/3uxipXi/6Y+fIJ3aF/B2XYZobCSkRv6WzK8CbgWSSwHMOk
+96vPRGSWpla/ydMcurYorfjFzF8jEBiYASDVH5hWg1q02nvF+eo3BCWA5ctSjd/j
+oCsAMfeQAi2QajRAmAKthmdw1NhAeEcKvLmAfEVpUeAzA5SkwM4aIKsBS8nuoMLx
+AfytGllfYDmt57oyB1tj6pQvFX7fsjnMW5INc7LFwrKrXK14UBTGBeqn3po9DNW2
+jXwHjWJEfA79ZXNnuxbnucMxt+1GLOIrrkWcLN/vNbDHamEndzdxxfJaxh+w3jSx
+2Lp0aKEEmsMR/+NmeXNn8hcCAwEAAaOCAtwwggLYMAkGA1UdEwQCMAAwHwYDVR0j
+BBgwFoAUE0aTaAmu1ySHM0VjJnffrF5eilEwHQYDVR0OBBYEFE6EP2Rih1Es/M9b
+C+568PynCmHuMFoGA1UdHwRTMFEwT6BNoEuGSWh0dHA6Ly9jcmwuZmlybWFzZWd1
+cmFlYy5jb20vY3JsL2NjY2U1YTRmLTZiNjgtNDZmYy1hNjIwLTRhYmNjNGM0YTY5
+MC5jcmwwOQYIKwYBBQUHAQEELTArMCkGCCsGAQUFBzABhh1odHRwOi8vb2NzcC5m
+aXJtYXNlZ3VyYWVjLmNvbTAaBgorBgEEAYPeeQMBBAwWCjA3MDQyNDk5NTIwHQYK
+KwYBBAGD3nkDAgQPFg1ET1JJUyBBSVRBTUFSMBYGCisGAQQBg955AwMECBYGR1JB
+TkRBMBQGCisGAQQBg955AwQEBhYEQUJBRDAfBgorBgEEAYPeeQMFBBEWD0dFUkVO
+VEUgR0VORVJBTDAiBgorBgEEAYPeeQMHBBQWEkNBTExFIEFWIFJFUFVCTElDQTAc
+BgorBgEEAYPeeQMIBA4WDDU5MzkzOTYxMzg5MzAaBgorBgEEAYPeeQMJBAwWCkhV
+QVFVSUxMQVMwIQYKKwYBBAGD3nkDCgQTFhFDUkVTSU8gQ0lBLiBMVERBLjAdBgor
+BgEEAYPeeQMLBA8WDTA3OTE3NDAxNTAwMDEwEwYKKwYBBAGD3nkDDAQFFgNFQ1Uw
+gaQGA1UdIASBnDCBmTBUBgsrBgEEAYPeeQIBATBFMEMGCCsGAQUFBwIBFjdodHRw
+czovL2Zpcm1hc2VndXJhZWMuY29tL3BvbGl0aWNhc19yZXByZXNlbnRhbnRlX2xl
+Z2FsMEEGCysGAQQBg955AgICMDIwMAYIKwYBBQUHAgIwJAwiQ2VydGlmaWNhZG8g
+ZGUgUmVwcmVzZW50YW50ZSBMZWdhbDAOBgNVHQ8BAf8EBAMCBeAwDQYJKoZIhvcN
+AQELBQADggIBAC1vHnSYzkXSKsUpZ3HBl6BAoB6x3+2rGTJ8ZOMoDdyvTL+dX5IK
+A/36qdDXSr5JUxWodHN2bYKB0JS0kRvFL3/KDznzE2eoze9rTN3MHMjaLgjbAY6I
+hAi+dNNs3inI3+BCVWQvVvah4jSzbYfrO/KO3WnuN3DHydOW2zyXnQfikcxLS1vm
+OiVzNpiuPw4ajaX7Q6vnMw4lae8ePu63H0Q4EjBD8yFvcXVFla8owtx+DjfOJA/k
+p973dDla5fkq3SeRFrGZbHv28qp5N3lJVOVbTXqzO8kbB9QpBTO+N5OcY1b+NquT
+Ncns6YUhESjzlUBQcHEXVx4SorVZx1CpVjb9PoxTy2Yx4f8zYW3mHioDqHkQXaB6
+eNV32JCmViaQD429eWYpf3lh130d0YS/wjN7XK+UjijtLv9PKg7VtfSa+j1WNEh7
+qB4TTsZxsflyBdxROATSim0RjU1TedshbFpENtgFqTiTSLUEyP3xDCDtdnK37e/A
+aO+et5YZ0lm1k1TM4Vez78IUhY9JVUumHD+8wYqBTvuTgD0imgTMrLWsKnoYDEk9
+1dHFBAsispL709i22q+MpQxsNIo911BFXN5DfgwVK5o0cRNmh6UPRyylbICrWwFy
+PfM9hevVm19sRVrz9Lu/2+taDluQ+snqfQhHDjMiq0G1ID7k/0akBPAE</ds:X509Certificate>
+</ds:X509Data>
+<ds:KeyValue>
+<ds:RSAKeyValue>
+<ds:Modulus>mTtbLE91MGC9K1Wn/e7GKleL/pj58gndoX8HZdhmhsJKRG/pbMrwJuBZJLAcw6T3
+q89EZJamVr/J0xy6tiit+MXMXyMQGJgBINUfmFaDWrTae8X56jcEJYDly1KN3+Og
+KwAx95ACLZBqNECYAq2GZ3DU2EB4Rwq8uYB8RWlR4DMDlKTAzhogqwFLye6gwvEB
+/K0aWV9gOa3nujIHW2PqlC8Vft+yOcxbkg1zssXCsqtcrXhQFMYF6qfemj0M1baN
+fAeNYkR8Dv1lc2e7Fue5wzG37UYs4iuuRZws3+81sMdqYSd3N3HF8lrGH7DeNLHY
+unRooQSawxH/42Z5c2fyFw==</ds:Modulus>
+<ds:Exponent>AQAB</ds:Exponent>
+</ds:RSAKeyValue>
+</ds:KeyValue>
+</ds:KeyInfo>
+<ds:Object><etsi:QualifyingProperties xmlns:etsi="http://uri.etsi.org/01903/v1.3.2#" Target="#Signature865330" Id="Signature865330"><etsi:SignedProperties Id="Signature865330-SignedPropertiesID510205"><etsi:SignedSignatureProperties><etsi:SigningTime>2026-06-03T09:47:09+00:00</etsi:SigningTime><etsi:SigningCertificate><etsi:Cert><etsi:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><ds:DigestValue>kJ5w+QYxNFK8VxpUoUFwwVvFb+o=</ds:DigestValue></etsi:CertDigest><etsi:IssuerSerial><ds:X509IssuerName>L=AMBATO, CN=AUTORIDAD DE CERTIFICACION SUBCA-1 FIRMASEGURA S.A.S., ST=TUNGURAHUA, OU=ENTIDAD DE CERTIFICACION DE INFORMACION, O=FIRMASEGURA S.A.S., C=EC</ds:X509IssuerName><ds:X509SerialNumber>298622044032062261716915129448784757838</ds:X509SerialNumber></etsi:IssuerSerial></etsi:Cert></etsi:SigningCertificate><etsi:SignaturePolicyIdentifier><etsi:SignaturePolicyImplied/></etsi:SignaturePolicyIdentifier></etsi:SignedSignatureProperties><etsi:SignedDataObjectProperties><etsi:DataObjectFormat ObjectReference="#Reference-ID-166303"><etsi:Description>contenido comprobante</etsi:Description><etsi:MimeType>text/xml</etsi:MimeType></etsi:DataObjectFormat></etsi:SignedDataObjectProperties></etsi:SignedProperties></etsi:QualifyingProperties></ds:Object></ds:Signature></factura>]]></comprobante>
+<mensajes/>
+</autorizacion>
+

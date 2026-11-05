@@ -1,0 +1,35 @@
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  output: "standalone",
+  outputFileTracingRoot: process.cwd(),
+  images: {
+    qualities: [100, 70, 75],
+  },
+  turbopack: {},
+  // PayPhone Botón de Pago valida el dominio vía Referer
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "Referrer-Policy", value: "origin-when-cross-origin" },
+        ],
+      },
+    ];
+  },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = [
+        ...(config.externals as any[]),
+        '@sparticuz/chromium',
+        'puppeteer-extra-plugin-stealth',
+        'clone-deep',
+        'playwright-extra',
+      ];
+    }
+    return config;
+  },
+};
+
+export default nextConfig;

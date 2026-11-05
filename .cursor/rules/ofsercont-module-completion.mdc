@@ -1,0 +1,13 @@
+---
+description: Goal activo — completar módulos OFSERCONT hasta funcionales
+alwaysApply: true
+---
+
+# OFSERCONT module completion goal
+
+Completar módulos hasta funcionales según `docs/MODULE_COMPLETION.md` (oleadas 1–4).
+
+- Continuar el backlog pendiente; no reabrir el plan.
+- Marcar checklist al cerrar criterios de hecho.
+- No fingir integraciones (OTP SRI, WhatsApp connect).
+- Prioridad: config/emisión/sync → control tributario/ATS/CxC → contabilidad/nómina → inventario/POS/WhatsApp/IA.

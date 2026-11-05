@@ -1,0 +1,23 @@
+{
+  "name": "sri-mcp-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --remote",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloudflare/puppeteer": "^1.1.0",
+    "@modelcontextprotocol/sdk": "1.25.2",
+    "@neondatabase/serverless": "^1.1.0",
+    "agents": "^0.3.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250327.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.0.0"
+  }
+}
