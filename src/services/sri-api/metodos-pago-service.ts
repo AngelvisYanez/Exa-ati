@@ -46,7 +46,6 @@ const FALLBACK_OPERATIVO: MetodoPagoRow[] = [
 ];
 
 const FALLBACK_SUSCRIPCION: MetodoPagoRow[] = [
-  { codigo: "PAYPHONE", nombre: "PayPhone", descripcion: null, orden: 5, activo: true, esSistema: true, usoOperativo: false, usoSuscripcion: true },
   { codigo: "TRANSFERENCIA", nombre: "Transferencia", descripcion: null, orden: 20, activo: true, esSistema: true, usoOperativo: true, usoSuscripcion: true },
   { codigo: "CORTESIA", nombre: "Cortesía", descripcion: null, orden: 100, activo: true, esSistema: true, usoOperativo: false, usoSuscripcion: true },
 ];
@@ -76,7 +75,7 @@ export async function listMetodosPago(opts?: {
        FROM metodos_pago ${where}
        ORDER BY orden ASC, nombre ASC`
     );
-    if (rows.length > 0) return rows.map(mapRow);
+    if (rows.length > 0) return rows.map(mapRow).filter((m) => m.codigo !== "PAYPHONE");
   } catch (err) {
     console.warn("[metodos-pago] list fallback:", err);
   }
@@ -85,6 +84,6 @@ export async function listMetodosPago(opts?: {
   if (uso === "operativo") return FALLBACK_OPERATIVO;
   return [
     ...FALLBACK_OPERATIVO,
-    ...FALLBACK_SUSCRIPCION.filter((m) => m.codigo === "PAYPHONE" || m.codigo === "CORTESIA"),
+    ...FALLBACK_SUSCRIPCION.filter((m) => m.codigo === "CORTESIA"),
   ];
 }

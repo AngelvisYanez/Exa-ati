@@ -52,8 +52,8 @@ export default function PreciosPage() {
           Planes para facturar y cumplir en Ecuador
         </h1>
         <p className="mt-3 text-sm text-brand-gray-500 leading-relaxed">
-          Suscripción mensual o anual con PayPhone. Accedes al panel cuando el
-          pago queda aprobado. Emprendedores y contadores en Quito, Guayaquil,
+          Suscripción mensual o anual por transferencia bancaria. Accedes al panel cuando el
+          pago queda verificado. Emprendedores y contadores en Quito, Guayaquil,
           Cuenca y todo el país.
         </p>
       </div>

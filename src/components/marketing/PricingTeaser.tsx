@@ -34,7 +34,7 @@ export default function PricingTeaser() {
               <span className="mk-serif-accent text-brand-red">en dólares</span>
             </h2>
             <p className="mt-3 max-w-md text-sm text-brand-gray-500">
-              Mensual o anual. El panel se activa cuando PayPhone aprueba el cobro.
+              Mensual o anual. El panel se activa cuando se verifica la transferencia.
             </p>
           </Reveal>
           <Reveal delay={0.1}>

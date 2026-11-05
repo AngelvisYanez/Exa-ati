@@ -6,7 +6,7 @@ const STATS = [
   { value: 9, suffix: "", label: "módulos de gestión", hint: "Emisión, CxC, inventario, POS, SRI, ATS, contabilidad, nómina e IA" },
   { value: 12, suffix: "+", label: "ciudades cubiertas", hint: "Quito, Guayaquil, Cuenca, Ambato, Manta y más" },
   { value: 5, suffix: "", label: "empresas por cuenta", hint: "Hasta 5 RUCs en el plan Despacho" },
-  { value: 19, prefix: "$", suffix: "", label: "desde / mes", hint: "Plan Emprendedor, pago con PayPhone" },
+  { value: 19, prefix: "$", suffix: "", label: "desde / mes", hint: "Plan Emprendedor, pago por transferencia" },
 ];
 
 export default function Stats() {

@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Plus, Edit, Trash2, Wallet } from "lucide-react";
 import { apiFetch } from "@/lib/apiFetch";
 import { ModuleGate } from "@/components/auth/ModuleGate";
+import BankAccountsAdmin from "@/components/billing/BankAccountsAdmin";
 
 interface MetodoRow {
   codigo: string;
@@ -241,6 +242,7 @@ function AdminMetodosContent() {
             </div>
           )}
         </div>
+        <BankAccountsAdmin />
       </main>
     </>
   );

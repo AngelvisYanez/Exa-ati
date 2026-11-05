@@ -11,7 +11,7 @@ import {
 
 const ITEMS = [
   { icon: Landmark, label: "Comprobantes SRI" },
-  { icon: CreditCard, label: "Pagos con PayPhone" },
+  { icon: CreditCard, label: "Pago por transferencia" },
   { icon: FileCheck2, label: "ATS y anexos" },
   { icon: Calculator, label: "Contadores" },
   { icon: Store, label: "Emprendedores" },

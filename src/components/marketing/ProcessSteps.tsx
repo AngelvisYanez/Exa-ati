@@ -102,7 +102,7 @@ export default function ProcessSteps() {
               <p className="text-[11px] font-bold uppercase tracking-wider text-brand-gray-400">Paso 02</p>
               <h3 className="mt-2 text-xl font-extrabold text-brand-gray-900">Paga y activa</h3>
               <p className="mt-2 text-sm leading-relaxed text-brand-gray-500">
-                Checkout seguro con PayPhone. Al aprobarse el cobro, tu panel
+                Pago por transferencia bancaria. Al verificarse el pago, tu panel
                 queda activo al instante.
               </p>
               <SyncOrbit />

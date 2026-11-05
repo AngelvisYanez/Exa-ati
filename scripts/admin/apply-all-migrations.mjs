@@ -41,6 +41,7 @@ const PG_FILES = [
   '012_metodos_pago_admin.sql',
   '013_emisor_logo.sql',
   '014_ride_disenos.sql',
+  '015_cuentas_bancarias_suscripcion.sql',
 ];
 
 const MYSQL_FILES = [

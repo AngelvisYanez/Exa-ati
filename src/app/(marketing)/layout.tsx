@@ -142,7 +142,7 @@ export default function MarketingLayout({
                 <p className="text-sm font-bold">¿Listo para empezar?</p>
                 <p className="mt-1 text-xs leading-relaxed text-white/60">
                   Planes desde $19/mes. Activa tu panel al aprobarse el pago
-                  con PayPhone.
+                  por transferencia bancaria.
                 </p>
                 <Link
                   href="/registro"

@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/contexts/AuthContext";
+import BankAccountsForPayment from "@/components/billing/BankAccountsForPayment";
 import { Check, CreditCard, ExternalLink, Loader2 } from "lucide-react";
 
 interface PlanCard {
@@ -112,34 +113,8 @@ function SuscripcionContent() {
     return () => stopPolling();
   }, [waiting, pollPago, stopPolling]);
 
-  const handlePay = async (planCodigo: string) => {
-    setPaying(planCodigo);
-    try {
-      const res = await apiFetch("/api/billing/payphone/prepare", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planCodigo, periodo }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Error al preparar el pago");
-
-      const url =
-        data.data?.paymentUrl ||
-        data.data?.payWithCard ||
-        data.data?.payWithPayPhone;
-      if (!url) throw new Error("PayPhone no devolvió URL de pago");
-
-      window.open(url, "_blank", "noopener,noreferrer");
-      setWaiting({
-        pagoId: data.data.pagoId,
-        paymentUrl: url,
-        planCodigo,
-      });
-      toast.message("Completa el pago en la pestaña de PayPhone");
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Error al iniciar pago");
-      setPaying(null);
-    }
+  const handlePay = () => {
+    document.getElementById("cuentas-transferencia")?.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
@@ -149,7 +124,7 @@ function SuscripcionContent() {
           Elige tu plan
         </h1>
         <p className="text-xs text-brand-gray-500 mt-1">
-          Pago seguro con PayPhone (tarjeta o saldo). Plan actual:{" "}
+          Pago por transferencia bancaria. Plan actual:{" "}
           <strong>{user?.planNombre || user?.planCodigo || "—"}</strong>
           {typeof user?.maxEmpresas === "number"
             ? ` · hasta ${user.maxEmpresas} empresa(s)`
@@ -195,10 +170,10 @@ function SuscripcionContent() {
         </button>
       </div>
 
-      {!configured && !loading ? (
+      {!loading ? (
         <Card className="p-4 mb-6 border-amber-200 bg-amber-50 text-xs text-amber-900">
-          PayPhone aún no está configurado en este entorno. Un administrador debe
-          definir PAYPHONE_TOKEN y PAYPHONE_STORE_ID.
+          Solicita a administración los datos bancarios y envía el comprobante.
+          El plan se activará después de verificar la transferencia.
         </Card>
       ) : null}
 
@@ -221,6 +196,7 @@ function SuscripcionContent() {
         </Card>
       ) : null}
 
+      <div id="cuentas-transferencia"><BankAccountsForPayment /></div>
       {loading ? (
         <div className="flex justify-center py-16 text-brand-gray-400">
           <Loader2 className="w-6 h-6 animate-spin" />
@@ -265,8 +241,8 @@ function SuscripcionContent() {
                   </li>
                 </ul>
                 <Button
-                  disabled={!configured || paying !== null}
-                  onClick={() => handlePay(plan.codigo)}
+                  disabled={paying !== null}
+                  onClick={handlePay}
                   className="w-full bg-brand-red hover:bg-brand-red-bright text-white"
                 >
                   {paying === plan.codigo ? (
@@ -274,7 +250,7 @@ function SuscripcionContent() {
                   ) : (
                     <>
                       <CreditCard className="w-4 h-4 mr-1.5" />
-                      {current ? "Renovar / pagar" : "Suscribirme"}
+                      {current ? "Renovar por transferencia" : "Pagar por transferencia"}
                     </>
                   )}
                 </Button>

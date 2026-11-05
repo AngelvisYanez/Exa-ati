@@ -26,6 +26,7 @@ import {
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import BrandLogo from "@/components/brand/BrandLogo";
 import { apiFetch } from "@/lib/apiFetch";
+import BankAccountsForPayment from "@/components/billing/BankAccountsForPayment";
 import { FALLBACK_PLANS, SYSTEM_PLAN_CODES } from "@/lib/plans";
 import { sriClient } from "@/lib/sriClient";
 
@@ -179,36 +180,10 @@ function RegisterWizard() {
       await login(values.email, values.password);
       await refreshUserModules();
 
-      if (!payConfigured) {
-        setError(
-          "PayPhone no está configurado. Un administrador debe activar el cobro. Tu cuenta quedó creada en estado pendiente."
-        );
-        setStep(3);
-        setCreating(false);
-        return;
-      }
-
-      const res = await apiFetch("/api/billing/payphone/prepare", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          planCodigo: values.planCodigo || planCodigo,
-          periodo: values.periodo || periodo,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Error al preparar el pago");
-
-      setCheckout({
-        paymentUrl:
-          data.data.paymentUrl ||
-          data.data.payWithCard ||
-          data.data.payWithPayPhone,
-        pagoId: data.data.pagoId,
-        amount: data.data.amount,
-      });
       setStep(3);
-      toast.success("Cuenta creada. Completa el pago con PayPhone.");
+      toast.success("Cuenta creada. Solicita los datos para pagar por transferencia.");
+      return;
+
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error al registrarse";
       setError(msg);
@@ -706,59 +681,8 @@ function RegisterWizard() {
               ) : null}
             </div>
 
-            {!payConfigured || !checkout ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900 leading-snug">
-                No hay métodos de pago disponibles todavía. Vuelve a{" "}
-                <Link href="/suscripcion" className="font-bold underline underline-offset-2">
-                  Suscripción
-                </Link>{" "}
-                cuando PayPhone esté configurado.
-              </div>
-            ) : waitingPayment ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-center space-y-3">
-                <Loader2 className="size-8 animate-spin text-amber-600 mx-auto" />
-                <p className="text-sm font-bold text-brand-gray-900">
-                  Esperando tu pago…
-                </p>
-                <p className="text-xs text-brand-gray-600 leading-snug">
-                  Completa el cobro en PayPhone. Esta pantalla se actualizará sola
-                  cuando el pago sea aprobado.
-                </p>
-                {checkout.paymentUrl ? (
-                  <a
-                    href={checkout.paymentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex text-xs font-bold text-brand-red underline underline-offset-2"
-                  >
-                    Reabrir página de pago
-                  </a>
-                ) : null}
-              </div>
-            ) : (
-              <button
-                type="button"
-                disabled={paying}
-                onClick={startPay}
-                className="flex flex-col items-start gap-2 rounded-xl border border-brand-gray-200 p-4 min-h-[6.5rem] hover:border-brand-red active:bg-brand-gray-50 cursor-pointer disabled:opacity-50 text-left touch-manipulation transition-colors duration-200 w-full"
-              >
-                <CreditCard className="size-5 text-brand-red" />
-                <span className="text-sm font-bold text-brand-gray-900">
-                  Pagar con PayPhone
-                </span>
-                <span className="text-xs text-brand-gray-500 leading-snug">
-                  Tarjeta o saldo PayPhone en un enlace seguro
-                </span>
-                {paying ? (
-                  <Loader2 className="size-4 animate-spin text-brand-gray-400" />
-                ) : null}
-              </button>
-            )}
+            <BankAccountsForPayment />
 
-            <p className="text-xs text-brand-gray-400 text-center leading-relaxed px-2">
-              Se abrirá PayPhone en una pestaña nueva. Al aprobar el cobro verás la
-              página de gracias.
-            </p>
           </div>
         ) : null}
       </div>

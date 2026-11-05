@@ -1,0 +1,49 @@
+---
+description: Despliegue de EXA-ATI en Plesk (ati.exacontable.com). Léelo antes de desplegar.
+alwaysApply: true
+---
+
+# Despliegue de EXA-ATI
+
+**Fuente única:** [`docs/DESPLIEGUE_PRODUCCION.md`](../../docs/DESPLIEGUE_PRODUCCION.md).
+Léela completa antes de ejecutar un despliegue. Este archivo solo resume; si hay
+conflicto, manda el documento.
+
+## Contexto que no debes asumir mal
+
+- `ati.exacontable.com` corre en Plesk (`199.89.55.69`) como **contenedor Docker**
+  en `/opt/exa-ati/releases/<sha>`, detrás de nginx en `127.0.0.1:3101`.
+- **No** se sirve desde `httpdocs`, **no** usa Vercel y **no** comparte arquitectura
+  con `exa-tareas-app` / `gestion.exacontable.com` (puerto 3010, otro proceso).
+- El servidor es **compartido**: no detengas el 3010 ni el contenedor `waha`.
+
+## Invariantes
+
+1. Solo se despliega el SHA de `origin/main`. Nunca branches ni cambios locales.
+2. Release limpia en `/opt/exa-ati/releases/<sha>`. Nunca sobrescribir `/opt/exa-ati-test`.
+3. La imagen se construye una vez (`EXA_ATI_IMAGE_TAG == HEAD`) y se promueve sin reconstruir.
+4. Pruebas y producción usan ramas Neon **distintas**.
+5. WSDL de pruebas: `celcer.sri.gob.ec`. Producción **no** puede usarlos.
+6. Producción exige `EXA_ATI_PRODUCTION_READY=true` + compuerta de la sección 10.
+7. Pruebas y producción comparten el puerto 3101: son mutuamente excluyentes.
+8. Nunca imprimas `.env*`, secretos ni el contenido del helper de Plesk.
+
+## Antes de afirmar que está en producción
+
+Mira la sección 4 del documento. Si el contenedor es `exa-ati-test-app`, el compose
+es `compose.plesk-test.yaml`, o `EXA_ATI_PRODUCTION_READY` no es `true`, la respuesta
+es **«no está en producción»**, aunque `/api/health` devuelva `200`.
+
+## Verificación
+
+```sh
+node scripts/deploy/preflight.mjs --sha <sha-esperado>
+```
+
+Solo lectura. No sustituye las señales de entorno: no distingue pruebas de producción.
+
+## Reporte
+
+No marques nada como verificado sin la salida del comando que lo demuestra. Si no
+puedes ejecutar comandos, entrega el plan y marca `PENDIENTE`. Prohibido fabricar
+sesiones o resultados.

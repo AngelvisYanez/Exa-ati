@@ -35,7 +35,7 @@ export const HOME_FAQS: { q: string; a: string }[] = [
   },
   {
     q: "¿Cómo funciona la suscripción y el pago?",
-    a: "Eliges plan Emprendedor, Contador o Despacho (mensual o anual), pagas con PayPhone y al aprobarse el cobro se activa el acceso al panel con los módulos de tu plan.",
+    a: "Eliges plan Emprendedor, Contador o Despacho (mensual o anual) y solicitas los datos para pagar por transferencia. El acceso se activa después de verificar el pago.",
   },
   {
     q: "¿Qué diferencia hay entre el plan Emprendedor y Contador?",
