@@ -470,7 +470,7 @@ export const sriClient = {
     history: { role: 'user' | 'assistant'; content: string }[] = [],
     opts?: { confirmTool?: string; toolArgs?: Record<string, unknown> }
   ) {
-    return request('/asistente', {
+    return request('/chat', {
       method: 'POST',
       body: JSON.stringify({
         message,
