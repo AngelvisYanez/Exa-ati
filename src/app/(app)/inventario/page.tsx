@@ -1,249 +1,200 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import Topbar from "@/components/layout/Topbar";
-import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
-import { TableSkeleton } from "@/components/ui/TableSkeleton";
-import { EmptyState } from "@/components/ui/EmptyState";
-import ListToolbar from "@/components/lists/ListToolbar";
-import { RecordCard, RecordGrid } from "@/components/lists/RecordGrid";
-import { useViewMode } from "@/components/lists/useViewMode";
-import {
-  Package, Plus, Pencil, Trash2, X, Check,
-  PackageOpen, AlertTriangle, History, ArrowDown, ArrowUp, Settings2
-} from "lucide-react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { AlertTriangle, Box, CircleCheck, Package, Plus, Search, TrendingDown, Upload } from "lucide-react";
 import { toast } from "sonner";
-
+import Topbar from "@/components/layout/Topbar";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
+import { ViewModeToggle } from "@/components/lists/ListToolbar";
+import { useViewMode } from "@/components/lists/useViewMode";
+import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/apiFetch";
-interface Producto {
-  id: string;
-  codigo: string;
-  nombre: string;
-  descripcion: string | null;
-  precio_unitario: string;
-  iva_porcentaje: number;
-  stock: string;
-  activo: boolean;
-  created_at: string;
-  updated_at: string;
-}
+import { cn } from "@/lib/utils";
+import { posFont } from "../punto-de-venta/_lib/pos-font";
+import CategoriasPanel from "./_components/CategoriasPanel";
+import Kardex from "./_components/Kardex";
+import ListaProductos from "./_components/ListaProductos";
+import ProductoDrawer, { botonPrimario, botonSecundario } from "./_components/ProductoDrawer";
+import {
+  INVENTARIO_FEATURES,
+  leerError,
+  productoDesdeApi,
+  type Categoria,
+  type FiltroCategoria,
+  type FiltroEstado,
+  type Producto,
+  type Resumen,
+} from "./_lib/inventario";
 
-interface ProductoForm {
-  codigo: string;
-  nombre: string;
-  descripcion: string;
-  precioUnitario: string;
-  ivaPorcentaje: number;
-  stock: string;
-}
-
-interface Movimiento {
-  id: string;
-  tipo: string;
-  cantidad: string;
-  stock_antes: string;
-  stock_despues: string;
-  motivo: string | null;
-  referencia: string | null;
-  created_at: string;
-}
-
-const emptyForm = (): ProductoForm => ({
-  codigo: '',
-  nombre: '',
-  descripcion: '',
-  precioUnitario: '',
-  ivaPorcentaje: 15,
-  stock: '0',
-});
+const RESUMEN_VACIO: Resumen = { total: 0, disponibles: 0, bajo: 0, agotado: 0 };
+const ESTILO_TOAST = { background: "#1C1917", color: "#FFFFFF", border: "none" } as const;
 
 export default function InventarioPage() {
   const { hasSriLinked } = useAuth();
-  const [productos, setProductos] = useState<Producto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [termino, setTermino] = useState('');
-  const [view, setView] = useViewMode("inventario");
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<ProductoForm>(emptyForm());
-  const [saving, setSaving] = useState(false);
-  const [selectedProducto, setSelectedProducto] = useState<Producto | null>(null);
-  const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
-  const [loadingKardex, setLoadingKardex] = useState(false);
-  const [movTipo, setMovTipo] = useState<'ENTRADA' | 'SALIDA' | 'AJUSTE'>('ENTRADA');
-  const [movCantidad, setMovCantidad] = useState('');
-  const [movMotivo, setMovMotivo] = useState('');
-  const [savingMov, setSavingMov] = useState(false);
+  const [vista, setVista] = useViewMode("inventario");
 
-  const loadProductos = useCallback(async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('sri_access_token');
-      const params = new URLSearchParams();
-      if (termino) params.set('termino', termino);
-      const res = await apiFetch(`/api/comercio/productos?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (res.ok) setProductos(data.data || []);
-    } catch {} finally {
-      setLoading(false);
-    }
-  }, [termino]);
+  const [lista, setLista] = useState<{ consulta: string; productos: Producto[]; error: string | null } | null>(null);
+  const [resumen, setResumen] = useState<Resumen>(RESUMEN_VACIO);
+  const [catalogo, setCatalogo] = useState(true);
+  const [version, setVersion] = useState(0);
 
-  const loadKardex = useCallback(async (productoId: string) => {
-    setLoadingKardex(true);
-    try {
-      const res = await apiFetch(`/api/inventario/movimientos?productoId=${productoId}`);
-      const data = await res.json();
-      if (res.ok) setMovimientos(data.data || []);
-    } catch {
-      toast.error('Error al cargar kardex');
-    } finally {
-      setLoadingKardex(false);
-    }
-  }, []);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [totalCatalogo, setTotalCatalogo] = useState(0);
+  const [sinCategoria, setSinCategoria] = useState(0);
+  const [creandoCategoria, setCreandoCategoria] = useState(false);
 
-  function selectProducto(p: Producto) {
-    setSelectedProducto(p);
-    loadKardex(p.id);
-  }
+  const [termino, setTermino] = useState("");
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroCategoria, setFiltroCategoria] = useState<FiltroCategoria>(null);
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todos");
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
 
-  async function handleMovimiento() {
-    if (!selectedProducto || !movCantidad) {
-      toast.error('Cantidad requerida');
-      return;
-    }
-    setSavingMov(true);
-    try {
-      const res = await apiFetch('/api/inventario/movimientos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productoId: selectedProducto.id,
-          tipo: movTipo,
-          cantidad: parseFloat(movCantidad),
-          motivo: movMotivo || null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      toast.success('Movimiento registrado');
-      setMovCantidad('');
-      setMovMotivo('');
-      const stockDespues = data?.data?.stock_despues;
-      const productoId = selectedProducto.id;
-      if (stockDespues != null) {
-        setSelectedProducto((prev) =>
-          prev ? { ...prev, stock: String(stockDespues) } : prev
-        );
-      }
-      await loadKardex(productoId);
-      await loadProductos();
-      // Sincronizar badge de stock con lista actualizada
-      setSelectedProducto((prev) => {
-        if (!prev) return prev;
-        // loadProductos actualiza estado async; usamos stock_despues si vino
-        if (stockDespues != null) return { ...prev, stock: String(stockDespues) };
-        return prev;
-      });
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error al registrar movimiento');
-    } finally {
-      setSavingMov(false);
-    }
-  }
+  const [drawer, setDrawer] = useState<{ clave: number; producto: Producto | null } | null>(null);
+  const [seleccionado, setSeleccionado] = useState<Producto | null>(null);
 
   useEffect(() => {
-    if (hasSriLinked) loadProductos();
-    else setLoading(false);
-  }, [hasSriLinked, loadProductos]);
+    const t = setTimeout(() => setBusqueda(termino.trim()), 250);
+    return () => clearTimeout(t);
+  }, [termino]);
 
-  function openCreate() {
-    setForm(emptyForm());
-    setEditingId(null);
-    setShowForm(true);
+  const params = new URLSearchParams({ activo: mostrarInactivos ? "false" : "true" });
+  if (!mostrarInactivos) params.set("resumen", "true");
+  if (busqueda) params.set("termino", busqueda);
+  if (filtroCategoria) params.set("categoriaId", filtroCategoria);
+  if (filtroEstado !== "todos") params.set("estado", filtroEstado);
+  const consulta = params.toString();
+
+  useEffect(() => {
+    if (!hasSriLinked) return;
+    let vigente = true;
+    apiFetch(`/api/ecommerce/productos?${consulta}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await leerError(res, "No se pudo cargar el inventario"));
+        const data = (await res.json()) as { data: Record<string, unknown>[]; catalogo?: boolean; resumen?: Resumen };
+        if (!vigente) return;
+        setLista({ consulta, productos: data.data.map(productoDesdeApi), error: null });
+        setCatalogo(data.catalogo !== false);
+        if (data.resumen) setResumen(data.resumen);
+      })
+      .catch((e: unknown) => {
+        if (vigente) setLista({ consulta, productos: [], error: e instanceof Error ? e.message : "No se pudo cargar el inventario" });
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [hasSriLinked, consulta, version]);
+
+  useEffect(() => {
+    if (!hasSriLinked) return;
+    let vigente = true;
+    apiFetch("/api/inventario/categorias")
+      .then(async (res) => {
+        if (res.status === 503) {
+          if (vigente) setCatalogo(false);
+          return;
+        }
+        if (!res.ok) throw new Error(await leerError(res, "No se pudieron cargar las categorías"));
+        const data = (await res.json()) as { data: Categoria[]; total: number; sinCategoria: number };
+        if (!vigente) return;
+        setCategorias(data.data);
+        setTotalCatalogo(data.total);
+        setSinCategoria(data.sinCategoria);
+      })
+      .catch((e: unknown) => toast.error(e instanceof Error ? e.message : "No se pudieron cargar las categorías"));
+    return () => {
+      vigente = false;
+    };
+  }, [hasSriLinked, version]);
+
+  const refrescar = useCallback(() => setVersion((v) => v + 1), []);
+
+  // El esqueleto solo aparece al cambiar de consulta; un refresco mantiene la lista visible.
+  const cargando = lista === null || lista.consulta !== consulta;
+  const productos = lista?.productos ?? [];
+  const errorCarga = cargando ? null : lista.error;
+
+  async function crearCategoria(nombre: string): Promise<Categoria | null> {
+    try {
+      const res = await apiFetch("/api/inventario/categorias", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre }),
+      });
+      if (!res.ok) throw new Error(await leerError(res, "No se pudo crear la categoría"));
+      const data = (await res.json()) as { data: Categoria };
+      setCategorias((cs) => [...cs, data.data]);
+      toast(`Categoría «${data.data.nombre}» creada`, { position: "bottom-center", style: ESTILO_TOAST });
+      return data.data;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo crear la categoría");
+      return null;
+    }
   }
 
-  function openEdit(p: Producto) {
-    setForm({
-      codigo: p.codigo,
-      nombre: p.nombre,
-      descripcion: p.descripcion || '',
-      precioUnitario: p.precio_unitario,
-      ivaPorcentaje: p.iva_porcentaje,
-      stock: p.stock,
-    });
-    setEditingId(p.id);
-    setShowForm(true);
+  async function actualizarCategoria(id: string, cambios: { nombre?: string; activo?: boolean }, exito: string): Promise<boolean> {
+    try {
+      const res = await apiFetch(`/api/inventario/categorias/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cambios),
+      });
+      if (!res.ok) throw new Error(await leerError(res, "No se pudo actualizar la categoría"));
+      toast(exito, { position: "bottom-center", style: ESTILO_TOAST });
+      if (cambios.activo === false && filtroCategoria === id) setFiltroCategoria(null);
+      refrescar();
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo actualizar la categoría");
+      return false;
+    }
   }
 
-  function closeForm() {
-    setShowForm(false);
-    setEditingId(null);
+  async function desactivarProducto(p: Producto) {
+    try {
+      const res = await apiFetch(`/api/ecommerce/productos/${p.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await leerError(res, "No se pudo desactivar"));
+      toast(`«${p.nombre}» desactivado`, { position: "bottom-center", style: ESTILO_TOAST });
+      setDrawer(null);
+      if (seleccionado?.id === p.id) setSeleccionado(null);
+      refrescar();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo desactivar");
+    }
   }
 
-  async function handleSave() {
-    if (!form.codigo || !form.nombre || !form.precioUnitario) {
-      toast.error('Código, nombre y precio son obligatorios');
+  async function reactivarProducto(p: Producto) {
+    try {
+      const res = await apiFetch(`/api/ecommerce/productos/${p.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activo: true }),
+      });
+      if (!res.ok) throw new Error(await leerError(res, "No se pudo reactivar"));
+      toast(`«${p.nombre}» reactivado`, { position: "bottom-center", style: ESTILO_TOAST });
+      refrescar();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo reactivar");
+    }
+  }
+
+  function abrirNuevo() {
+    setDrawer({ clave: Date.now(), producto: null });
+  }
+
+  function abrirEditar(p: Producto) {
+    if (!p.activo) {
+      void reactivarProducto(p);
       return;
     }
-    setSaving(true);
-    try {
-      const method = editingId ? 'PUT' : 'POST';
-      const url = editingId
-        ? `/api/comercio/productos/${editingId}`
-        : '/api/comercio/productos';
-
-      const res = await apiFetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          codigo: form.codigo,
-          nombre: form.nombre,
-          descripcion: form.descripcion || null,
-          precioUnitario: parseFloat(form.precioUnitario),
-          ivaPorcentaje: form.ivaPorcentaje,
-          stock: parseFloat(form.stock) || 0,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-
-      toast.success(editingId ? 'Producto actualizado' : 'Producto creado');
-      closeForm();
-      loadProductos();
-    } catch (err: any) {
-      toast.error(err.message || 'Error al guardar');
-    } finally {
-      setSaving(false);
-    }
+    setDrawer({ clave: Date.now(), producto: p });
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('¿Eliminar este producto?')) return;
-    try {
-      const token = localStorage.getItem('sri_access_token');
-      const res = await apiFetch(`/api/comercio/productos/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message);
-      }
-      toast.success('Producto eliminado');
-      loadProductos();
-    } catch (err: any) {
-      toast.error(err.message || 'Error al eliminar');
-    }
+  function limpiarFiltros() {
+    setTermino("");
+    setBusqueda("");
+    setFiltroCategoria(null);
+    setFiltroEstado("todos");
   }
 
   if (!hasSriLinked) {
@@ -252,323 +203,256 @@ export default function InventarioPage() {
         <title>Inventario - EXA ATI</title>
         <Topbar title="Inventario" />
         <main className="ui-page flex-1">
-          <EmptyState
-            icon={<Package className="w-5 h-5" />}
-            title="Vincula tu RUC del SRI en Configuración para gestionar productos."
-          />
+          <EmptyState icon={<Package className="size-5" />} title="Vincula tu RUC del SRI en Configuración para gestionar productos." />
         </main>
       </>
     );
   }
 
+  const hayFiltros = Boolean(busqueda || filtroCategoria || filtroEstado !== "todos");
+  const catalogoVacio = !cargando && !errorCarga && !mostrarInactivos && !hayFiltros && productos.length === 0;
+
   return (
     <>
       <title>Inventario - EXA ATI</title>
-      <Topbar title="Inventario de Productos" />
-      <main className="ui-page flex-1">
-        {/* Search + Add */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="min-w-0 flex-1">
-            <ListToolbar
-              search={termino}
-              onSearchChange={setTermino}
-              placeholder="Buscar por código o nombre..."
-              view={view}
-              onViewChange={setView}
-            />
-          </div>
-          <Button variant="outline" size="sm" onClick={loadProductos}>
-            <Package className="w-3.5 h-3.5 mr-1" /> Actualizar
-          </Button>
-          <Button size="sm" className="bg-brand-red hover:bg-brand-red-bright text-white ml-auto" onClick={openCreate}>
-            <Plus className="w-3.5 h-3.5 mr-1" /> Nuevo Producto
-          </Button>
-        </div>
-
-        {/* Form */}
-        {showForm && (
-          <Card className="p-4 border-brand-red/30">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-brand-gray-600">
-                {editingId ? 'Editar Producto' : 'Nuevo Producto'}
-              </h3>
-              <Button variant="ghost" size="xs" onClick={closeForm}>
-                <X className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-              <div>
-                <Label className="text-[10px]">Código *</Label>
-                <Input size={1} value={form.codigo} onChange={e => setForm({ ...form, codigo: e.target.value })}
-                  className="h-7 text-xs" placeholder="PROD-001" />
-              </div>
-              <div className="col-span-2">
-                <Label className="text-[10px]">Nombre *</Label>
-                <Input size={1} value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })}
-                  className="h-7 text-xs" placeholder="Nombre del producto" />
-              </div>
-              <div>
-                <Label className="text-[10px]">Precio Unitario *</Label>
-                <Input type="number" size={1} value={form.precioUnitario}
-                  onChange={e => setForm({ ...form, precioUnitario: e.target.value })}
-                  className="h-7 text-xs" min={0} step={0.01} />
-              </div>
-              <div>
-                <Label className="text-[10px]">IVA %</Label>
-                <select value={form.ivaPorcentaje}
-                  onChange={e => setForm({ ...form, ivaPorcentaje: parseInt(e.target.value) })}
-                  className="h-7 text-xs rounded-lg border border-input bg-transparent px-2 w-full">
-                  <option value={0}>0%</option>
-                  <option value={5}>5%</option>
-                  <option value={12}>12%</option>
-                  <option value={15}>15%</option>
-                </select>
-              </div>
-              <div>
-                <Label className="text-[10px]">Stock</Label>
-                <Input type="number" size={1} value={form.stock}
-                  onChange={e => setForm({ ...form, stock: e.target.value })}
-                  className="h-7 text-xs" min={0} step={1} />
-              </div>
-              <div className="col-span-3">
-                <Label className="text-[10px]">Descripción</Label>
-                <Input size={1} value={form.descripcion}
-                  onChange={e => setForm({ ...form, descripcion: e.target.value })}
-                  className="h-7 text-xs" placeholder="Descripción opcional" />
-              </div>
-              <div className="col-span-3 flex items-end justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={closeForm}>Cancelar</Button>
-                <Button size="sm" className="bg-brand-red hover:bg-brand-red-bright text-white" onClick={handleSave} disabled={saving}>
-                  {saving ? 'Guardando...' : <><Check className="w-3.5 h-3.5 mr-1" /> {editingId ? 'Actualizar' : 'Crear'}</>}
-                </Button>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
-          <Card className="p-3 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center">
-              <Package className="w-4 h-4 text-brand-sky" />
-            </div>
+      <Topbar title="Inventario" />
+      <main className={cn(posFont.className, "flex-1 bg-pos-bg px-4 py-6 text-pos-ink sm:px-6 lg:px-8")}>
+        <div className="mx-auto flex max-w-[1400px] flex-col gap-5">
+          <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-[10px] text-brand-gray-500 font-bold uppercase">Total</p>
-              <p className="text-lg font-bold">{productos.length}</p>
+              <h1 className="text-2xl font-bold tracking-tight">Inventario</h1>
+              <p className="mt-0.5 text-sm text-pos-muted">Productos y servicios que vendes en Punto de venta, Facturas y eCommerce</p>
             </div>
-          </Card>
-          <Card className="p-3 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-success-pale flex items-center justify-center">
-              <PackageOpen className="w-4 h-4 text-success" />
+            <div className="flex flex-wrap gap-2">
+              {INVENTARIO_FEATURES.importarExcel && (
+                <button type="button" className={botonSecundario}>
+                  <Upload className="size-4" aria-hidden /> Importar desde Excel
+                </button>
+              )}
+              <button type="button" onClick={abrirNuevo} disabled={!catalogo} className={botonPrimario}>
+                <Plus className="size-4" aria-hidden /> Nuevo producto
+              </button>
             </div>
-            <div>
-              <p className="text-[10px] text-brand-gray-500 font-bold uppercase">Activos</p>
-              <p className="text-lg font-bold">{productos.filter(p => p.activo).length}</p>
-            </div>
-          </Card>
-          <Card className="p-3 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-              <AlertTriangle className="w-4 h-4 text-amber-700" />
-            </div>
-            <div>
-              <p className="text-[10px] text-brand-gray-500 font-bold uppercase">Sin Stock</p>
-              <p className="text-lg font-bold">{productos.filter(p => parseFloat(p.stock) <= 0).length}</p>
-            </div>
-          </Card>
-        </div>
+          </header>
 
-        {/* Table */}
-        <Card className="p-0 overflow-hidden">
-          {loading ? (
-            <div className="p-6"><TableSkeleton rows={4} columns={6} /></div>
-          ) : productos.length === 0 ? (
-            <EmptyState
-              icon={<Package className="w-5 h-5" />}
-              title="No hay productos."
-              description="Crea tu primer producto."
-              compact
-            />
-          ) : view === "lista" ? (
-          <div className="overflow-x-auto">
-            <Table className="w-full text-xs">
-              <TableHeader>
-                <TableRow className="bg-brand-gray-50 border-b border-brand-gray-200">
-                  <TableHead className="text-left p-3 font-bold text-brand-gray-500 uppercase tracking-wider">Código</TableHead>
-                  <TableHead className="text-left p-3 font-bold text-brand-gray-500 uppercase tracking-wider">Nombre</TableHead>
-                  <TableHead className="text-right p-3 font-bold text-brand-gray-500 uppercase tracking-wider">Precio</TableHead>
-                  <TableHead className="text-center p-3 font-bold text-brand-gray-500 uppercase tracking-wider">IVA</TableHead>
-                  <TableHead className="text-right p-3 font-bold text-brand-gray-500 uppercase tracking-wider">Stock</TableHead>
-                  <TableHead className="text-center p-3 font-bold text-brand-gray-500 uppercase tracking-wider">Estado</TableHead>
-                  <TableHead className="text-center p-3 font-bold text-brand-gray-500 uppercase tracking-wider">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {productos.map(p => (
-                  <TableRow
-                    key={p.id}
-                    className={`border-b border-brand-gray-100 hover:bg-brand-gray-50 cursor-pointer ${selectedProducto?.id === p.id ? 'bg-sky-50' : ''}`}
-                    onClick={() => selectProducto(p)}
-                  >
-                    <TableCell className="p-3 font-mono font-bold text-xs">{p.codigo}</TableCell>
-                    <TableCell className="p-3">
-                      <div className="flex flex-col">
-                        <span className="font-medium">{p.nombre}</span>
-                        {p.descripcion && <span className="text-[10px] text-brand-gray-400">{p.descripcion}</span>}
-                      </div>
-                    </TableCell>
-                    <TableCell className="p-3 text-right font-mono font-bold">${parseFloat(p.precio_unitario).toFixed(2)}</TableCell>
-                    <TableCell className="p-3 text-center">{p.iva_porcentaje}%</TableCell>
-                    <TableCell className="p-3 text-right font-mono">{parseFloat(p.stock).toFixed(0)}</TableCell>
-                    <TableCell className="p-3 text-center">
-                      <Badge className={p.activo ? 'bg-success-pale text-success' : 'bg-brand-gray-100 text-brand-gray-500'}>
-                        {p.activo ? 'Activo' : 'Inactivo'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="p-3 text-center">
-                      <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
-                        <Button variant="ghost" size="xs" onClick={() => openEdit(p)}>
-                          <Pencil className="w-3 h-3" />
-                        </Button>
-                        <Button variant="ghost" size="xs" onClick={() => handleDelete(p.id)}>
-                          <Trash2 className="w-3 h-3 text-red-500" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          ) : (
-            <div className="p-3">
-              <RecordGrid>
-                {productos.map(p => (
-                  <div
-                    key={p.id}
-                    onClick={() => selectProducto(p)}
-                    className={selectedProducto?.id === p.id ? "rounded-xl ring-2 ring-sky-300" : undefined}
-                  >
-                    <RecordCard
-                      title={p.nombre}
-                      subtitle={p.codigo}
-                      fields={[
-                        { label: "Precio", value: `$${parseFloat(p.precio_unitario).toFixed(2)}` },
-                        { label: "IVA", value: `${p.iva_porcentaje}%` },
-                        { label: "Stock", value: parseFloat(p.stock).toFixed(0) },
-                        { label: "Estado", value: p.activo ? "Activo" : "Inactivo" },
-                      ]}
-                      actions={
-                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                          <Button variant="ghost" size="xs" onClick={() => openEdit(p)}>
-                            <Pencil className="w-3 h-3" />
-                          </Button>
-                          <Button variant="ghost" size="xs" onClick={() => handleDelete(p.id)}>
-                            <Trash2 className="w-3 h-3 text-red-500" />
-                          </Button>
-                        </div>
-                      }
-                    />
-                  </div>
-                ))}
-              </RecordGrid>
-            </div>
+          {!catalogo && (
+            <p role="status" className="rounded-2xl border border-pos-warn/30 bg-pos-warn-bg px-4 py-3 text-sm text-pos-warn">
+              Las categorías y el registro guiado necesitan la migración <code className="font-mono">017_catalogo_productos</code>, que aún no está aplicada en esta base de datos. Los productos existentes se siguen vendiendo con normalidad.
+            </p>
           )}
-        </Card>
 
-        {/* Kardex */}
-        {selectedProducto && (
-          <Card className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <History className="w-4 h-4 text-brand-sky" />
-              <h3 className="text-sm font-bold">
-                Kardex — {selectedProducto.codigo} · {selectedProducto.nombre}
-              </h3>
-              <Badge className="ml-auto">Stock: {parseFloat(selectedProducto.stock).toFixed(0)}</Badge>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <TarjetaResumen titulo="Total" valor={resumen.total} icono={<Box className="size-5" aria-hidden />} tono="azul" activa={filtroEstado === "todos"} onClick={() => setFiltroEstado("todos")} />
+            <TarjetaResumen titulo="Disponibles" valor={resumen.disponibles} icono={<CircleCheck className="size-5" aria-hidden />} tono="verde" activa={filtroEstado === "disponible"} onClick={() => setFiltroEstado("disponible")} />
+            <TarjetaResumen titulo="Stock bajo" valor={resumen.bajo} icono={<TrendingDown className="size-5" aria-hidden />} tono="ambar" activa={filtroEstado === "bajo"} onClick={() => setFiltroEstado("bajo")} />
+            <TarjetaResumen titulo="Sin stock" valor={resumen.agotado} icono={<AlertTriangle className="size-5" aria-hidden />} tono="rojo" activa={filtroEstado === "agotado"} onClick={() => setFiltroEstado("agotado")} />
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
+            <CategoriasPanel
+              categorias={categorias}
+              total={totalCatalogo}
+              sinCategoria={sinCategoria}
+              seleccion={filtroCategoria}
+              onSeleccionar={setFiltroCategoria}
+              onCrear={crearCategoria}
+              onRenombrar={(id, nombre) => actualizarCategoria(id, { nombre }, `Categoría renombrada a «${nombre}»`)}
+              onDesactivar={(c) => actualizarCategoria(c.id, { activo: false }, `Categoría «${c.nombre}» desactivada`)}
+              creando={creandoCategoria}
+              onCreandoChange={setCreandoCategoria}
+              deshabilitado={!catalogo}
+            />
+
+            <div className="flex min-w-0 flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative min-w-0 flex-[1_1_16rem] sm:max-w-md">
+                  <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-pos-muted" aria-hidden />
+                  <input
+                    type="search"
+                    value={termino}
+                    onChange={(e) => setTermino(e.target.value)}
+                    placeholder="Buscar por código, nombre o código de barras…"
+                    aria-label="Buscar por código, nombre o código de barras"
+                    className="h-11 w-full rounded-[10px] border border-pos-line-strong bg-white pr-3 pl-9 text-sm placeholder:text-pos-muted/80 focus:border-pos-brand focus:outline-none focus:ring-4 focus:ring-pos-brand/15"
+                  />
+                </div>
+                <div className="ml-auto flex items-center gap-3">
+                  <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-pos-muted">
+                    <input
+                      type="checkbox"
+                      checked={mostrarInactivos}
+                      onChange={(e) => setMostrarInactivos(e.target.checked)}
+                      className="size-4 accent-pos-brand"
+                    />
+                    Inactivos
+                  </label>
+                  <span className="text-sm text-pos-muted tabular-nums" aria-live="polite">
+                    {productos.length} {productos.length === 1 ? "producto" : "productos"}
+                  </span>
+                  <ViewModeToggle view={vista} onViewChange={setVista} />
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-2xl border border-pos-line bg-white">
+                {cargando ? (
+                  <div className="p-6"><TableSkeleton rows={5} columns={6} /></div>
+                ) : errorCarga ? (
+                  <EmptyState
+                    icon={<AlertTriangle className="size-5" />}
+                    title="No se pudo cargar el inventario"
+                    description={errorCarga}
+                    action={<button type="button" onClick={refrescar} className={botonSecundario}>Reintentar</button>}
+                  />
+                ) : catalogoVacio ? (
+                  <PasosIniciales
+                    hayCategorias={categorias.length > 0}
+                    onCrearCategoria={() => setCreandoCategoria(true)}
+                    onNuevoProducto={abrirNuevo}
+                    deshabilitado={!catalogo}
+                  />
+                ) : productos.length === 0 ? (
+                  <EmptyState
+                    icon={<Search className="size-5" />}
+                    title={mostrarInactivos ? "No hay productos inactivos" : "Ningún producto coincide con los filtros"}
+                    action={hayFiltros ? <button type="button" onClick={limpiarFiltros} className={botonSecundario}>Quitar filtros</button> : undefined}
+                  />
+                ) : (
+                  <ListaProductos
+                    productos={productos}
+                    vista={vista}
+                    seleccionadoId={seleccionado?.id ?? null}
+                    onSeleccionar={setSeleccionado}
+                    onEditar={abrirEditar}
+                    edicionDeshabilitada={!catalogo}
+                  />
+                )}
+              </div>
+
+              {mostrarInactivos && productos.length > 0 && (
+                <p className="text-xs text-pos-muted">Pulsa «Reactivar» en un producto inactivo para que vuelva a la caja y las facturas.</p>
+              )}
+
+              {seleccionado && (
+                <Kardex
+                  key={seleccionado.id}
+                  producto={seleccionado}
+                  onCerrar={() => setSeleccionado(null)}
+                  onStockCambiado={refrescar}
+                />
+              )}
             </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-              <div>
-                <Label className="text-[10px]">Tipo</Label>
-                <select
-                  value={movTipo}
-                  onChange={e => setMovTipo(e.target.value as 'ENTRADA' | 'SALIDA' | 'AJUSTE')}
-                  className="h-8 text-xs rounded-lg border border-input bg-transparent px-2 w-full"
-                >
-                  <option value="ENTRADA">Entrada</option>
-                  <option value="SALIDA">Salida</option>
-                  <option value="AJUSTE">Ajuste (stock final)</option>
-                </select>
-              </div>
-              <div>
-                <Label className="text-[10px]">Cantidad</Label>
-                <Input type="number" size={1} value={movCantidad}
-                  onChange={e => setMovCantidad(e.target.value)}
-                  className="h-8 text-xs" min={0} step={1} />
-              </div>
-              <div className="col-span-2">
-                <Label className="text-[10px]">Motivo</Label>
-                <Input size={1} value={movMotivo}
-                  onChange={e => setMovMotivo(e.target.value)}
-                  className="h-8 text-xs" placeholder="Opcional" />
-              </div>
-              <div className="flex items-end">
-                <Button size="sm" className="w-full bg-brand-red hover:bg-brand-red-bright text-white"
-                  onClick={handleMovimiento} disabled={savingMov}>
-                  {savingMov ? '...' : 'Registrar'}
-                </Button>
-              </div>
-            </div>
-
-            <Table className="text-xs">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="text-right">Cantidad</TableHead>
-                  <TableHead className="text-right">Antes</TableHead>
-                  <TableHead className="text-right">Después</TableHead>
-                  <TableHead>Motivo</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loadingKardex ? (
-                  <TableRow><TableCell colSpan={6} className="p-4"><TableSkeleton rows={2} columns={5} /></TableCell></TableRow>
-                ) : movimientos.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="p-0">
-                      <EmptyState
-                        icon={<History className="w-5 h-5" />}
-                        title="Sin movimientos"
-                        compact
-                      />
-                    </TableCell>
-                  </TableRow>
-                ) : movimientos.map(m => (
-                  <TableRow key={m.id}>
-                    <TableCell>{new Date(m.created_at).toLocaleString('es-EC')}</TableCell>
-                    <TableCell>
-                      <Badge className={
-                        m.tipo === 'ENTRADA' ? 'bg-success-pale text-success' :
-                        m.tipo === 'SALIDA' ? 'bg-red-100 text-brand-red' :
-                        'bg-amber-100 text-amber-800'
-                      }>
-                        {m.tipo === 'ENTRADA' && <ArrowDown className="w-3 h-3 mr-1 inline" />}
-                        {m.tipo === 'SALIDA' && <ArrowUp className="w-3 h-3 mr-1 inline" />}
-                        {m.tipo === 'AJUSTE' && <Settings2 className="w-3 h-3 mr-1 inline" />}
-                        {m.tipo}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-mono">{parseFloat(m.cantidad).toFixed(0)}</TableCell>
-                    <TableCell className="text-right font-mono">{parseFloat(m.stock_antes).toFixed(0)}</TableCell>
-                    <TableCell className="text-right font-mono font-bold">{parseFloat(m.stock_despues).toFixed(0)}</TableCell>
-                    <TableCell className="text-brand-gray-500">{m.motivo || '—'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        )}
+          </div>
+        </div>
       </main>
+
+      {drawer && (
+        <ProductoDrawer
+          key={drawer.clave}
+          open
+          producto={drawer.producto}
+          categorias={categorias}
+          onClose={() => setDrawer(null)}
+          onCrearCategoria={crearCategoria}
+          onDesactivar={desactivarProducto}
+          onGuardado={({ nombre, categoria }) => {
+            toast(categoria ? `“${nombre}” guardado en ${categoria}` : `“${nombre}” guardado`, {
+              position: "bottom-center",
+              style: ESTILO_TOAST,
+            });
+            refrescar();
+          }}
+        />
+      )}
     </>
+  );
+}
+
+const TONOS = {
+  azul: { fondo: "#EFF6FF", texto: "#2563EB" },
+  verde: { fondo: "#F0FDF4", texto: "#16A34A" },
+  ambar: { fondo: "#FFF7ED", texto: "#D97706" },
+  rojo: { fondo: "#FBEAEA", texto: "#A3222A" },
+} as const;
+
+function TarjetaResumen({
+  titulo,
+  valor,
+  icono,
+  tono,
+  activa,
+  onClick,
+}: {
+  titulo: string;
+  valor: number;
+  icono: ReactNode;
+  tono: keyof typeof TONOS;
+  activa: boolean;
+  onClick: () => void;
+}) {
+  const color = TONOS[tono];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={activa}
+      className={cn(
+        "flex cursor-pointer items-center gap-3 rounded-2xl border bg-white p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pos-brand/15",
+        activa ? "border-pos-brand shadow-[0_0_0_1px_var(--color-pos-brand)]" : "border-pos-line hover:border-pos-line-strong",
+      )}
+    >
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl" style={{ background: color.fondo, color: color.texto }}>
+        {icono}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[11px] font-semibold uppercase tracking-wider text-pos-muted">{titulo}</span>
+        <span className="block text-2xl font-extrabold tabular-nums leading-tight">{valor}</span>
+      </span>
+    </button>
+  );
+}
+
+function PasosIniciales({
+  hayCategorias,
+  onCrearCategoria,
+  onNuevoProducto,
+  deshabilitado,
+}: {
+  hayCategorias: boolean;
+  onCrearCategoria: () => void;
+  onNuevoProducto: () => void;
+  deshabilitado: boolean;
+}) {
+  const pasos = [
+    { titulo: "Crea tus categorías", detalle: "Bebidas, Abarrotes, Servicios… ordenan tu catálogo y la caja.", accion: "Crear categoría", onClick: onCrearCategoria, hecho: hayCategorias },
+    { titulo: "Registra tus productos", detalle: "Nombre, precio con o sin IVA y stock, en un solo panel.", accion: "Nuevo producto", onClick: onNuevoProducto, hecho: false },
+    ...(INVENTARIO_FEATURES.importarExcel
+      ? [{ titulo: "Impórtalos desde Excel", detalle: "Sube tu lista y revisa antes de guardar.", accion: "Importar", onClick: () => {}, hecho: false }]
+      : []),
+  ];
+  return (
+    <div className="px-6 py-10">
+      <h2 className="text-center text-lg font-bold">Arma tu catálogo en {pasos.length} pasos</h2>
+      <ol className={cn("mx-auto mt-6 grid max-w-3xl gap-3", pasos.length === 3 ? "md:grid-cols-3" : "md:grid-cols-2")}>
+        {pasos.map((p, i) => (
+          <li key={p.titulo} className="flex flex-col gap-3 rounded-2xl border border-pos-line p-4">
+            <span
+              className={cn(
+                "flex size-7 items-center justify-center rounded-full text-xs font-bold",
+                p.hecho ? "bg-pos-ok text-white" : "bg-pos-brand-soft text-pos-brand",
+              )}
+            >
+              {i + 1}
+            </span>
+            <div>
+              <h3 className="font-semibold">{p.titulo}</h3>
+              <p className="mt-0.5 text-sm text-pos-muted">{p.detalle}</p>
+            </div>
+            <button type="button" onClick={p.onClick} disabled={deshabilitado} className={cn(i === 1 ? botonPrimario : botonSecundario, "mt-auto")}>
+              {p.accion}
+            </button>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }

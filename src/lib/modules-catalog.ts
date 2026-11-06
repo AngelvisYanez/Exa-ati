@@ -49,6 +49,7 @@ const PATH_TO_MODULE: { prefix: string; modulo: ModuleCode }[] = [
   { prefix: "/administracion", modulo: "admin" },
   { prefix: "/documentos", modulo: "documentos" },
   { prefix: "/comprobantes", modulo: "comprobantes" },
+  { prefix: "/autorizaciones", modulo: "emitir" },
   { prefix: "/emitir", modulo: "emitir" },
   { prefix: "/punto-de-venta", modulo: "pos" },
   { prefix: "/comercio", modulo: "ecommerce" },

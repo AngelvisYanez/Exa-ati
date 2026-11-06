@@ -15,6 +15,7 @@ import {
   MessageSquare,
   ShieldCheck,
   PlusCircle,
+  FileBadge,
   Receipt,
   Bell,
   Settings,
@@ -94,6 +95,14 @@ const navGroups: NavGroup[] = [
         module: "emitir",
         roles: ["SUPERADMIN", "ADMIN"],
         icon: <PlusCircle className="w-[17px] h-[17px]" strokeWidth={1.8} />,
+      },
+      {
+        kind: "link",
+        href: "/autorizaciones",
+        label: "Autorizaciones",
+        module: "emitir",
+        roles: ["SUPERADMIN", "ADMIN"],
+        icon: <FileBadge className="w-[17px] h-[17px]" strokeWidth={1.8} />,
       },
       {
         kind: "link",

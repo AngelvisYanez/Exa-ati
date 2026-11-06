@@ -345,7 +345,7 @@ export const sriClient = {
     return response.text();
   },
 
-  async emitirGeneral(data: { tipo: string; emisorRuc: string; ambiente?: string; datos: any }) {
+  async emitirGeneral(data: { tipo: string; emisorRuc: string; ambiente?: string; serie?: string; datos: any }) {
     return request('/sri/emitir', {
       method: 'POST',
       body: JSON.stringify(data),

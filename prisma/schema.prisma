@@ -73,6 +73,7 @@ model Tenant {
   transportistas     Transportista[]
   reportesFiscales   ReporteFiscal[]
   productos          Producto[]
+  categoriasProducto CategoriaProducto[]
   controlMensual     ControlTributarioMensual[]
   resumenIr          ResumenIR[]
   planillasIess      PlanillaIESS[]
@@ -422,6 +423,23 @@ model Secuencial {
 }
 
 // ─────────────────────────────────────────────
+// ESTABLECIMIENTOS (código SRI y datos de la sucursal)
+// ─────────────────────────────────────────────
+model EstablecimientoEmisor {
+  emisorId  String   @map("emisor_id") @db.Uuid
+  codigo    String   @db.VarChar(3)
+  direccion String?  @db.VarChar(300)
+  ciudad    String?  @db.VarChar(120)
+  telefonos String?  @db.VarChar(120)
+  ambiente  String?  @db.VarChar(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@id([emisorId, codigo])
+  @@map("establecimientos_emisor")
+}
+
+// ─────────────────────────────────────────────
 // SCRAPING_JOBS
 // ─────────────────────────────────────────────
 model ScrapingJob {
@@ -671,19 +689,47 @@ model Producto {
   codigo         String   @db.VarChar(50)
   nombre         String   @db.VarChar(500)
   descripcion    String?  @db.Text
-  precioUnitario Decimal  @map("precio_unitario") @db.Decimal(10, 2)
+  precioUnitario Decimal  @map("precio_unitario") @db.Decimal(14, 6)
   ivaPorcentaje  Int      @default(15) @map("iva_porcentaje")
   stock          Decimal  @default(0) @db.Decimal(10, 2)
   activo         Boolean  @default(true)
+  categoriaId    String?  @map("categoria_id") @db.Uuid
+  tipo           String   @default("producto") @db.VarChar(10)
+  stockMinimo    Decimal  @default(0) @map("stock_minimo") @db.Decimal(10, 2)
+  unidad         String   @default("Unidad") @db.VarChar(20)
+  codigoBarras   String?  @map("codigo_barras") @db.VarChar(50)
+  visiblePos     Boolean  @default(true) @map("visible_pos")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   tenant     Tenant                 @relation(fields: [tenantId], references: [id])
+  categoria  CategoriaProducto?     @relation(fields: [categoriaId], references: [id], onDelete: SetNull)
   movimientos InventarioMovimiento[]
 
   @@unique([tenantId, codigo])
   @@index([tenantId, activo])
+  @@index([tenantId, categoriaId])
+  @@index([tenantId, codigoBarras])
   @@map("productos")
+}
+
+/// Unicidad del nombre por empresa sin distinguir mayúsculas: índice
+/// (tenant_id, LOWER(nombre)) creado en 017_catalogo_productos.sql.
+model CategoriaProducto {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  nombre    String   @db.VarChar(80)
+  color     Int      @default(0) @db.SmallInt
+  orden     Int      @default(0)
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productos Producto[]
+
+  @@index([tenantId, orden])
+  @@map("categorias_producto")
 }
 
 // ─────────────────────────────────────────────

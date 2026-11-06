@@ -14,6 +14,8 @@ import {
 } from '@/services/sri-api/cuentas';
 import { pickEncryptedCertPassword } from '@/lib/emisor-cert';
 import { forbiddenResponse, requireModule } from '@/services/sri-api/rbac';
+import { configEstablecimiento, registrarSecuencialUsado, tomarSiguienteSecuencial } from '@/services/sri-api/series-store';
+import { normalizarCodigoSerie, separarSerie } from '@/lib/series-comprobante';
 
 const BUILDERS: Record<string, (data: any) => string> = {
   '01': xmlBuilder.buildFactura.bind(xmlBuilder),
@@ -32,7 +34,7 @@ export async function POST(req: Request) {
     await requireModule(user, 'emitir');
     const body = await req.json();
 
-    const { tipo, emisorRuc, ambiente: ambienteOverride, datos } = body;
+    const { tipo, emisorRuc, ambiente: ambienteOverride, serie: seriePedida, puntoEmision: puntoPedido, datos } = body;
 
     if (!tipo || !emisorRuc || !datos) {
       return NextResponse.json(
@@ -65,18 +67,25 @@ export async function POST(req: Request) {
       );
     }
 
-    const ambiente = ambienteOverride || emisor.ambiente;
-
-    if (!ambiente) {
+    if (!emisor.establecimiento || !emisor.punto_emision) {
       return NextResponse.json(
-        { message: `El emisor ${emisorRuc} no tiene configurado el ambiente (1=Pruebas, 2=Producción)` },
+        { message: `El emisor ${emisorRuc} no tiene configurados establecimiento y punto de emisión` },
         { status: 400 }
       );
     }
 
-    if (!emisor.establecimiento || !emisor.punto_emision) {
+    const serieElegida = separarSerie(String(seriePedida ?? ''));
+    const establecimiento = serieElegida?.establecimiento || emisor.establecimiento.padStart(3, '0');
+    const puntoEmision = serieElegida?.puntoEmision
+      || normalizarCodigoSerie(String(puntoPedido ?? ''))
+      || emisor.punto_emision.padStart(3, '0');
+    const serie = `${establecimiento}-${puntoEmision}`;
+    const configEstab = await configEstablecimiento(emisor.id, establecimiento);
+    const ambiente = configEstab.ambiente || ambienteOverride || emisor.ambiente;
+
+    if (!ambiente) {
       return NextResponse.json(
-        { message: `El emisor ${emisorRuc} no tiene configurados establecimiento y punto de emisión` },
+        { message: `El emisor ${emisorRuc} no tiene configurado el ambiente (1=Pruebas, 2=Producción)` },
         { status: 400 }
       );
     }
@@ -98,9 +107,20 @@ export async function POST(req: Request) {
       );
     }
 
-    const secuencial = String(datos.secuencial || '1').padStart(9, '0');
-    const establecimiento = emisor.establecimiento.padStart(3, '0');
-    const puntoEmision = emisor.punto_emision.padStart(3, '0');
+    const destinoDireccion = tipo === '07' ? datos.infoCompRetencion : datos;
+    if (destinoDireccion && typeof destinoDireccion === 'object' && !String(destinoDireccion.dirEstablecimiento ?? '').trim()) {
+      if (configEstab.direccion) destinoDireccion.dirEstablecimiento = configEstab.direccion;
+    }
+    const pedido = String(datos.secuencial ?? '').trim();
+    const secuencial = pedido
+      ? pedido.padStart(9, '0')
+      : await tomarSiguienteSecuencial(emisor.id, tipo, serie);
+    if (pedido) {
+      const usado = Number(pedido.replace(/\D/g, ''));
+      if (Number.isInteger(usado) && usado > 0) {
+        await registrarSecuencialUsado(emisor.id, tipo, serie, usado);
+      }
+    }
 
     const claveAcceso = claveAccesoService.generate({
       fechaEmision: new Date(datos.fechaEmision),

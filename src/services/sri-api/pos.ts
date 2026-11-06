@@ -5,6 +5,7 @@ import { xmlStorage } from './xml-storage';
 import { sriSoapClient } from './sri-soap-client';
 import { claveAccesoService } from './clave-acceso';
 import { saveAutorizadoXml } from './comprobante-importer';
+import { catalogoDisponible } from './catalogo-productos';
 import { randomUUID } from 'crypto';
 
 export interface PosSaleItem {
@@ -289,11 +290,12 @@ export async function createPosInvoice(data: PosSaleData): Promise<{ claveAcceso
   }
 
   if (result.estado === 'AUTORIZADO' && emisor.tenant_id) {
+    const sinServicios = (await catalogoDisponible().catch(() => false)) ? " AND tipo <> 'servicio'" : '';
     for (const item of data.items) {
       try {
         const producto = await db.queryOne<{ id: string; stock: string }>(
           `SELECT id, stock FROM productos
-           WHERE tenant_id = $1 AND codigo = $2 AND activo = true`,
+           WHERE tenant_id = $1 AND codigo = $2 AND activo = true${sinServicios}`,
           [emisor.tenant_id, item.codigo]
         );
         if (!producto) continue;

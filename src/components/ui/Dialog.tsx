@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback, type ReactNode } from "react";
+import { useEffect, useRef, useCallback, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
 interface DialogProps {
@@ -12,6 +12,9 @@ interface DialogProps {
   size?: "sm" | "md" | "lg" | "xl" | "2xl";
   closeOnOverlay?: boolean;
   showClose?: boolean;
+  /** Elemento que recibe el foco al abrir; por defecto, el primero enfocable. */
+  initialFocusRef?: RefObject<HTMLElement | null>;
+  panelClassName?: string;
 }
 
 const sizeClasses: Record<string, string> = {
@@ -31,11 +34,18 @@ export default function Dialog({
   size = "md",
   closeOnOverlay = true,
   showClose = true,
+  initialFocusRef,
+  panelClassName = "",
 }: DialogProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
   const descId = description ? "dialog-description" : undefined;
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   const focusTrap = useCallback((e: KeyboardEvent) => {
     if (e.key !== "Tab" || !dialogRef.current) return;
@@ -58,17 +68,20 @@ export default function Dialog({
     if (!open) return;
     previousFocusRef.current = document.activeElement as HTMLElement;
     const timer = setTimeout(() => {
-      dialogRef.current?.querySelector<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      )?.focus();
+      const target =
+        initialFocusRef?.current ??
+        dialogRef.current?.querySelector<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+      target?.focus();
     }, 50);
     return () => clearTimeout(timer);
-  }, [open]);
+  }, [open, initialFocusRef]);
 
   useEffect(() => {
     if (!open) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && onClose) onClose();
+      if (e.key === "Escape") onCloseRef.current?.();
       focusTrap(e);
     };
     document.addEventListener("keydown", handleKey);
@@ -76,9 +89,12 @@ export default function Dialog({
     return () => {
       document.removeEventListener("keydown", handleKey);
       document.body.classList.remove("overflow-hidden");
+      // Solo al cerrar. Si esto dependiera de onClose, cada tecla
+      // recrearía el callback, rerenderizaría el diálogo y devolvería
+      // el foco al botón que lo abrió.
       previousFocusRef.current?.focus();
     };
-  }, [open, onClose, focusTrap]);
+  }, [open, focusTrap]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -96,7 +112,7 @@ export default function Dialog({
     >
       <div
         ref={dialogRef}
-        className={`bg-card border border-border rounded-2xl shadow-2xl w-full ${sizeClasses[size]} flex flex-col gap-4 text-left animate-scale-in`}
+        className={`bg-card border border-border rounded-2xl shadow-2xl w-full ${sizeClasses[size]} flex flex-col gap-4 text-left animate-scale-in ${panelClassName}`}
         onClick={(e) => e.stopPropagation()}
       >
         {!title && !showClose && (

@@ -42,6 +42,8 @@ const PG_FILES = [
   '013_emisor_logo.sql',
   '014_ride_disenos.sql',
   '015_cuentas_bancarias_suscripcion.sql',
+  '016_establecimientos_emisor.sql',
+  '017_catalogo_productos.sql',
 ];
 
 const MYSQL_FILES = [
@@ -53,6 +55,8 @@ const MYSQL_FILES = [
   'add_whatsapp_notif_columns_mysql.sql',
   '013_emisor_logo_mysql.sql',
   '014_ride_disenos_mysql.sql',
+  '016_establecimientos_emisor_mysql.sql',
+  '017_catalogo_productos_mysql.sql',
 ];
 
 const EXPECTED_TABLES = [

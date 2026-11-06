@@ -34,6 +34,21 @@
   --color-brand-gray-800: #2a2a28;
   --color-brand-gray-900: #1a1a18;
 
+  --color-pos-bg: #F5F4F2;
+  --color-pos-panel: #FAFAF9;
+  --color-pos-brand: #A3222A;
+  --color-pos-brand-hover: #8C1C23;
+  --color-pos-brand-soft: #FBEAEA;
+  --color-pos-ink: #1C1917;
+  --color-pos-ink-soft: #2E2E2E;
+  --color-pos-muted: #57534E;
+  --color-pos-line: #E7E5E4;
+  --color-pos-line-strong: #D6D3D1;
+  --color-pos-ok: #16A34A;
+  --color-pos-ok-bg: #F0FDF4;
+  --color-pos-warn: #9A3412;
+  --color-pos-warn-bg: #FFF7ED;
+
   --color-wa-green: #075E54;
   --color-wa-light: #25D366;
   --color-wa-bg: #ECE5DD;

@@ -12,6 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import FacturaEmitirForm from "@/components/emitir/FacturaEmitirForm";
+import PuntoEmisionSelect from "@/components/comprobantes/PuntoEmisionSelect";
+import { COD_IVA, FORMA_PAGO, buildFacturaDatos, calcTotal } from "@/components/emitir/factura-calculos";
 
 const TIPOS: ({ cod: string; label: string; desc: string; color: string; icon: React.ReactNode })[] = [
   { cod: '01', label: 'Factura', desc: 'Comprobante de venta', color: 'emerald',
@@ -43,25 +46,6 @@ const TIPOS_ID = [
   { value: '06', label: 'Pasaporte' },
   { value: '07', label: 'Consumidor Final' },
   { value: '08', label: 'Identificación del Exterior' },
-];
-
-const COD_IVA = [
-  { value: '2', label: 'IVA 15%', tarifa: 15 },
-  { value: '3', label: 'IVA 5%', tarifa: 5 },
-  { value: '0', label: '0%', tarifa: 0 },
-  { value: '6', label: 'No objeto IVA', tarifa: 0 },
-  { value: '7', label: 'Exento IVA', tarifa: 0 },
-];
-
-const FORMA_PAGO = [
-  { value: '01', label: 'Sin utilización del sistema financiero' },
-  { value: '15', label: 'Compensación de deudas' },
-  { value: '16', label: 'Tarjeta de débito' },
-  { value: '17', label: 'Dinero electrónico' },
-  { value: '18', label: 'Tarjeta prepago' },
-  { value: '19', label: 'Tarjeta de crédito' },
-  { value: '20', label: 'Otros con utilización del sistema financiero' },
-  { value: '21', label: 'Endoso de títulos' },
 ];
 
 const COD_RETENCION = [
@@ -120,18 +104,6 @@ function ivaCodeFromPorcentaje(porcentaje: number): string {
 
 const L = (v: any) => v ?? 0;
 
-function calcTotal(detalles: DetalleItem[]): { sinImp: number; desc: number; conIVA: number; total: number } {
-  let sinImp = 0, desc = 0, total = 0;
-  for (const d of detalles) {
-    const base = d.cantidad * d.precioUnitario;
-    sinImp += base - d.descuento;
-    desc += d.descuento;
-    const iva = COD_IVA.find(i => i.value === d.iva)?.tarifa || 0;
-    total += (base - d.descuento) * (1 + iva / 100);
-  }
-  return { sinImp: Number(sinImp.toFixed(2)), desc: Number(desc.toFixed(2)), conIVA: Number((total - sinImp).toFixed(2)), total: Number(total.toFixed(2)) };
-}
-
 export default function EmitirPage() {
   return (
     <Suspense
@@ -178,6 +150,7 @@ function EmitirPageContent() {
   const [fechaEmision, setFechaEmision] = useState(new Date().toISOString().split('T')[0]);
   const [emisorRuc, setEmisorRuc] = useState('');
   const [secuencial, setSecuencial] = useState('');
+  const [serieEmision, setSerieEmision] = useState('');
   const [tipoId, setTipoId] = useState('04');
   const [identificacion, setIdentificacion] = useState('');
   const [razonSocial, setRazonSocial] = useState('');
@@ -189,6 +162,7 @@ function EmitirPageContent() {
   const [propina, setPropina] = useState(0);
   const [formaPago, setFormaPago] = useState('01');
   const [plazo, setPlazo] = useState(0);
+  const [guardarCliente, setGuardarCliente] = useState(true);
 
   // NC/ND-specific
   const [docModTipo, setDocModTipo] = useState('01');
@@ -255,21 +229,19 @@ function EmitirPageContent() {
     const totalConImpuestos = Array.from(impuestoMap.values()).map((e: any) => ({ ...e, baseImponible: Number(e.baseImponible.toFixed(2)), valor: Number(e.valor.toFixed(2)) }));
 
     if (selectedTipo.cod === '01') {
-      return {
-        ...base,
-        emailComprador: email || undefined,
-        totalSinImpuestos: totales.sinImp,
-        totalDescuento: totales.desc,
-        importeTotal: totales.total,
-        propina: propina || undefined,
-        totalConImpuestos,
-        pagos: [{ formaPago: formaPago, total: totales.total, ...(plazo > 0 ? { plazo, unidadTiempo: 'dias' } : {}) }],
-        detalles: detalles.map(d => ({
-          codigoPrincipal: d.codigoPrincipal, descripcion: d.descripcion, cantidad: d.cantidad, precioUnitario: d.precioUnitario, descuento: d.descuento,
-          precioTotalSinImpuesto: d.cantidad * d.precioUnitario - d.descuento,
-          impuestos: [{ codigo: '2', codigoPorcentaje: d.iva, tarifa: COD_IVA.find(i => i.value === d.iva)?.tarifa || 0, baseImponible: d.cantidad * d.precioUnitario - d.descuento, valor: ((d.cantidad * d.precioUnitario - d.descuento) * (COD_IVA.find(i => i.value === d.iva)?.tarifa || 0) / 100) }],
-        })),
-      };
+      return buildFacturaDatos({
+        fechaEmision,
+        secuencial,
+        tipoId,
+        identificacion,
+        razonSocial,
+        direccion,
+        email,
+        detalles,
+        propina,
+        formaPago,
+        plazo,
+      });
     }
 
     if (selectedTipo.cod === '04') {
@@ -387,7 +359,7 @@ function EmitirPageContent() {
         setAmbiente(list[0].ambiente || '2');
       }
     }).catch(() => {}).finally(() => setLoadingEmisores(false));
-    apiFetch('/api/comercio/productos?activo=true')
+    apiFetch('/api/ecommerce/productos?activo=true')
       .then(res => res.json())
       .then(data => { if (Array.isArray(data.data)) setProductos(data.data); })
       .catch(() => {});
@@ -461,8 +433,14 @@ function EmitirPageContent() {
     setEmitiendo(true);
     setResultado(null);
     try {
-      await guardarContactoSiNuevo();
-      const res = await sriClient.emitirGeneral({ tipo: selectedTipo.cod, emisorRuc, ambiente, datos: buildDatos() });
+      if (!(t === '01' && !guardarCliente)) await guardarContactoSiNuevo();
+      const res = await sriClient.emitirGeneral({
+        tipo: selectedTipo.cod,
+        emisorRuc,
+        ambiente,
+        serie: serieEmision || undefined,
+        datos: buildDatos(),
+      });
       setResultado(res);
       if (res.requierePolling) toast.info(`Enviado al SRI. Clave: ${res.claveAcceso}. El sistema lo consultará automáticamente.`);
       else if (res.estado === 'AUTORIZADO') toast.success(`AUTORIZADO · Nro: ${res.numeroAutorizacion}`);
@@ -476,6 +454,75 @@ function EmitirPageContent() {
 
   const t = selectedTipo.cod;
   const totales = t === '01' || t === '03' || t === '04' ? calcTotal(detalles) : null;
+
+  if (t === '01') {
+    return (
+      <>
+        <title>Nueva factura - OFSERCONT IA</title>
+        <Topbar title="Nueva factura" />
+        <FacturaEmitirForm
+          emisores={emisores}
+          loadingEmisores={loadingEmisores}
+          emisorRuc={emisorRuc}
+          onEmisorRuc={(ruc) => {
+            const sel = emisores.find((em) => em.ruc === ruc);
+            setEmisorRuc(ruc);
+            if (sel?.ambiente) setAmbiente(sel.ambiente);
+          }}
+          fechaEmision={fechaEmision}
+          onFechaEmision={setFechaEmision}
+          secuencial={secuencial}
+          onSecuencial={setSecuencial}
+          serieEmision={serieEmision}
+          onSerieEmision={setSerieEmision}
+          ambiente={ambiente}
+          onAmbiente={setAmbiente}
+          contactos={contactos}
+          onSeleccionarContacto={seleccionarContacto}
+          tipoId={tipoId}
+          onTipoId={setTipoId}
+          identificacion={identificacion}
+          onIdentificacion={setIdentificacion}
+          razonSocial={razonSocial}
+          onRazonSocial={setRazonSocial}
+          email={email}
+          onEmail={setEmail}
+          guardarCliente={guardarCliente}
+          onGuardarCliente={setGuardarCliente}
+          productos={productos}
+          detalles={detalles}
+          onDetalles={setDetalles}
+          onSeleccionarProducto={seleccionarProducto}
+          onAgregarLinea={agregarDetalle}
+          onEliminarLinea={eliminarDetalle}
+          formaPago={formaPago}
+          onFormaPago={setFormaPago}
+          plazo={plazo}
+          onPlazo={setPlazo}
+          propina={propina}
+          onPropina={setPropina}
+          emitiendo={emitiendo}
+          resultado={resultado}
+          onEmitir={handleEmitir}
+          onOtra={() => {
+            setResultado(null);
+            setTipoId('04');
+            setIdentificacion('');
+            setRazonSocial('');
+            setDireccion('');
+            setEmail('');
+            setSecuencial('');
+            setDetalles([{ codigoPrincipal: '', descripcion: '', cantidad: 1, precioUnitario: 0, descuento: 0, iva: '2' }]);
+            setPropina(0);
+            setFormaPago('01');
+            setPlazo(0);
+            setGuardarCliente(true);
+          }}
+          onCambiarTipo={() => { setSelectedTipo(null); setResultado(null); }}
+        />
+      </>
+    );
+  }
 
   return (
     <>
@@ -506,23 +553,26 @@ function EmitirPageContent() {
               )}
             </div>
             <div className="flex flex-col gap-1.5"><Label>Fecha Emisión *</Label><Input type="date" value={fechaEmision} onChange={e => setFechaEmision(e.target.value)} /></div>
-            <div className="flex flex-col gap-1.5"><Label>Secuencial (opcional)</Label><Input value={secuencial} onChange={e => setSecuencial(e.target.value)} placeholder="Auto si vacío" /></div>
+            <div className="flex flex-col gap-1.5"><Label>Número de esta emisión (opcional)</Label><Input value={secuencial} onChange={e => setSecuencial(e.target.value.replace(/\D/g, "").slice(0, 9))} placeholder="Vacío = el siguiente de la serie" /></div>
             <div className="flex flex-col gap-1.5"><Label>Moneda</Label><Input value="USD" disabled className="text-brand-gray-400" /></div>
           </div>
+
+          <PuntoEmisionSelect
+            ruc={emisorRuc}
+            tipo={t}
+            serie={serieEmision}
+            onSerieChange={setSerieEmision}
+            onSerieInfo={(info) => { if (info) setAmbiente(info.ambiente); }}
+            refresco={resultado?.claveAcceso}
+          />
 
           {/* === AMBIENTE === */}
           <div className="flex items-center gap-4 p-3 bg-brand-gray-50 rounded-lg border">
             <span className="text-xs font-bold uppercase text-brand-gray-500">Ambiente</span>
-            <div className="flex gap-1">
-              <button type="button" onClick={() => setAmbiente('1')}
-                className={`px-4 py-1.5 text-xs rounded-md border transition-all cursor-pointer ${ambiente === '1' ? 'bg-amber-100 border-amber-400 text-amber-800 font-semibold' : 'bg-white border-brand-gray-200 text-brand-gray-500 hover:bg-brand-gray-50'}`}>
-                Pruebas
-              </button>
-              <button type="button" onClick={() => setAmbiente('2')}
-                className={`px-4 py-1.5 text-xs rounded-md border transition-all cursor-pointer ${ambiente === '2' ? 'bg-success-pale border-success-light text-success font-semibold' : 'bg-white border-brand-gray-200 text-brand-gray-500 hover:bg-brand-gray-50'}`}>
-                Producción
-              </button>
-            </div>
+            <span className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs rounded-md border font-semibold ${ambiente === '2' ? 'bg-success-pale border-success-light text-success' : 'bg-amber-100 border-amber-400 text-amber-800'}`}>
+              {ambiente === '2' ? 'Producción' : 'Pruebas'}
+            </span>
+            <span className="text-xs text-brand-gray-500">Configurado en el establecimiento elegido (Autorizaciones).</span>
           </div>
 
           {/* === RECEPTOR / PROVEEDOR / SUJETO RETENIDO === */}

@@ -1,160 +1,333 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { FileText } from "lucide-react";
 import Topbar from "@/components/layout/Topbar";
+import { EmptyState } from "@/components/ui/EmptyState";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { sriClient } from "@/lib/sriClient";
-import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { apiFetch } from "@/lib/apiFetch";
+import PosHeader, { type EmisorPos } from "./_components/PosHeader";
+import Catalogo, { filtrarProductos } from "./_components/Catalogo";
+import TicketCliente from "./_components/TicketCliente";
+import TicketLineas from "./_components/TicketLineas";
+import TicketCobro, { type MotivoBloqueo } from "./_components/TicketCobro";
+import ClienteDialog from "./_components/ClienteDialog";
+import CobroDialog, { type ResultadoVenta } from "./_components/CobroDialog";
+import { posFont } from "./_lib/pos-font";
+import { LIMITE_CONSUMIDOR_FINAL, type FormaPagoCodigo } from "./_lib/pos-config";
 import {
-  Plus, Trash2, Calculator, CreditCard, Banknote,
-  Smartphone, Search, User, FileText, CheckCircle, XCircle
-} from "lucide-react";
+  agregarProducto,
+  calcularTotalesTicket,
+  camposFaltantes,
+  construirPayloadPos,
+  contarArticulos,
+  formatoUSD,
+  normalizarCliente,
+  numeroFacturaDesdeClave,
+  productoDesdeApi,
+  tipoIdentificacionDe,
+  type ClienteDatos,
+  type LineaTicket,
+  type ProductoPos,
+} from "./_lib/pos-calc";
 
-const TIPOS_ID = [
-  { value: '04', label: 'RUC' },
-  { value: '05', label: 'Cédula' },
-  { value: '06', label: 'Pasaporte' },
-  { value: '07', label: 'Consumidor Final' },
-  { value: '08', label: 'Identificación del Exterior' },
-];
-
-const FORMAS_PAGO_POS = [
-  { value: '01', label: 'Efectivo', icon: Banknote, color: 'success' },
-  { value: '19', label: 'Tarjeta', icon: CreditCard, color: 'sky' },
-  { value: '20', label: 'Transferencia', icon: Smartphone, color: 'brand' },
-];
-
-interface LineItem {
-  id: string;
-  codigo: string;
-  descripcion: string;
-  cantidad: number;
-  precioUnitario: number;
-  ivaPorcentaje: number;
-  descuento: number;
+function esEditable(el: EventTarget | null): boolean {
+  return (
+    el instanceof HTMLInputElement ||
+    el instanceof HTMLTextAreaElement ||
+    el instanceof HTMLSelectElement ||
+    (el instanceof HTMLElement && el.isContentEditable)
+  );
 }
 
-function createItem(): LineItem {
-  return { id: crypto.randomUUID(), codigo: '', descripcion: '', cantidad: 1, precioUnitario: 0, ivaPorcentaje: 15, descuento: 0 };
+/** En pantallas táctiles no se fuerza el foco: abriría el teclado virtual en cada toque. */
+function punteroFino(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches;
 }
 
-function calcTotals(items: LineItem[], propina: number) {
-  let subtotal = 0;
-  let descTotal = 0;
-  let ivaTotal = 0;
-  for (const item of items) {
-    const base = item.cantidad * item.precioUnitario;
-    const desc = item.descuento || 0;
-    const neto = base - desc;
-    subtotal += neto;
-    descTotal += desc;
-    ivaTotal += neto * item.ivaPorcentaje / 100;
-  }
-  return {
-    subtotal: Number(subtotal.toFixed(2)),
-    descuentos: Number(descTotal.toFixed(2)),
-    iva: Number(ivaTotal.toFixed(2)),
-    total: Number((subtotal + ivaTotal + propina).toFixed(2)),
-  };
-}
+const MENSAJE_BLOQUEO: Record<Exclude<MotivoBloqueo, null>, string> = {
+  vacio: "Agrega al menos un producto",
+  emisor: "Selecciona un emisor",
+  cliente: "Completa los datos del cliente",
+  limiteCF: `Supera ${formatoUSD(LIMITE_CONSUMIDOR_FINAL)}: el SRI exige los datos del cliente`,
+};
 
 export default function PosPage() {
   const { hasSriLinked } = useAuth();
-  const [emisores, setEmisores] = useState<any[]>([]);
-  const [emisorId, setEmisorId] = useState('');
-  const [items, setItems] = useState<LineItem[]>([createItem()]);
+  const [emisores, setEmisores] = useState<EmisorPos[]>([]);
+  const [emisorId, setEmisorId] = useState("");
+  const [productos, setProductos] = useState<ProductoPos[]>([]);
+  const [cargandoProductos, setCargandoProductos] = useState(true);
+  const [errorProductos, setErrorProductos] = useState<string | null>(null);
+
+  const [query, setQuery] = useState("");
+  const [lineas, setLineas] = useState<LineaTicket[]>([]);
+  const [cliente, setCliente] = useState<ClienteDatos | null>(null);
+  const [formaPago, setFormaPago] = useState<FormaPagoCodigo>("01");
   const [propina, setPropina] = useState(0);
-  const [formaPago, setFormaPago] = useState('01');
-  const [observaciones, setObservaciones] = useState('');
+  const [observaciones, setObservaciones] = useState("");
+
+  const [clienteAbierto, setClienteAbierto] = useState(false);
+  const [cobroAbierto, setCobroAbierto] = useState(false);
+  const [confirmarCancelar, setConfirmarCancelar] = useState(false);
   const [emitiendo, setEmitiendo] = useState(false);
-  const [resultado, setResultado] = useState<any>(null);
-  const [tipoId, setTipoId] = useState('07');
-  const [identificacion, setIdentificacion] = useState('');
-  const [razonSocial, setRazonSocial] = useState('');
-  const [clienteEmail, setClienteEmail] = useState('');
-  const [clienteDireccion, setClienteDireccion] = useState('');
+  const [resultado, setResultado] = useState<ResultadoVenta | null>(null);
+  /** Datos previos para reabrir "Con datos" tras pasar a consumidor final. */
+  const [ultimoCliente, setUltimoCliente] = useState<ClienteDatos | null>(null);
+
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!hasSriLinked) return;
-    sriClient.getEmisores().then((res: any) => {
+    sriClient.getEmisores().then((res: { emisores?: EmisorPos[] }) => {
       const list = res.emisores || [];
       setEmisores(list);
       if (list.length === 1) setEmisorId(list[0].id);
     }).catch(() => {});
+
+    apiFetch("/api/ecommerce/productos?activo=true&pos=true")
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || "No se pudo cargar el inventario");
+        setProductos((data.data as Record<string, unknown>[]).map(productoDesdeApi));
+      })
+      .catch((e: Error) => setErrorProductos(e.message || "No se pudo cargar el inventario"))
+      .finally(() => setCargandoProductos(false));
   }, [hasSriLinked]);
 
-  function addItem() { setItems([...items, createItem()]); }
-  function removeItem(id: string) { if (items.length > 1) setItems(items.filter(i => i.id !== id)); }
-  function updateItem(id: string, field: keyof LineItem, value: any) {
-    setItems(items.map(i => i.id === id ? { ...i, [field]: value } : i));
+  const totales = useMemo(() => calcularTotalesTicket(lineas, propina), [lineas, propina]);
+  const articulos = contarArticulos(lineas);
+  const cantidades = useMemo(() => new Map(lineas.map((l) => [l.id, l.cantidad])), [lineas]);
+  const excedeLimiteCF = cliente === null && totales.total > LIMITE_CONSUMIDOR_FINAL;
+  const bloqueo: MotivoBloqueo =
+    lineas.length === 0 ? "vacio"
+      : !emisorId ? "emisor"
+        : cliente && camposFaltantes(cliente).length > 0 ? "cliente"
+          : excedeLimiteCF ? "limiteCF"
+            : null;
+
+  const enfocarBuscador = useCallback((forzar = false) => {
+    if (!forzar && !punteroFino()) return;
+    setTimeout(() => searchRef.current?.focus({ preventScroll: true }), 0);
+  }, []);
+
+  /* ---------- Ticket ---------- */
+
+  const agregar = useCallback((p: ProductoPos) => {
+    setLineas((ls) => agregarProducto(ls, p));
+    enfocarBuscador();
+  }, [enfocarBuscador]);
+
+  function agregarDesdeBuscador(valor: string) {
+    const t = valor.trim();
+    if (!t) return;
+    const exacto = productos.find((p) => p.codigo.toLowerCase() === t.toLowerCase());
+    const p = exacto ?? filtrarProductos(productos, t)[0];
+    setQuery("");
+    if (p) setLineas((ls) => agregarProducto(ls, p));
+    else toast.error(`No se encontró «${t}»`);
   }
 
-  function setClienteConsumidorFinal() {
-    setTipoId('07');
-    setIdentificacion('9999999999999');
-    setRazonSocial('CONSUMIDOR FINAL');
-    setClienteEmail('');
-    setClienteDireccion('');
+  const cambiarCantidad = useCallback((id: string, cantidad: number) => {
+    setLineas((ls) => ls.map((l) => (l.id === id ? { ...l, cantidad } : l)));
+  }, []);
+  const cambiarDescuento = useCallback((id: string, descuento: number) => {
+    setLineas((ls) => ls.map((l) => (l.id === id ? { ...l, descuento } : l)));
+  }, []);
+  const quitar = useCallback((id: string) => {
+    setLineas((ls) => ls.filter((l) => l.id !== id));
+    enfocarBuscador();
+  }, [enfocarBuscador]);
+
+  function limpiarVenta() {
+    setLineas([]);
+    setCliente(null);
+    setUltimoCliente(null);
+    setFormaPago("01");
+    setPropina(0);
+    setObservaciones("");
+    setQuery("");
+    setResultado(null);
+    setCobroAbierto(false);
+    setConfirmarCancelar(false);
+    enfocarBuscador(true);
   }
 
-  const totales = calcTotals(items, propina);
+  function cancelarVenta() {
+    if (lineas.length > 0) setConfirmarCancelar(true);
+    else limpiarVenta();
+  }
 
-  async function handleEmitir() {
-    if (!emisorId) { toast.error('Selecciona un emisor'); return; }
-    if (items.some(i => !i.codigo || !i.descripcion || i.precioUnitario <= 0)) {
-      toast.error('Completa todos los items con código, descripción y precio');
+  /* ---------- Cliente ---------- */
+
+  function usarConsumidorFinal() {
+    if (cliente) setUltimoCliente(cliente);
+    setCliente(null);
+    setClienteAbierto(false);
+    enfocarBuscador();
+  }
+
+  function cerrarCliente(borrador: ClienteDatos) {
+    const vacio = Object.values(borrador).every((v) => !v.trim());
+    setCliente(vacio ? null : borrador);
+    setClienteAbierto(false);
+    enfocarBuscador();
+  }
+
+  function guardarCliente(c: ClienteDatos, esNuevo: boolean) {
+    const n = normalizarCliente(c);
+    setCliente(n);
+    setClienteAbierto(false);
+    enfocarBuscador();
+    if (!esNuevo) return;
+    apiFetch("/api/contactos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tipoIdentificacion: tipoIdentificacionDe(n.identificacion),
+        identificacion: n.identificacion,
+        razonSocial: n.razonSocial,
+        email: n.email,
+        direccion: n.direccion,
+        telefono: n.telefono || undefined,
+        esCliente: true,
+        esProveedor: false,
+      }),
+    })
+      .then((res) => { if (res.ok) toast.success("Cliente guardado en contactos"); })
+      .catch(() => {});
+  }
+
+  /* ---------- Cobro ---------- */
+
+  function abrirCobro() {
+    if (bloqueo === null) {
+      setCobroAbierto(true);
+      return;
+    }
+    toast.error(MENSAJE_BLOQUEO[bloqueo]);
+    if (bloqueo === "cliente") setClienteAbierto(true);
+  }
+
+  async function consultarEstado(claveAcceso: string) {
+    let estado = "PENDIENTE";
+    let numeroAutorizacion: string | null = null;
+    try {
+      const res = await apiFetch(`/api/sri/pos?limit=20&search=${claveAcceso.slice(30, 39)}`);
+      const data = await res.json();
+      const row = (data.data as { clave_acceso: string; estado: string; numero_autorizacion: string | null }[] | undefined)
+        ?.find((v) => v.clave_acceso === claveAcceso);
+      if (row) {
+        estado = row.estado;
+        numeroAutorizacion = row.numero_autorizacion;
+      }
+    } catch {}
+    setResultado((r) => (r && r.claveAcceso === claveAcceso ? { ...r, estado, numeroAutorizacion } : r));
+  }
+
+  async function emitir(vuelto: number) {
+    if (bloqueo !== null) {
+      toast.error(MENSAJE_BLOQUEO[bloqueo]);
+      return;
+    }
+    if (lineas.some((i) => !i.codigo || !i.descripcion || i.precioUnitario <= 0)) {
+      toast.error("Hay productos sin código, descripción o precio");
       return;
     }
 
     setEmitiendo(true);
-    setResultado(null);
     try {
-      const res = await apiFetch('/api/sri/pos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('sri_access_token')}` },
-        body: JSON.stringify({
-          emisorId,
-          items: items.map(i => ({
-            codigo: i.codigo,
-            descripcion: i.descripcion,
-            cantidad: i.cantidad,
-            precioUnitario: i.precioUnitario,
-            ivaPorcentaje: i.ivaPorcentaje,
-            descuento: i.descuento,
-          })),
-          formaPago,
-          propina: propina > 0 ? propina : undefined,
-          observaciones: observaciones || undefined,
-          cliente: tipoId === '07' && identificacion === '9999999999999'
-            ? undefined
-            : { tipoIdentificacion: tipoId, identificacion, razonSocial, email: clienteEmail || undefined, direccion: clienteDireccion || undefined },
-        }),
+      const res = await apiFetch("/api/sri/pos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("sri_access_token")}` },
+        body: JSON.stringify(construirPayloadPos({ emisorId, lineas, formaPago, propina, observaciones, cliente })),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      setResultado(data);
-      toast.success(`Factura POS emitida · Clave: ${data.claveAcceso}`);
-    } catch (err: any) {
-      toast.error(err.message || 'Error al emitir factura POS');
+      setResultado({
+        claveAcceso: data.claveAcceso,
+        numero: numeroFacturaDesdeClave(data.claveAcceso),
+        total: totales.total,
+        vuelto,
+        estado: null,
+        numeroAutorizacion: null,
+      });
+      void consultarEstado(data.claveAcceso);
+    } catch (err) {
+      toast.error((err as Error).message || "Error al emitir factura POS");
     } finally {
       setEmitiendo(false);
     }
   }
 
-  function handleNuevaVenta() {
-    setItems([createItem()]);
-    setPropina(0);
-    setObservaciones('');
-    setResultado(null);
-    setClienteConsumidorFinal();
+  async function imprimir() {
+    if (!resultado) return;
+    const ventana = window.open("", "_blank");
+    try {
+      const res = await apiFetch(`/api/sri/comprobantes/${resultado.claveAcceso}/pdf`);
+      if (!res.ok) throw new Error();
+      const url = URL.createObjectURL(await res.blob());
+      if (ventana) ventana.location.href = url;
+      else window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      ventana?.close();
+      toast.error("El RIDE aún no está disponible; búscalo luego en Ventas del día");
+    }
   }
+
+  /* ---------- Atajos ---------- */
+
+  const modalAbierto = clienteAbierto || cobroAbierto || confirmarCancelar;
+
+  const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
+    if (modalAbierto) return;
+    const enBuscador = e.target === searchRef.current;
+
+    switch (e.key) {
+      case "F2":
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+        return;
+      case "F4":
+        e.preventDefault();
+        setClienteAbierto(true);
+        return;
+      case "F9":
+        e.preventDefault();
+        abrirCobro();
+        return;
+      case "Escape":
+        if (esEditable(e.target) && !enBuscador) {
+          (e.target as HTMLElement).blur();
+          searchRef.current?.focus();
+          return;
+        }
+        if (enBuscador && query) {
+          setQuery("");
+          return;
+        }
+        cancelarVenta();
+        return;
+    }
+
+    // Un lector de código de barras "teclea": si el foco quedó en un botón, redirigir al buscador.
+    if (e.key.length === 1 && e.key !== " " && !e.ctrlKey && !e.metaKey && !e.altKey && !esEditable(e.target)) {
+      e.preventDefault();
+      setQuery((q) => q + e.key);
+      searchRef.current?.focus();
+    }
+  });
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => onKeyDown(e);
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
   if (!hasSriLinked) {
     return (
@@ -174,207 +347,93 @@ export default function PosPage() {
   return (
     <>
       <title>POS - EXA ATI</title>
-      <Topbar title="Punto de Venta (POS)" />
-      <main className="ui-page flex-1">
-        {resultado ? (
-          <Card className="p-6 max-w-lg text-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="size-14 rounded-full bg-success-pale flex items-center justify-center">
-                <CheckCircle className="size-8 text-success" />
-              </div>
-              <h2 className="text-lg font-bold text-success">Factura Emitida</h2>
-              <div className="bg-brand-gray-50 rounded-lg p-4 w-full text-left font-mono text-xs space-y-1">
-                <p><span className="text-brand-gray-500">Clave:</span> <strong>{resultado.claveAcceso}</strong></p>
-                <p><span className="text-brand-gray-500">Total:</span> <strong>${totales.total.toFixed(2)}</strong></p>
-                <p><span className="text-brand-gray-500">Items:</span> <strong>{items.length}</strong></p>
-              </div>
-              <Button onClick={handleNuevaVenta} className="bg-brand-red hover:bg-brand-red-bright text-white">
-                Nueva Venta
-              </Button>
-            </div>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-            <div className="xl:col-span-2 flex flex-col gap-4">
-              <Card className="p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold uppercase text-brand-gray-500 tracking-wider flex items-center gap-2">
-                    <FileText className="w-4 h-4" /> Items
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    {emisores.length > 0 && (
-                      <select value={emisorId} onChange={e => setEmisorId(e.target.value)}
-                        className="h-7 text-xs rounded-lg border border-input bg-transparent px-2">
-                        <option value="">Seleccionar emisor...</option>
-                        {emisores.map(em => (
-                          <option key={em.id} value={em.id}>{em.ruc} — {em.razonSocial}</option>
-                        ))}
-                      </select>
-                    )}
-                    <Button variant="outline" size="xs" onClick={addItem} className="flex items-center gap-1">
-                      <Plus className="w-3 h-3" /> Agregar
-                    </Button>
-                  </div>
-                </div>
+      <div className={`${posFont.className} flex min-h-dvh flex-col bg-pos-bg text-pos-ink lg:h-dvh lg:overflow-hidden`}>
+        <PosHeader emisores={emisores} emisorId={emisorId} onEmisorChange={setEmisorId} />
 
-                <div className="hidden md:grid grid-cols-12 gap-2 text-[10px] font-bold uppercase text-brand-gray-400 mb-2 px-2">
-                  <div className="col-span-2">Código</div>
-                  <div className="col-span-4">Descripción</div>
-                  <div className="col-span-1 text-right">Cant.</div>
-                  <div className="col-span-1 text-right">P.Unit</div>
-                  <div className="col-span-1 text-right">Desc.</div>
-                  <div className="col-span-1 text-center">IVA%</div>
-                  <div className="col-span-1 text-right">Total</div>
-                  <div className="col-span-1"></div>
-                </div>
+        <main className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          <Catalogo
+            productos={productos}
+            cargando={cargandoProductos}
+            error={errorProductos}
+            cantidades={cantidades}
+            query={query}
+            onQueryChange={setQuery}
+            onEnter={agregarDesdeBuscador}
+            onAgregar={agregar}
+            searchRef={searchRef}
+          />
 
-                {items.map((item) => {
-                  const totalItem = item.cantidad * item.precioUnitario - (item.descuento || 0);
-                  return (
-                    <div key={item.id} className="grid grid-cols-12 gap-1.5 mb-1.5 items-center bg-brand-gray-50 rounded-lg p-2">
-                      <div className="col-span-3 md:col-span-2">
-                        <Input size={1} value={item.codigo} onChange={e => updateItem(item.id, 'codigo', e.target.value)}
-                          placeholder="Código" className="h-7 text-xs" />
-                      </div>
-                      <div className="col-span-5 md:col-span-4">
-                        <Input size={1} value={item.descripcion} onChange={e => updateItem(item.id, 'descripcion', e.target.value)}
-                          placeholder="Descripción" className="h-7 text-xs" />
-                      </div>
-                      <div className="col-span-1">
-                        <Input type="number" size={1} value={item.cantidad} onChange={e => updateItem(item.id, 'cantidad', parseFloat(e.target.value) || 0)}
-                          className="h-7 text-xs text-right" min={0} step={1} />
-                      </div>
-                      <div className="col-span-1">
-                        <Input type="number" size={1} value={item.precioUnitario} onChange={e => updateItem(item.id, 'precioUnitario', parseFloat(e.target.value) || 0)}
-                          className="h-7 text-xs text-right" min={0} step={0.01} />
-                      </div>
-                      <div className="col-span-1 hidden md:block">
-                        <Input type="number" size={1} value={item.descuento} onChange={e => updateItem(item.id, 'descuento', parseFloat(e.target.value) || 0)}
-                          className="h-7 text-xs text-right" min={0} step={0.01} />
-                      </div>
-                      <div className="col-span-1">
-                        <select value={item.ivaPorcentaje} onChange={e => updateItem(item.id, 'ivaPorcentaje', parseInt(e.target.value))}
-                          className="h-7 text-xs rounded-lg border border-input bg-transparent px-1 w-full">
-                          <option value={0}>0%</option>
-                          <option value={5}>5%</option>
-                          <option value={12}>12%</option>
-                          <option value={15}>15%</option>
-                        </select>
-                      </div>
-                      <div className="col-span-1 text-xs font-mono font-bold text-right pr-1">
-                        ${totalItem.toFixed(2)}
-                      </div>
-                      <div className="col-span-1 flex justify-end">
-                        <Button variant="destructive" size="xs" onClick={() => removeItem(item.id)} disabled={items.length <= 1}>
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </Card>
+          <aside
+            aria-label="Ticket de venta"
+            className="flex flex-col border-t border-pos-line bg-white lg:min-h-0 lg:w-[360px] lg:shrink-0 xl:w-[420px] lg:border-l lg:border-t-0"
+          >
+            <TicketCliente
+              cliente={cliente}
+              onConsumidorFinal={usarConsumidorFinal}
+              onConDatos={() => setClienteAbierto(true)}
+            />
+            <TicketLineas
+              lineas={lineas}
+              onCantidad={cambiarCantidad}
+              onDescuento={cambiarDescuento}
+              onQuitar={quitar}
+            />
+            <TicketCobro
+              totales={totales}
+              propina={propina}
+              articulos={articulos}
+              formaPago={formaPago}
+              onFormaPago={setFormaPago}
+              bloqueo={bloqueo}
+              onCobrar={abrirCobro}
+              onCancelar={cancelarVenta}
+              onConDatos={() => setClienteAbierto(true)}
+            />
+          </aside>
+        </main>
+      </div>
 
-              <Card className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <User className="w-4 h-4 text-brand-gray-400" />
-                  <h3 className="text-sm font-bold uppercase text-brand-gray-500 tracking-wider">Cliente</h3>
-                  <button onClick={setClienteConsumidorFinal}
-                    className="ml-auto text-xs text-brand-gray-400 hover:text-brand-gray-600 underline cursor-pointer">
-                    Consumidor Final
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div>
-                    <Label className="text-[10px]">Tipo ID</Label>
-                    <select value={tipoId} onChange={e => setTipoId(e.target.value)}
-                      className="h-7 text-xs rounded-lg border border-input bg-transparent px-2 w-full">
-                      {TIPOS_ID.map(ti => <option key={ti.value} value={ti.value}>{ti.label}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-[10px]">Identificación</Label>
-                    <Input size={1} value={identificacion} onChange={e => setIdentificacion(e.target.value)} className="h-7 text-xs" />
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-[10px]">Razón Social</Label>
-                    <Input size={1} value={razonSocial} onChange={e => setRazonSocial(e.target.value)} className="h-7 text-xs" />
-                  </div>
-                  <div>
-                    <Label className="text-[10px]">Email</Label>
-                    <Input type="email" size={1} value={clienteEmail} onChange={e => setClienteEmail(e.target.value)} className="h-7 text-xs" />
-                  </div>
-                  <div>
-                    <Label className="text-[10px]">Dirección</Label>
-                    <Input size={1} value={clienteDireccion} onChange={e => setClienteDireccion(e.target.value)} className="h-7 text-xs" />
-                  </div>
-                </div>
-              </Card>
-            </div>
+      <ClienteDialog
+        open={clienteAbierto}
+        inicial={cliente ?? ultimoCliente}
+        onCerrar={cerrarCliente}
+        onGuardar={guardarCliente}
+        onConsumidorFinal={usarConsumidorFinal}
+      />
 
-            <div className="flex flex-col gap-4">
-              <Card className="p-4">
-                <h3 className="text-sm font-bold uppercase text-brand-gray-500 tracking-wider mb-3 flex items-center gap-2">
-                  <Calculator className="w-4 h-4" /> Totales
-                </h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between text-brand-gray-600">
-                    <span>Subtotal</span>
-                    <span className="font-mono font-bold">${totales.subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-brand-gray-600">
-                    <span>Descuentos</span>
-                    <span className="font-mono font-bold text-red-500">-${totales.descuentos.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-brand-gray-600">
-                    <span>IVA {items[0]?.ivaPorcentaje || 0}%</span>
-                    <span className="font-mono font-bold">${totales.iva.toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-brand-gray-600 text-xs">Propina</span>
-                    <Input type="number" value={propina} onChange={e => setPropina(parseFloat(e.target.value) || 0)}
-                      className="h-7 text-xs w-24 ml-auto text-right" min={0} step={0.25} />
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between text-base font-bold text-brand-gray-900">
-                    <span>TOTAL</span>
-                    <span className="font-mono">${totales.total.toFixed(2)}</span>
-                  </div>
-                </div>
-              </Card>
+      <CobroDialog
+        open={cobroAbierto}
+        total={totales.total}
+        formaPago={formaPago}
+        propina={propina}
+        onPropina={setPropina}
+        observaciones={observaciones}
+        onObservaciones={setObservaciones}
+        excedeLimiteCF={excedeLimiteCF}
+        emitiendo={emitiendo}
+        resultado={resultado}
+        onConfirmar={emitir}
+        onCerrar={() => {
+          setCobroAbierto(false);
+          enfocarBuscador();
+        }}
+        onNuevaVenta={limpiarVenta}
+        onImprimir={imprimir}
+      />
 
-              <Card className="p-4">
-                <h3 className="text-sm font-bold uppercase text-brand-gray-500 tracking-wider mb-3">Pago</h3>
-                <div className="grid grid-cols-3 gap-2">
-                  {FORMAS_PAGO_POS.map(fp => {
-                    const Icon = fp.icon;
-                    return (
-                      <button key={fp.value} onClick={() => setFormaPago(fp.value)}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all cursor-pointer
-                          ${formaPago === fp.value
-                            ? 'bg-brand-red text-white border-brand-red'
-                            : 'bg-white text-brand-gray-600 border-brand-gray-200 hover:border-brand-gray-300'}`}>
-                        <Icon className="w-5 h-5" />
-                        <span className="text-[10px] font-bold">{fp.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </Card>
-
-              <Card className="p-4">
-                <Label className="text-[10px]">Observaciones</Label>
-                <Input size={1} value={observaciones} onChange={e => setObservaciones(e.target.value)}
-                  className="h-7 text-xs mt-1" placeholder="Opcional" />
-              </Card>
-
-              <Button onClick={handleEmitir} disabled={emitiendo || !emisorId}
-                className="w-full bg-brand-red hover:bg-brand-red-bright text-white py-6 text-base font-bold">
-                {emitiendo ? 'Emitiendo...' : `Emitir Factura · $${totales.total.toFixed(2)}`}
-              </Button>
-            </div>
-          </div>
-        )}
-      </main>
+      <ConfirmDialog
+        open={confirmarCancelar}
+        title="¿Cancelar la venta?"
+        message={`Se quitarán ${lineas.length} ${lineas.length === 1 ? "producto" : "productos"} del ticket y los datos del cliente.`}
+        confirmLabel="Sí, cancelar venta"
+        cancelLabel="Seguir vendiendo"
+        variant="danger"
+        onConfirm={limpiarVenta}
+        onCancel={() => {
+          setConfirmarCancelar(false);
+          enfocarBuscador();
+        }}
+      />
     </>
   );
 }

@@ -127,7 +127,7 @@ export default function EcommerceFacturarPage() {
     setLoadingProds(true);
     try {
       const token = localStorage.getItem('sri_access_token');
-      const res = await apiFetch('/api/comercio/productos?activo=true', {
+      const res = await apiFetch('/api/ecommerce/productos?activo=true', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
