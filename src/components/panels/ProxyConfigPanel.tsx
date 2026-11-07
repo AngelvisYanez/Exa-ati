@@ -29,6 +29,8 @@ export default function ProxyConfigPanel() {
   const [testResults, setTestResults] = useState<Record<number, ProxyTestResult>>({});
   const [testingIds, setTestingIds] = useState<Set<number>>(new Set());
   const [testingAll, setTestingAll] = useState(false);
+  const [useProxy, setUseProxy] = useState<boolean | null>(null);
+  const [savingMode, setSavingMode] = useState(false);
 
   // Add Proxy Form
   const [host, setHost] = useState("");
@@ -56,7 +58,30 @@ export default function ProxyConfigPanel() {
 
   useEffect(() => {
     loadProxies();
+    fetch('/api/sri/scraping/proxy-mode')
+      .then(async res => { if (!res.ok) throw new Error(); return res.json(); })
+      .then(data => setUseProxy(data.useProxy))
+      .catch(() => toast.error('No se pudo cargar el modo de conexión al SRI'));
   }, [loadProxies]);
+
+  const handleProxyMode = async () => {
+    if (useProxy === null) return;
+    setSavingMode(true);
+    try {
+      const res = await fetch('/api/sri/scraping/proxy-mode', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ useProxy: !useProxy }),
+      });
+      if (!res.ok) throw new Error();
+      setUseProxy(!useProxy);
+      toast.success(useProxy ? 'Las próximas descargas usarán conexión directa' : 'Las próximas descargas usarán proxies');
+    } catch {
+      toast.error('No se pudo guardar el modo de conexión');
+    } finally {
+      setSavingMode(false);
+    }
+  };
 
   const handleAddProxy = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,6 +281,25 @@ export default function ProxyConfigPanel() {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Conexión para descargas del SRI</CardTitle>
+          <CardDescription>
+            Se aplica a los próximos trabajos filtrados por tipo de documento y rango de fechas. Los trabajos en curso conservan su modo de conexión.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4">
+          <div>
+            <Label htmlFor="scraping-proxy-mode">Usar proxy en las descargas</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              {useProxy === null ? 'Cargando modo de conexión...' : useProxy ? 'Activado: se usa el pool EC o Scrapeless si está configurado.' : 'Desactivado: Chrome se conecta directamente al SRI, sin proxy ni Scrapeless.'}
+            </p>
+          </div>
+          <input id="scraping-proxy-mode" type="checkbox" checked={useProxy ?? true}
+            onChange={handleProxyMode} disabled={useProxy === null || savingMode}
+            className="h-5 w-5 accent-brand-red" />
+        </CardContent>
+      </Card>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Server className="w-5 h-5 text-brand-red" />

@@ -44,6 +44,7 @@ const PG_FILES = [
   '015_cuentas_bancarias_suscripcion.sql',
   '016_establecimientos_emisor.sql',
   '017_catalogo_productos.sql',
+  '018_scraping_proxy_mode.sql',
 ];
 
 const MYSQL_FILES = [
@@ -57,6 +58,7 @@ const MYSQL_FILES = [
   '014_ride_disenos_mysql.sql',
   '016_establecimientos_emisor_mysql.sql',
   '017_catalogo_productos_mysql.sql',
+  '018_scraping_proxy_mode_mysql.sql',
 ];
 
 const EXPECTED_TABLES = [

@@ -1,0 +1,1 @@
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS scraping_use_proxy BOOLEAN NOT NULL DEFAULT TRUE;

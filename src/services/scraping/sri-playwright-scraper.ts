@@ -31,6 +31,7 @@ export interface ScrapeOptions {
   userDataDir?: string;
   diagDir?: string;
   proxyUrl?: string;
+  directConnection?: boolean;
 }
 
 interface ScrapeCounters {
@@ -125,6 +126,7 @@ export class SriPlaywrightScraper {
   private diagDir: string;
   private downloadsDir = '';
   private proxyUrl?: string;
+  private directConnection: boolean;
   private userDataDir?: string;
   /** Si está definido, solo descarga esas claves de acceso. */
   private targetClaves: Set<string> | null = null;
@@ -134,11 +136,12 @@ export class SriPlaywrightScraper {
     this.headless = opts?.headless ?? process.env.HEADLESS !== 'false';
     this.diagDir = opts?.diagDir || path.join(os.tmpdir(), 'downloads', 'debug');
     this.proxyUrl = opts?.proxyUrl;
+    this.directConnection = opts?.directConnection ?? false;
     this.userDataDir = opts?.userDataDir;
   }
 
   async init(): Promise<void> {
-    const apiKey = process.env.SCRAPELESS_API_KEY;
+    const apiKey = this.directConnection ? undefined : process.env.SCRAPELESS_API_KEY;
     if (apiKey) {
       console.log('[Scrapeless] Conectando a Scraping Browser de Scrapeless...');
       const { Playwright } = require('@scrapeless-ai/sdk');
@@ -179,6 +182,10 @@ export class SriPlaywrightScraper {
 
       if (this.headless) {
         launchArgs.push('--headless=new');
+      }
+
+      if (this.directConnection) {
+        launchArgs.push('--no-proxy-server');
       }
 
       if (hasBuster) {
@@ -1919,7 +1926,7 @@ export class SriPlaywrightScraper {
   }
 
   private async _solveCaptcha(page: Page, action?: string): Promise<boolean> {
-    const scrapelessKey = process.env.SCRAPELESS_API_KEY;
+    const scrapelessKey = this.directConnection ? undefined : process.env.SCRAPELESS_API_KEY;
     const anticaptchaKey = process.env.ANTICAPTCHA_KEY;
     const currentUrl = page.url();
 

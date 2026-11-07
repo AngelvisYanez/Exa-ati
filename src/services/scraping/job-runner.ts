@@ -21,6 +21,7 @@ import {
 } from '@/services/scraping/proxy-assigner';
 import { resolveComprobanteXml } from '@/services/sri-api/comprobante-xml-resolver';
 import path from 'path';
+import { getScrapingUseProxy } from '@/services/scraping/scraping-proxy-mode';
 
 function downloadNeedsAnotherHop(summaries: MassDownloadSummary[]): boolean {
   if (summaries.length === 0) return false;
@@ -191,9 +192,13 @@ async function ejecutarTrabajoScrapingInternal(jobId: number): Promise<{ success
 
     try {
       // Con Scrapeless el egress EC lo provee el browser remoto; no exigir pool local.
-      const useScrapeless = Boolean(process.env.SCRAPELESS_API_KEY?.trim());
-      const useProxy =
-        !useScrapeless && process.env.SCRAPING_USE_PROXY !== 'false';
+      const directConnection = process.env.SCRAPING_USE_PROXY === 'false' ||
+        (job.tenant_id ? !(await getScrapingUseProxy(job.tenant_id)) : false);
+      const useScrapeless = !directConnection && Boolean(process.env.SCRAPELESS_API_KEY?.trim());
+      const useProxy = !directConnection && !useScrapeless;
+      if (directConnection) {
+        await updateProgress(jobId, 'Conexión directa al SRI, sin proxy ni navegador remoto.');
+      }
       if (useScrapeless) {
         await updateProgress(jobId, 'Usando Scrapeless (browser remoto + IP EC)...');
       }
@@ -303,6 +308,7 @@ async function ejecutarTrabajoScrapingInternal(jobId: number): Promise<{ success
           if (!scraper) {
             scraper = new SriPlaywrightScraper({
               proxyUrl,
+              directConnection,
               headless,
               userDataDir: path.join(process.cwd(), 'tmp', 'browser_session', `job_${jobId}`),
             });

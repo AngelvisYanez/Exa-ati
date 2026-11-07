@@ -515,6 +515,7 @@ model TenantSettings {
   llmConfiguredAt       DateTime? @map("llm_configured_at")
   lastSyncAt            DateTime? @map("last_sync_at")
   lastSyncResult        String?   @map("last_sync_result") @db.Text
+  scrapingUseProxy      Boolean   @default(true) @map("scraping_use_proxy")
 
   // Ecuadorian localization settings
   regime                    String?  @default("REGIMEN_GENERAL") @map("regime") @db.VarChar(50)
