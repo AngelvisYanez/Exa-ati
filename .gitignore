@@ -48,6 +48,8 @@ browser_session/
 # debug screenshots
 screensht.png
 test-screenshot.png
+# local CI transfer artifacts
+tmp-deploy-ci/
 # scratch / dev scripts
 scripts/scratch/
 # test scripts (not part of src/)

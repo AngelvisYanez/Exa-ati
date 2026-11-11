@@ -7,13 +7,20 @@ import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = '/opt/exa-ati';
-const REPO = 'https://github.com/AngelvisYanez/Exa-ati.git';
+export const AUTHORIZED_REPOS = Object.freeze([
+  'https://github.com/AngelvisYanez/Exa-ati.git',
+  'https://gitlab.com/exacontable1/exa-ati.git',
+  'git@gitlab.com:exacontable1/exa-ati.git',
+]);
 const NODE = '/opt/plesk/node/26/bin/node';
 const APP = 'https://ati.exacontable.com';
 const SHA = /^[a-f0-9]{40}$/;
 const hash = data => createHash('sha256').update(data).digest('hex');
 const assert = (ok, message) => { if (!ok) throw new Error(message); };
 const normalizeHost = host => host.toLowerCase().replace('-pooler.', '.');
+export function isAuthorizedRepo(url) {
+  return AUTHORIZED_REPOS.includes(String(url || '').trim());
+}
 
 export function parseEnv(raw) {
   const values = Object.create(null);
@@ -135,10 +142,11 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
     assert(SHA.test(sha || ''), 'Indica --sha con 40 caracteres hexadecimales.');
     const dir = file('releases', sha);
     assert(fs.realpathSync(dir) === dir, 'La release debe ser un directorio real dentro de releases.');
-    assert(run('git', ['-C', dir, 'remote', 'get-url', 'origin']) === REPO, 'Origen Git no autorizado.');
+    const origin = run('git', ['-C', dir, 'remote', 'get-url', 'origin']);
+    assert(isAuthorizedRepo(origin), 'Origen Git no autorizado.');
     assert(run('git', ['-C', dir, 'rev-parse', 'HEAD']) === sha, 'HEAD no coincide con SHA.');
     assert(run('git', ['-C', dir, 'status', '--porcelain=v1', '--untracked-files=all']) === '', 'La release contiene cambios o archivos sin seguimiento.');
-    assert(run('git', ['ls-remote', REPO, 'refs/heads/main']).split(/\s+/)[0] === sha, 'SHA distinto del main remoto o remoto inaccesible.');
+    assert(run('git', ['ls-remote', origin, 'refs/heads/main']).split(/\s+/)[0] === sha, 'SHA distinto del main remoto o remoto inaccesible.');
     // Prevent Next.js loading additional environment values from the release.
     for (const name of ['.env', '.env.local', '.env.production', '.env.production.local']) assert(!fs.existsSync(path.join(dir, name)), 'La release contiene un entorno local no autorizado.');
     return dir;
@@ -168,8 +176,8 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
     for (const name of ['XMLS_DIR', 'CERTS_DIR', 'PDFS_DIR', 'TEMPLATES_DIR']) {
       const resolved = fs.realpathSync(values[name]);
       assert(resolved.startsWith(`${ROOT}/shared/downloads/`), `${name} resuelve fuera de los datos compartidos.`);
-      run('sudo', ['-u', 'exaati', '--', '/usr/bin/test', '-r', resolved]);
-      run('sudo', ['-u', 'exaati', '--', '/usr/bin/test', '-w', resolved]);
+      run('runuser', ['-u', 'exaati', '--', '/usr/bin/test', '-r', resolved]);
+      run('runuser', ['-u', 'exaati', '--', '/usr/bin/test', '-w', resolved]);
     }
     return { values, dir };
   }
@@ -180,7 +188,7 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
       assert(!fs.existsSync(file('current')) || fs.realpathSync(file('current')) !== dir, 'No compilar la release activa.');
       assert(!fs.existsSync(path.join(dir, '.next')), 'La release ya tiene artefactos; no se reconstruye ni reutiliza un build incompleto.');
       assert(!fs.existsSync(manifestPath(args.sha)), 'Ya existe evidencia de un build para este SHA.');
-      run('sudo', ['-u', 'exaati', '--', '/usr/bin/test', '-w', dir]);
+      run('runuser', ['-u', 'exaati', '--', '/usr/bin/test', '-w', dir]);
       const available = Number(run(NODE, ['-e', 'console.log(require("node:os").freemem())']));
       assert(available >= 3 * 1024 ** 3, 'Menos de 3 GiB disponibles: build bloqueado.');
       const nodeVersion = run(NODE, ['--version']);
@@ -190,8 +198,12 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
       const log = fs.openSync(file('shared', 'logs', `build-${args.sha}.log`), 'wx', 0o600);
       try {
         const options = { cwd: dir, env: buildEnv, stdio: ['ignore', log, log], timeout: 20 * 60 * 1000 };
-        run('sudo', ['-u', 'exaati', '--', '/usr/bin/env', 'PATH=/opt/plesk/node/26/bin:/usr/bin:/bin', npm, 'ci'], options);
-        run('sudo', ['-u', 'exaati', '--', '/usr/bin/env', 'PATH=/opt/plesk/node/26/bin:/usr/bin:/bin', npm, 'run', 'build'], options);
+        run('runuser', ['-u', 'exaati', '--', npm, 'ci'], options);
+        run('runuser', ['-u', 'exaati', '--', npm, 'run', 'build'], options);
+        const standalone = path.join(dir, '.next', 'standalone');
+        assert(fs.existsSync(path.join(standalone, 'server.js')), 'Falta server.js standalone tras el build.');
+        run('runuser', ['-u', 'exaati', '--', 'cp', '-a', path.join(dir, '.next', 'static'), path.join(standalone, '.next', 'static')], options);
+        run('runuser', ['-u', 'exaati', '--', 'cp', '-a', path.join(dir, 'public'), path.join(standalone, 'public')], options);
         release(args.sha);
         const manifest = { sha: args.sha, mode: args.mode, configHash: configHash(values), artifactHash: artifact(dir), nodeVersion, completed: new Date().toISOString() };
         fs.writeFileSync(manifestPath(args.sha), JSON.stringify(manifest), { flag: 'wx', mode: 0o600 });
@@ -203,7 +215,9 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
     assert(run('systemctl', ['is-active', 'exa-ati']) === 'active', 'Servicio inactivo.');
     const pid = run('systemctl', ['show', 'exa-ati', '--property=MainPID', '--value']);
     assert(/^[1-9]\d*$/.test(pid), 'PID del servicio inválido.');
-    assert(fs.realpathSync(`/proc/${pid}/cwd`) === dir, 'El proceso ejecuta otra release.');
+    const cwd = fs.realpathSync(`/proc/${pid}/cwd`);
+    const standalone = path.join(dir, '.next', 'standalone');
+    assert(cwd === dir || cwd === standalone, 'El proceso ejecuta otra release.');
     assert(fs.realpathSync(`/proc/${pid}/exe`) === fs.realpathSync(NODE), 'El proceso no utiliza el Node autorizado.');
     // Next.js may rewrite process.title/cmdline; verify exe, cwd, env and socket instead.
     const actual = Object.fromEntries(read(`/proc/${pid}/environ`).split('\0').filter(Boolean).map(entry => { const at = entry.indexOf('='); return [entry.slice(0, at), entry.slice(at + 1)]; }));

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseEnv, validateEnv, healthy, healthyHttp, withLock, activationTransaction, createDeployer, main } from './deploy.mjs';
+import { parseEnv, validateEnv, healthy, healthyHttp, withLock, activationTransaction, createDeployer, main, isAuthorizedRepo, AUTHORIZED_REPOS } from './deploy.mjs';
 const sha = 'a'.repeat(40);
 const testDB = { DATABASE_URL: 'postgresql://user:pass@test-pooler.neon.tech/db', DIRECT_DATABASE_URL: 'postgresql://user:pass@test.neon.tech/db' };
 function production() {
@@ -84,6 +84,13 @@ test('CLI rejects unsafe SHA and unknown arguments before mutation', () => {
   assert.throws(() => main(['activate', '--mode', 'production', '--sha', '../../escape']), /--sha/);
   assert.throws(() => main(['activate', '--force', 'true']), /Argumento/);
 });
+test('authorized remotes include GitHub and GitLab', () => {
+  assert.equal(isAuthorizedRepo('https://github.com/AngelvisYanez/Exa-ati.git'), true);
+  assert.equal(isAuthorizedRepo('https://gitlab.com/exacontable1/exa-ati.git'), true);
+  assert.equal(isAuthorizedRepo('git@gitlab.com:exacontable1/exa-ati.git'), true);
+  assert.equal(isAuthorizedRepo('https://example.com/repo.git'), false);
+  assert.equal(AUTHORIZED_REPOS.includes('git@gitlab.com:exacontable1/exa-ati.git'), true);
+});
 for (const reason of ['remote', 'dirty', 'origin', 'git failure']) {
   test(`Git gate blocks ${reason} before activation`, () => {
     const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'exa-git-')));
@@ -103,3 +110,22 @@ for (const reason of ['remote', 'dirty', 'origin', 'git failure']) {
     } finally { fs.rmSync(root, { recursive: true, force: true }); }
   });
 }
+test('GitLab origin is accepted when main SHA matches', () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'exa-git-gl-')));
+  fs.mkdirSync(path.join(root, 'releases', sha), { recursive: true });
+  const gitlab = 'https://gitlab.com/exacontable1/exa-ati.git';
+  const execute = (command, args) => {
+    assert.equal(command, 'git');
+    if (args.includes('get-url')) return gitlab;
+    if (args.includes('rev-parse')) return sha;
+    if (args.includes('status')) return '';
+    if (args.includes('ls-remote')) {
+      assert.equal(args[1], gitlab);
+      return `${sha}\trefs/heads/main`;
+    }
+    assert.fail('unexpected command');
+  };
+  try {
+    assert.equal(createDeployer({ root, execute }).validateRelease(sha), path.join(root, 'releases', sha));
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

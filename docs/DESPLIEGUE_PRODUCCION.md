@@ -4,7 +4,7 @@ Fuente única para todos los agentes. Leer completa antes de desplegar. Actualiz
 
 ## 1. Alcance y arquitectura
 
-- Repositorio autorizado: https://github.com/AngelvisYanez/Exa-ati.git, rama main.
+- Repositorios autorizados (rama main): https://gitlab.com/exacontable1/exa-ati.git (fuente de despliegue CI) y https://github.com/AngelvisYanez/Exa-ati.git.
 - Dominio: ati.exacontable.com. Plesk: 199.89.55.69. Proxy: 127.0.0.1:3101.
 - Releases inmutables: /opt/exa-ati/releases/<sha>.
 - Arquitectura objetivo del código actual: Node.js nativo con exa-ati.service (systemd), enlace /opt/exa-ati/current, entorno /opt/exa-ati/env/active.env y datos /opt/exa-ati/shared/{downloads,browser_session,logs,tmp}.
@@ -34,7 +34,7 @@ readlink -f /opt/exa-ati/env/active.env
 grep proxy_pass /var/www/vhosts/system/ati.exacontable.com/conf/vhost_nginx.conf
 free -m
 df -h /
-git ls-remote https://github.com/AngelvisYanez/Exa-ati.git refs/heads/main
+git ls-remote https://gitlab.com/exacontable1/exa-ati.git refs/heads/main
 ```
 
 Interpretar ausencia de Docker o systemd según la arquitectura descubierta. Si contradice el plan o el puerto pertenece a otro sistema, detener la activación y resolverlo. No matar procesos sin identificarlos.
@@ -97,11 +97,35 @@ node scripts/deploy/deploy.mjs status --mode production --sha <sha>
 
 build es síncrono: para ejecutarlo en segundo plano usar una sesión del operador con log protegido y conservar el código real. No anuncia éxito antes de terminar. Rechaza una release activa, artefactos previos o un manifiesto existente; un fallo requiere investigar y preparar una release limpia durante una intervención controlada, no recompilar a ciegas. El manifiesto protegido guarda SHA, modo, huellas de configuración y artefacto y versión Node. No editarlo para superar una validación. Cambiar configuración después del build invalida su evidencia.
 
-Para activate, el JSON de aprobación debe incluir sha, mode, previousSha, backupReference, backupVerified=true, rollbackCompatible=true, productionGateVerified=true y expiresAt como fecha ISO futura a menos de 24 horas. El operador crea esa evidencia solo tras comprobar respaldo, compatibilidad y compuerta; el script valida la declaración, no demuestra por sí mismo la existencia o restaurabilidad del respaldo. Ver scripts/deploy/approval.example.json. No confirmar estos campos automáticamente.
+Para activate, el JSON de aprobación debe incluir sha, mode, previousSha, backupReference, backupVerified=true, rollbackCompatible=true, productionGateVerified=true y expiresAt como fecha ISO futura a menos de 24 horas. El operador crea esa evidencia solo tras comprobar respaldo, compatibilidad y compuerta; el script valida la declaración, no demuestra por sí mismo la existencia o restaurabilidad del respaldo. Ver scripts/deploy/approval.example.json. En CI, `scripts/deploy/from-gitlab.sh` genera esa evidencia solo después de crear un respaldo real bajo `/opt/exa-ati/private/ci-backup-*`.
 
 El script conserva snapshots de entorno con permisos y propietario, reemplaza los enlaces individualmente de forma atómica y restaura ambos si falla la activación o la verificación técnica. No existe una transacción atómica conjunta de los dos enlaces: el bloqueo serializa despliegues y el reinicio se hace después de ambos reemplazos. Los registros protegidos quedan en shared/logs. No eliminar snapshots mientras una release pueda necesitarlos.
 
-El resultado TECHNICAL_CHECKS_OK deja pendientes la sesión legítima, las integraciones y la comprobación desde fuera del servidor. La comprobación pública ejecutada por activate sale desde Plesk; ejecutar también preflight desde una máquina externa. LOCAL_CHECKS_OK de status tampoco declara producción completa. Pruebas del script: npm run test:deploy.
+El resultado TECHNICAL_CHECKS_OK deja pendientes la sesión legítima, las integraciones y la comprobación desde fuera del servidor. La comprobación pública ejecutada por activate sale desde Plesk; ejecutar también preflight desde una máquina externa. LOCAL_CHECKS_OK de status tampoco declara producción completa. Un pipeline CI verde tampoco declara PRODUCCIÓN VERIFICADA. Pruebas del script: npm run test:deploy.
+
+### CI GitLab (push a main)
+
+Cada push a `main` en https://gitlab.com/exacontable1/exa-ati.git dispara `.gitlab-ci.yml` → job `deploy_production`, que por SSH ejecuta `/opt/exa-ati/bin/from-gitlab.sh <CI_COMMIT_SHA>` en Plesk.
+
+Flujo remoto: respaldo de enlaces/estado → clone limpio del SHA desde GitLab → fija `EXA_ATI_RELEASE_SHA` → `deploy.mjs validate` → `build` → approval con respaldo real → `activate` → `status`. No ejecuta migraciones ni toca otros servicios.
+
+Variables CI protegidas y enmascaradas (rama `main` protected):
+
+| Variable | Uso |
+|---|---|
+| `PLESK_SSH_HOST` | Host Plesk (p. ej. 199.89.55.69) |
+| `PLESK_SSH_USER` | Usuario SSH con permiso para el script de deploy |
+| `PLESK_SSH_PRIVATE_KEY` | Clave privada OpenSSH (contenido PEM completo) |
+| `PLESK_SSH_PORT` | Opcional; default 22 |
+
+En el servidor debe existir `/opt/exa-ati/bin/from-gitlab.sh` (instalado desde la release) y el servicio nativo ya aprovisionado. El clone usa SSH (`git@gitlab.com:exacontable1/exa-ati.git`) con la clave `/opt/exa-ati/private/gitlab-ci/id_ed25519_clone`; su clave pública debe estar como Deploy Key de solo lectura en el proyecto GitLab. `resource_group: exa-ati-production` evita solapes de pipeline.
+
+Claves en Plesk (`/opt/exa-ati/private/gitlab-ci/`):
+
+| Archivo | Uso |
+|---|---|
+| `id_ed25519_clone` | Clone/fetch del repo desde el servidor |
+| `id_ed25519_ci` | Privada que GitLab CI usa para SSH al host (`PLESK_SSH_PRIVATE_KEY`) |
 
 ## 7. Activación y recuperación
 
