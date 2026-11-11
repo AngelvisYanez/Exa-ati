@@ -1,143 +1,148 @@
-# Despliegue de EXA-ATI en Plesk (Docker)
+# Despliegue de EXA-ATI en producción sobre Plesk
 
-**Fuente única para todos los agentes.** `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/despliegue-produccion.mdc` y `.github/copilot-instructions.md` apuntan aquí. Si un resumen difiere, prevalece este documento. No afirmar un estado sin la salida de un comando que lo demuestre. No imprimir `.env*`, secretos ni el contenido del helper de Plesk.
+Fuente única para todos los agentes. Leer completa antes de desplegar. Actualizar estas reglas no autoriza ejecutar un corte de producción. Ningún procedimiento garantiza disponibilidad sin verificar el resultado real.
 
-## 0. Alcance
+## 1. Alcance y arquitectura
 
-| Elemento | Valor |
-|---|---|
-| Repositorio | `AngelvisYanez/Exa-ati`, rama `main` |
-| Dominio | `ati.exacontable.com` |
-| Plesk | `199.89.55.69` |
-| Modelo | Contenedor Docker detrás de nginx en `127.0.0.1:3101` |
-| Releases | `/opt/exa-ati/releases/<sha>` |
-| Stacks | `exa-ati-test-app` y `exa-ati-prod-app`, mutuamente excluyentes |
+- Repositorio autorizado: https://github.com/AngelvisYanez/Exa-ati.git, rama main.
+- Dominio: ati.exacontable.com. Plesk: 199.89.55.69. Proxy: 127.0.0.1:3101.
+- Releases inmutables: /opt/exa-ati/releases/<sha>.
+- Arquitectura objetivo del código actual: Node.js nativo con exa-ati.service (systemd), enlace /opt/exa-ati/current, entorno /opt/exa-ati/env/active.env y datos /opt/exa-ati/shared/{downloads,browser_session,logs,tmp}.
 
-No usar `httpdocs`, Vercel ni instrucciones de `exa-tareas-app` / `gestion.exacontable.com`. No detener el servicio de `gestion.exacontable.com` (3010) ni el contenedor `waha`. No sobrescribir `/opt/exa-ati-test`.
+El 30/10/2026 se observó exa-ati-test-app activo, sin servicio nativo activo. Es evidencia histórica, no el estado actual. Descubrir siempre el proceso que sirve el puerto y el dominio. Los archivos Docker y plesk.sh están eliminados en la copia actual: no ejecutar órdenes históricas que dependan de ellos. Si sigue Docker, la migración nativa exige un plan, respaldo y autorización del corte; no cambiar arquitectura como efecto secundario de actualizar una versión.
 
-## 1. Invariantes
+No usar httpdocs, Vercel ni procedimientos de otros proyectos. No tocar gestion.exacontable.com (3010), waha ni /opt/exa-ati-test. Prohibidas podas globales Docker, reinicios del host y cambios globales de nginx como parte de este despliegue.
 
-1. Desplegar exactamente el SHA publicado en `origin/main`, desde un clon limpio en `/opt/exa-ati/releases/<sha>`.
-2. Construir `exa-ati:<sha>` una vez. Promover esa misma imagen a producción sin reconstruir. `EXA_ATI_IMAGE_TAG` debe igualar el `HEAD` de la release.
-3. Usar ramas Neon distintas para pruebas y producción. Producción nunca apunta a la rama de pruebas. Verificar el host de producción configurado sin imprimir la URL.
-4. WSDL de pruebas: `celcer.sri.gob.ec`. WSDL de producción: endpoint real, nunca `celcer.sri.gob.ec`.
-5. `EXA_ATI_PRODUCTION_READY=true` solo cuando la base, los archivos y las integraciones de producción en Plesk estén comprobados. La migración desde cPanel ya no es una compuerta de cada despliegue.
-6. Los dos stacks usan el mismo puerto 3101: detener pruebas antes de arrancar producción.
-7. No ejecutar migraciones ni seeds automáticamente. Aplicar las migraciones requeridas de forma controlada sobre la rama correcta, con copia de seguridad y verificación.
-8. Verificar cada mutación con un comando posterior de solo lectura. Ante un fallo obligatorio, detenerse y reportar lo pendiente.
+## 2. Acceso y secretos
 
-## 2. Acceso al servidor
+Helper: ../exa-relavera-desarrollo-api/scripts/run_plesk.ps1 -Command <orden>. Nunca imprimir su contenido. Llamadas en serie; máximo 980 caracteres por orden. El scheduler elimina comillas dobles e interpreta porcentajes y sustituciones de shell: evitar esas construcciones y dividir órdenes largas.
 
-El helper de acceso es `../exa-relavera-desarrollo-api/scripts/run_plesk.ps1`. No imprimir su contenido. Ejemplo:
+El helper oculta stdout cuando la orden termina bien. Solo en diagnósticos de lectura puede terminarse con exit 1 para ver la salida: ese código por sí solo no demuestra fallo remoto. En mutaciones conservar el código real y verificar después con otra llamada de lectura.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "..\exa-relavera-desarrollo-api\scripts\run_plesk.ps1" -Command "docker ps --format '{{.Names}}'; exit 1"
-```
+Nunca imprimir .env*, entornos completos de procesos o contenedores, URLs de conexión, tokens ni cookies. Mostrar nombres, comparaciones booleanas y metadatos no sensibles. No fabricar sesiones ni usar secretos para saltarse el login.
 
-El helper oculta stdout si la orden termina en cero; para diagnósticos **solo de lectura** se puede terminar con `exit 1`. Las mutaciones conservan su código de salida real y se verifican en una llamada posterior. Ejecutar las llamadas en serie. El scheduler limita el comando a 980 caracteres, elimina comillas dobles e interpreta `%` y `$()`: dividir órdenes largas y evitar esas construcciones. No imprimir variables de entorno completas.
+## 3. Preflight obligatorio
 
-## 3. Preflight local y remoto
-
-```sh
-git fetch origin main
-git ls-remote origin refs/heads/main
-git rev-parse HEAD
-git status --porcelain=v1
-node scripts/deploy/preflight.mjs --sha <sha>
-```
-
-`HEAD` debe igualar `origin/main` y la copia para desplegar debe estar limpia. El preflight es de solo lectura, pero no identifica si el dominio sirve pruebas o producción.
-
-En Plesk, comprobar sin imprimir secretos:
+Registrar fecha, objetivo production y SHA. Ejecutar comprobaciones de lectura:
 
 ```sh
 docker ps --format '{{.Names}} {{.Image}} {{.Ports}}'
-docker image inspect exa-ati:<sha> --format '{{.Id}}'
+systemctl is-active exa-ati
 ss -ltnp | grep 3101
+readlink -f /opt/exa-ati/current
+readlink -f /opt/exa-ati/env/active.env
+grep proxy_pass /var/www/vhosts/system/ati.exacontable.com/conf/vhost_nginx.conf
 free -m
 df -h /
-git -C /opt/exa-ati/releases/<sha> rev-parse HEAD
-git -C /opt/exa-ati/releases/<sha> status --porcelain=v1
+git ls-remote https://github.com/AngelvisYanez/Exa-ati.git refs/heads/main
 ```
 
-Si el puerto 3101 pertenece a otro sistema, detenerse. Si hay menos de 3 GiB disponibles, no compilar en el servidor; usar la imagen construida por el workflow manual, verificar su checksum e importarla sin reconstruir. Si el estado del servidor contradice este mapa, detenerse y reportarlo.
+Interpretar ausencia de Docker o systemd según la arquitectura descubierta. Si contradice el plan o el puerto pertenece a otro sistema, detener la activación y resolverlo. No matar procesos sin identificarlos.
 
-## 4. Identificar el entorno
+Solo desplegar el SHA completo de 40 caracteres publicado en main. Preparar un clon limpio con remoto autorizado; comprobar HEAD y git status --porcelain=v1 --untracked-files=all. Si la copia local tiene cambios, usar un clon limpio: no borrar ni confirmar trabajo ajeno automáticamente. Consultar main nuevamente antes de activar; si avanzó, preparar la release correcta.
 
-Antes de afirmar que está en producción, comprobar el nombre del contenedor y el compose, y **solo la presencia o coincidencia** de estas variables, sin imprimir sus valores sensibles:
+Mantener un bloqueo exclusivo durante el despliegue: una sola ejecución puede modificar EXA-ATI. Registrar ejecución, SHA y versión anterior fuera de la release. No retirar bloqueos activos sin identificar a su propietario.
 
-| Señal | Pruebas | Producción |
-|---|---|---|
-| Contenedor | `exa-ati-test-app` | `exa-ati-prod-app` |
-| Compose | `compose.plesk-test.yaml` | `compose.plesk-production.yaml` |
-| `EXA_ATI_PRODUCTION_READY` | ausente o `false` | `true` |
-| SRI WSDL | `celcer.sri.gob.ec` | endpoint real |
-| Base de datos | rama Neon de pruebas | rama Neon de producción distinta de pruebas |
+## 4. Identidad de producción
 
-Si cualquier señal indica pruebas, el veredicto es **«no está en producción»**, aunque `/api/health` responda `200`. No inferir el entorno solo por el DNS o el health.
+Comprobar el archivo preparado y el entorno efectivo del proceso real, sin imprimir secretos:
 
-## 5. Preparar y construir la release
+- EXA_ATI_ENV=production, EXA_ATI_PRODUCTION_READY=true y NODE_ENV=production.
+- EXA_ATI_RELEASE_SHA igual al HEAD de la release y al SHA autorizado.
+- NEXT_PUBLIC_APP_URL=https://ati.exacontable.com.
+- DATABASE_URL y DIRECT_DATABASE_URL válidas y de la misma rama normalizando hosts pooled/directos. Comparar contra la rama de pruebas y el origen cPanel: ambas deben ser distintas de producción. EXA_ATI_DB_ISOLATED=true por sí solo no demuestra aislamiento.
+- Ambos WSDL presentes y correspondientes a endpoints oficiales del SRI de producción. Rechazar celcer.sri.gob.ec, URLs arbitrarias y placeholders. Revisar SRI_ENVIRONMENT y proxies para impedir mezcla de ambientes.
+- Secretos e integraciones requeridos configurados; datos persistentes accesibles por el usuario del servicio y respaldados fuera de la release.
+
+Reportar por separado dominio público accesible y producción verificada. DNS en Plesk o health 200 no prueban identidad del entorno. Un contenedor de pruebas o señales contradictorias impiden declarar producción. No renombrar recursos ni cambiar flags para aparentar una migración.
+
+## 5. Primer corte desde cPanel o pruebas
+
+Con autorización explícita del corte y evidencia persistida, realizar en orden:
+
+1. Preparar TTL 300 y esperar la expiración del anterior; HTTPS con renovación automática comprobada.
+2. Respaldar base y archivos y comprobar su recuperación. Identificar procesos y trabajos que escriben.
+3. Congelar escrituras y trabajos del origen; registrar la hora.
+4. Capturar archivos finales y crear una rama Neon nueva desde el origen actualizado. No promover los datos de pruebas.
+5. Preparar y validar configuración e integraciones reales. Verificar aislamiento y conteos de datos sin información personal.
+6. Importar y verificar archivos persistentes finales antes de admitir usuarios o trabajos que escriban en el destino.
+7. Solo entonces establecer EXA_ATI_PRODUCTION_READY=true, activar y verificar. Mantener el origen en mantenimiento durante la propagación.
+
+Si ya existe producción, conservar su base y datos. Una actualización ordinaria no copia cPanel ni crea una base vacía. Migraciones y seeds nunca se ejecutan automáticamente: requieren plan compatible, respaldo y verificación de la rama correcta.
+
+## 6. Preparar y compilar
+
+Clonar el repositorio autorizado en /opt/exa-ati/releases/<sha> y hacer checkout separado del SHA. Comprobar clon limpio antes de introducir artefactos y enlaces. Nunca compilar sobre la release activa.
+
+Construir una vez por SHA con npm ci y npm run build, versión Node soportada y variables públicas correctas para producción: Next.js puede incrustarlas en el build. No promover un build con configuración pública de pruebas. No imprimir secretos en logs. Con menos de 3 GiB disponibles, no compilar en el servidor compartido; preparar un artefacto compatible y verificar procedencia, SHA y checksum.
+
+Exigir salida de build cero, .next/BUILD_ID y manifiesto con SHA, Node, checksum y resultado. node_modules/next no demuestra un build terminado. Un archivo de salida de un intento anterior no demuestra éxito del actual.
+
+Preparar production.env fuera de Git, permisos restrictivos y propietario adecuado. La unidad nativa debe ejecutar como exaati, escuchar solo en 127.0.0.1:3101, usar Restart=always, límite de memoria 1 GiB y estar habilitada al reiniciar. Comprobar versión Node, Chrome y permisos de datos.
+
+`scripts/deploy/deploy.mjs` implementa los controles de despliegue nativo descritos abajo. Requiere un servicio nativo previamente aprovisionado y recuperable: no crea unidades ni migra Docker. La verificación de systemd, permisos, sockets y recuperación real en Plesk sigue siendo obligatoria; las pruebas locales no la sustituyen.
+
+### Uso del script nativo
+
+Ejecutar en Linux/Plesk con permisos para leer el entorno efectivo y reiniciar exclusivamente exa-ati. Preparar primero el usuario exaati, la unidad habilitada, los directorios persistentes y sus permisos. La release debe ser escribible por exaati para compilar; npm se ejecuta con ese usuario. El script no ejecuta migraciones ni modifica nginx, DNS u otros servicios.
+
+Los archivos test.env y production.env requieren permisos 600, NODE_ENV=production y valores literales en una sola línea. No se admiten duplicados, escapes ni comillas internas; no hay expansión de variables. test.env es obligatorio para comparar las bases. Las URLs SRI deben coincidir exactamente con los endpoints oficiales usados por la aplicación; los proxies requieren revisión separada.
 
 ```sh
-git clone --no-checkout https://github.com/AngelvisYanez/Exa-ati.git /opt/exa-ati/releases/<sha>
-cd /opt/exa-ati/releases/<sha>
-git checkout <sha>
-git status --porcelain=v1
+node scripts/deploy/deploy.mjs validate --mode production --sha <sha>
+node scripts/deploy/deploy.mjs build --mode production --sha <sha>
+node scripts/deploy/deploy.mjs activate --mode production --sha <sha> --approval /ruta/protegida/aprobacion.json
+node scripts/deploy/deploy.mjs status --mode production --sha <sha>
 ```
 
-Usar `.env.plesk-test` y `.env.plesk-production` fuera de Git, derivados de sus ejemplos y con permisos `600`. Validar los nombres necesarios sin mostrar valores. `DATABASE_URL` y `DIRECT_DATABASE_URL` deben ser de la misma rama de su entorno. Comprobar que la rama de producción difiere de la de pruebas. `NEXT_PUBLIC_APP_URL` debe ser `https://ati.exacontable.com`.
+build es síncrono: para ejecutarlo en segundo plano usar una sesión del operador con log protegido y conservar el código real. No anuncia éxito antes de terminar. Rechaza una release activa, artefactos previos o un manifiesto existente; un fallo requiere investigar y preparar una release limpia durante una intervención controlada, no recompilar a ciegas. El manifiesto protegido guarda SHA, modo, huellas de configuración y artefacto y versión Node. No editarlo para superar una validación. Cambiar configuración después del build invalida su evidencia.
 
-```sh
-sh scripts/deploy/plesk.sh staging validate
-sh scripts/deploy/plesk.sh staging build
-```
+Para activate, el JSON de aprobación debe incluir sha, mode, previousSha, backupReference, backupVerified=true, rollbackCompatible=true, productionGateVerified=true y expiresAt como fecha ISO futura a menos de 24 horas. El operador crea esa evidencia solo tras comprobar respaldo, compatibilidad y compuerta; el script valida la declaración, no demuestra por sí mismo la existencia o restaurabilidad del respaldo. Ver scripts/deploy/approval.example.json. No confirmar estos campos automáticamente.
 
-El build solo se hace en staging y una vez por SHA. Alternativamente, el workflow manual `.github/workflows/plesk-image.yml` crea la imagen fuera del servidor; importar el artefacto únicamente tras verificar checksum. Comprobar `docker image inspect exa-ati:<sha>` y que la etiqueta corresponda al `HEAD`.
+El script conserva snapshots de entorno con permisos y propietario, reemplaza los enlaces individualmente de forma atómica y restaura ambos si falla la activación o la verificación técnica. No existe una transacción atómica conjunta de los dos enlaces: el bloqueo serializa despliegues y el reinicio se hace después de ambos reemplazos. Los registros protegidos quedan en shared/logs. No eliminar snapshots mientras una release pueda necesitarlos.
 
-## 6. Pruebas
+El resultado TECHNICAL_CHECKS_OK deja pendientes la sesión legítima, las integraciones y la comprobación desde fuera del servidor. La comprobación pública ejecutada por activate sale desde Plesk; ejecutar también preflight desde una máquina externa. LOCAL_CHECKS_OK de status tampoco declara producción completa. Pruebas del script: npm run test:deploy.
 
-```sh
-sh scripts/deploy/plesk.sh staging start
-docker ps --format '{{.Names}} {{.Image}} {{.Ports}}'
-curl -fsS http://127.0.0.1:3101/api/health
-```
+## 7. Activación y recuperación
 
-El contenedor de pruebas debe llamarse `exa-ati-test-app`. Validar la aplicación mediante resolución dirigida a Plesk antes del corte DNS. Comprobar login, panel con una cuenta legítima, aislamiento de empresas, descargas, escritura y navegador. No fabricar sesiones ni leer secretos de autenticación.
+Antes de interrumpir la versión actual, registrar y comprobar release, entorno y configuración anteriores, respaldos y procedimiento de restauración compatible con los datos actuales. Conservar la configuración anterior protegida sin sobrescribirla durante la preparación.
 
-## 7. Compuerta de producción en Plesk
+Activar enlaces por reemplazo atómico y bajo bloqueo; no borrar primero current o active.env. En una migración, detener únicamente el proceso de EXA-ATI identificado. Verificar cada mutación con una llamada posterior independiente de lectura.
 
-**Un push no activa producción.** Ejecutar en este orden:
+Dentro de un plazo acotado exigir servicio activo, HTTP 200, JSON status=healthy y checks.database=ok. Confirmar que el proceso que responde es el nuevo y ejecuta el SHA y entorno esperados; la versión anterior también puede responder al health.
 
-1. Comprobar que DNS y HTTPS de `ati.exacontable.com` sirven desde Plesk y que la renovación del certificado está configurada.
-2. Comprobar que la rama Neon de producción existe, es distinta de pruebas y contiene los datos vigentes. No promover la rama de pruebas.
-3. Comprobar que los archivos persistentes de producción están en `prod_downloads` y tienen propietario y permisos correctos.
-4. Preparar `.env.plesk-production` con la rama de producción, el SHA de la imagen, secretos e integraciones reales. Confirmar WSDL reales y ausencia del host de pruebas.
-5. Activar `EXA_ATI_PRODUCTION_READY=true` solo tras las verificaciones anteriores.
-6. Validar configuración: `sh scripts/deploy/plesk.sh production validate`.
-7. Detener **solo** `exa-ati-test-app` para liberar 3101 y arrancar `sh scripts/deploy/plesk.sh production start` con la imagen ya construida.
-8. Verificar contenedor, base, SRI, archivos y rutas públicas antes de admitir usuarios.
+Si falla la activación o la verificación, marcar FALLIDO y restaurar release y entorno anteriores solo cuando sean compatibles con los datos actuales; reiniciar únicamente EXA-ATI y verificar recuperación. Si existen escrituras o esquema incompatibles, congelar escrituras y ejecutar el plan de recuperación aprobado. Nunca revertir datos o DNS a ciegas ni reiniciar repetidamente para ocultar un fallo.
 
-Si falta cualquiera de los puntos 1–5, **detenerse**. No sustituir una rama Neon de producción con la de pruebas. No tocar el 3010 ni `waha`. La migración histórica desde cPanel no se repite en despliegues posteriores.
+## 8. Verificación externa y cierre
 
-## 8. Verificación externa y reporte
+Desde fuera de Plesk, comprobar:
 
-Desde fuera del servidor, verificar `200` y base de datos `ok` en `/api/health`, y `200` en `/`, `/precios`, `/registro` e `/iniciar-sesion`. Verificar chunks JavaScript con tipo `application/javascript`, redirección HTTP a HTTPS, certificado vigente, `HEAD` de release igual a `origin/main`, release limpia y señales de la sección 4. Probar `/panel`, `/emitir` y `/comprobantes` con cuenta legítima; si no existe, marcar **PENDIENTE**.
+- DNS hacia 199.89.55.69; cadena TLS válida y certificado vigente para el dominio. Renovación programada comprobada por separado.
+- HTTP redirige a HTTPS. Health 200 con healthy y database=ok.
+- /, /precios, /registro e /iniciar-sesion responden 200. Todos los chunks del login responden 200 y tipo JavaScript; descubrir assets del build real sin asumir nombres de webpack o Turbopack.
+- SHA remoto igual al ejecutado, release limpia y señales de producción de la sección 4.
+- Login legítimo y acceso a /panel, /emitir, /comprobantes, descargas y aislamiento entre empresas. Sin cuenta disponible: PENDIENTE, nunca fabricar sesión.
+- Trabajos programados ejecutados por una sola instancia. Integraciones y SRI mediante operaciones expresamente autorizadas; verificar un despliegue no autoriza emitir comprobantes reales, cobrar ni enviar mensajes.
 
-Reportar siempre:
+node scripts/deploy/preflight.mjs --sha <sha> aporta comprobaciones externas de solo lectura, pero no certifica entorno ni SHA del proceso servido. No reemplaza las comprobaciones remotas. Investigar pruebas fallidas; no omitirlas para lograr un resultado verde.
+
+Entregar siempre fecha, evidencia y este reporte:
 
 ```text
-SHA desplegado:        <sha o PENDIENTE>
-SHA en origin/main:    <sha o PENDIENTE>
-Entorno:               test | production | PENDIENTE
-Release activa:        <ruta y SHA o PENDIENTE>
-Contenedor:            <nombre, imagen y estado o PENDIENTE>
-Puerto:                127.0.0.1:3101 <estado o PENDIENTE>
-Build:                 OK | FALLÓ | no ejecutado
-Health:                <estado o PENDIENTE>
-Verificación externa:  <resultados o PENDIENTE>
-Sesión autenticada:    OK | PENDIENTE
+Dominio público:       accesible | fallo | PENDIENTE
+SHA en origin/main:    <sha>
+SHA ejecutado:         <sha o PENDIENTE>
+Arquitectura real:     <servicio o contenedor>
+Entorno verificado:    production | test | PENDIENTE
+Release activa:        <ruta>
+Build y artefacto:     <resultado y referencia>
+Puerto y proceso:      <resultado>
+Health y base:         <resultado>
+Verificación externa:  <resultado>
+Sesión autenticada:    OK | PENDIENTE (motivo)
+Rollback preparado:    <referencia y compatibilidad>
+Resultado:             PRODUCCIÓN VERIFICADA | INCOMPLETO | FALLIDO
 Pendientes:            <lista>
-Riesgos abiertos:      <lista>
 ```
 
-No declarar producción sin todas las señales y pruebas requeridas. Conservar respaldos y la release anterior para rollback. Si hay escrituras nuevas, reconciliar datos antes de revertir a una base anterior.
+PRODUCCIÓN VERIFICADA exige todas las comprobaciones obligatorias correctas. Si faltan credenciales o evidencia, reportar INCOMPLETO y el bloqueo exacto. Conservar origen y respaldos al menos siete días después del primer corte, y releases anteriores con sus evidencias para recuperar actualizaciones.

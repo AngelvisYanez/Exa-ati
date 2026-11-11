@@ -1,0 +1,10 @@
+{
+  "sha": "REEMPLAZAR_SHA_PUBLICADO_DE_40_CARACTERES",
+  "mode": "production",
+  "previousSha": "REEMPLAZAR_SHA_ANTERIOR",
+  "backupReference": "REEMPLAZAR_REFERENCIA_DE_RESPALDO_VERIFICADO",
+  "backupVerified": false,
+  "rollbackCompatible": false,
+  "productionGateVerified": false,
+  "expiresAt": "REEMPLAZAR_FECHA_ISO_FUTURA_MENOR_A_24_HORAS"
+}
