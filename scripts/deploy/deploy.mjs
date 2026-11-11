@@ -168,8 +168,8 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
     for (const name of ['XMLS_DIR', 'CERTS_DIR', 'PDFS_DIR', 'TEMPLATES_DIR']) {
       const resolved = fs.realpathSync(values[name]);
       assert(resolved.startsWith(`${ROOT}/shared/downloads/`), `${name} resuelve fuera de los datos compartidos.`);
-      run('runuser', ['-u', 'exaati', '--', '/usr/bin/test', '-r', resolved]);
-      run('runuser', ['-u', 'exaati', '--', '/usr/bin/test', '-w', resolved]);
+      run('sudo', ['-u', 'exaati', '--', '/usr/bin/test', '-r', resolved]);
+      run('sudo', ['-u', 'exaati', '--', '/usr/bin/test', '-w', resolved]);
     }
     return { values, dir };
   }
@@ -180,7 +180,7 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
       assert(!fs.existsSync(file('current')) || fs.realpathSync(file('current')) !== dir, 'No compilar la release activa.');
       assert(!fs.existsSync(path.join(dir, '.next')), 'La release ya tiene artefactos; no se reconstruye ni reutiliza un build incompleto.');
       assert(!fs.existsSync(manifestPath(args.sha)), 'Ya existe evidencia de un build para este SHA.');
-      run('runuser', ['-u', 'exaati', '--', '/usr/bin/test', '-w', dir]);
+      run('sudo', ['-u', 'exaati', '--', '/usr/bin/test', '-w', dir]);
       const available = Number(run(NODE, ['-e', 'console.log(require("node:os").freemem())']));
       assert(available >= 3 * 1024 ** 3, 'Menos de 3 GiB disponibles: build bloqueado.');
       const nodeVersion = run(NODE, ['--version']);
@@ -190,8 +190,8 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
       const log = fs.openSync(file('shared', 'logs', `build-${args.sha}.log`), 'wx', 0o600);
       try {
         const options = { cwd: dir, env: buildEnv, stdio: ['ignore', log, log], timeout: 20 * 60 * 1000 };
-        run('runuser', ['-u', 'exaati', '--', npm, 'ci'], options);
-        run('runuser', ['-u', 'exaati', '--', npm, 'run', 'build'], options);
+        run('sudo', ['-u', 'exaati', '--', '/usr/bin/env', 'PATH=/opt/plesk/node/26/bin:/usr/bin:/bin', npm, 'ci'], options);
+        run('sudo', ['-u', 'exaati', '--', '/usr/bin/env', 'PATH=/opt/plesk/node/26/bin:/usr/bin:/bin', npm, 'run', 'build'], options);
         release(args.sha);
         const manifest = { sha: args.sha, mode: args.mode, configHash: configHash(values), artifactHash: artifact(dir), nodeVersion, completed: new Date().toISOString() };
         fs.writeFileSync(manifestPath(args.sha), JSON.stringify(manifest), { flag: 'wx', mode: 0o600 });
