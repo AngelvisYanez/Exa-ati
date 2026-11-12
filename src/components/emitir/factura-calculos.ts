@@ -57,10 +57,47 @@ export const PLAZOS = [0, 15, 30, 60] as const;
 export interface DetalleItem {
   codigoPrincipal: string;
   descripcion: string;
+  descripcionAdicional?: string;
   cantidad: number;
   precioUnitario: number;
   descuento: number;
   iva: string;
+}
+
+export const LINEA_VACIA: DetalleItem = {
+  codigoPrincipal: "",
+  descripcion: "",
+  descripcionAdicional: "",
+  cantidad: 1,
+  precioUnitario: 0,
+  descuento: 0,
+  iva: "2",
+};
+
+const MAX_CAMPO_ADICIONAL = 300;
+
+/** Campo `detallesAdicionales` del XML SRI; se omite si la línea no tiene nota. */
+export function detallesAdicionalesDe(linea: DetalleItem) {
+  const valor = linea.descripcionAdicional?.trim() ?? "";
+  if (!valor) return undefined;
+  return [{ nombre: "Adicional", valor: valor.slice(0, MAX_CAMPO_ADICIONAL) }];
+}
+
+/** `infoAdicional` del XML SRI; se omite si no hay observaciones. */
+export function infoAdicionalDe(observaciones?: string) {
+  const valor = observaciones?.trim() ?? "";
+  if (!valor) return undefined;
+  return [{ nombre: "Observaciones", valor: valor.slice(0, MAX_CAMPO_ADICIONAL) }];
+}
+
+export function lineaEnBlanco(d: DetalleItem): boolean {
+  return !d.codigoPrincipal.trim() && !d.descripcion.trim();
+}
+
+/** Deja siempre una línea vacía al final para seguir cargando sin pulsar «Agregar». */
+export function conFilaSiguiente(lineas: DetalleItem[]): DetalleItem[] {
+  if (lineas.some(lineaEnBlanco)) return lineas;
+  return [...lineas, { ...LINEA_VACIA }];
 }
 
 export interface FacturaDatosInput {
@@ -75,6 +112,7 @@ export interface FacturaDatosInput {
   propina: number;
   formaPago: string;
   plazo: number;
+  observaciones?: string;
 }
 
 export function tarifaIva(codigo: string): number {
@@ -122,8 +160,10 @@ export function totalConImpuestosDe(detalles: DetalleItem[]) {
 
 /** Mismo objeto `datos` que armaba la pantalla antes del rediseño. */
 export function buildFacturaDatos(input: FacturaDatosInput) {
-  const totales = calcTotal(input.detalles);
-  const totalConImpuestos = totalConImpuestosDe(input.detalles);
+  const detalles = input.detalles.filter((linea) => !lineaEnBlanco(linea));
+  const totales = calcTotal(detalles);
+  const totalConImpuestos = totalConImpuestosDe(detalles);
+  const infoAdicional = infoAdicionalDe(input.observaciones);
   return {
     fechaEmision: input.fechaEmision,
     secuencial: input.secuencial || undefined,
@@ -144,23 +184,28 @@ export function buildFacturaDatos(input: FacturaDatosInput) {
         ...(input.plazo > 0 ? { plazo: input.plazo, unidadTiempo: "dias" as const } : {}),
       },
     ],
-    detalles: input.detalles.map((d) => ({
-      codigoPrincipal: d.codigoPrincipal,
-      descripcion: d.descripcion,
-      cantidad: d.cantidad,
-      precioUnitario: d.precioUnitario,
-      descuento: d.descuento,
-      precioTotalSinImpuesto: d.cantidad * d.precioUnitario - d.descuento,
-      impuestos: [
-        {
-          codigo: "2",
-          codigoPorcentaje: d.iva,
-          tarifa: tarifaIva(d.iva),
-          baseImponible: d.cantidad * d.precioUnitario - d.descuento,
-          valor: ((d.cantidad * d.precioUnitario - d.descuento) * tarifaIva(d.iva)) / 100,
-        },
-      ],
-    })),
+    detalles: detalles.map((d) => {
+      const adicionales = detallesAdicionalesDe(d);
+      return {
+        codigoPrincipal: d.codigoPrincipal,
+        descripcion: d.descripcion,
+        cantidad: d.cantidad,
+        precioUnitario: d.precioUnitario,
+        descuento: d.descuento,
+        precioTotalSinImpuesto: d.cantidad * d.precioUnitario - d.descuento,
+        impuestos: [
+          {
+            codigo: "2",
+            codigoPorcentaje: d.iva,
+            tarifa: tarifaIva(d.iva),
+            baseImponible: d.cantidad * d.precioUnitario - d.descuento,
+            valor: ((d.cantidad * d.precioUnitario - d.descuento) * tarifaIva(d.iva)) / 100,
+          },
+        ],
+        ...(adicionales ? { detallesAdicionales: adicionales } : {}),
+      };
+    }),
+    ...(infoAdicional ? { infoAdicional } : {}),
   };
 }
 
@@ -255,7 +300,8 @@ export function revisarFactura(input: {
   const comprobante = Boolean(input.emisorRuc && input.fechaEmision && (input.ambiente === "1" || input.ambiente === "2"));
   const identificacion = id.valido && !consumidorFinalExcedido;
   const razonSocial = Boolean(input.razonSocial.trim());
-  const productos = input.detalles.length > 0 && input.detalles.every(lineaLista);
+  const activas = input.detalles.filter((linea) => !lineaEnBlanco(linea));
+  const productos = activas.length > 0 && activas.every(lineaLista);
   const pago = FORMA_PAGO.some((item) => item.value === input.formaPago) && !consumidorFinalExcedido;
   const flags = [comprobante, identificacion, razonSocial, productos, pago];
   const emitir = flags.every(Boolean);

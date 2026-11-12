@@ -206,4 +206,47 @@ describe("reglas de la pantalla", () => {
     expect(sinCodigo.productos).toBe(false);
     expect(sinCodigo.puedeEmitir).toBe(false);
   });
+
+  it("ignora la fila vacía de carga y sigue permitiendo emitir", () => {
+    const vacia: DetalleItem = { codigoPrincipal: "", descripcion: "", cantidad: 1, precioUnitario: 0, descuento: 0, iva: "2" };
+    const revision = revisarFactura({
+      ...listo,
+      formaPago: "20",
+      detalles: [...dosLineas, vacia],
+    });
+    expect(revision.productos).toBe(true);
+    expect(revision.puedeEmitir).toBe(true);
+    expect(buildFacturaDatos({
+      fechaEmision: listo.fechaEmision,
+      secuencial: "",
+      tipoId: listo.tipoId,
+      identificacion: listo.identificacion,
+      razonSocial: listo.razonSocial,
+      direccion: "",
+      email: "",
+      detalles: [...dosLineas, vacia],
+      propina: 0,
+      formaPago: "20",
+      plazo: 0,
+    }).detalles).toHaveLength(2);
+  });
+
+  it("manda las observaciones al pie de la factura y las omite si están vacías", () => {
+    const conNota = buildFacturaDatos({ ...base, detalles: dosLineas, observaciones: "  Entrega en bodega  " });
+    expect(conNota.infoAdicional).toEqual([{ nombre: "Observaciones", valor: "Entrega en bodega" }]);
+    const sinNota = buildFacturaDatos({ ...base, detalles: dosLineas });
+    expect(sinNota.infoAdicional).toBeUndefined();
+  });
+
+  it("manda la descripción adicional al XML SRI y la omite si está vacía", () => {
+    const conNota = buildFacturaDatos({
+      ...base,
+      detalles: [{ ...dosLineas[0], descripcionAdicional: "  Honorarios marzo 2026  " }],
+    });
+    expect(conNota.detalles[0].detallesAdicionales).toEqual([
+      { nombre: "Adicional", valor: "Honorarios marzo 2026" },
+    ]);
+    const sinNota = buildFacturaDatos({ ...base, detalles: dosLineas });
+    expect(sinNota.detalles[0].detallesAdicionales).toBeUndefined();
+  });
 });

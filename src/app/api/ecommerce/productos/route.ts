@@ -135,6 +135,9 @@ export async function POST(req: NextRequest) {
     }
 
     const catalogo = await leerCamposCatalogo(user.tenantId!, body);
+    if ((await catalogoDisponible()) && !catalogo.categoria_id) {
+      return NextResponse.json({ message: 'Elige una categoría para el producto' }, { status: 400 });
+    }
 
     const existing = await db.queryOne(
       'SELECT id FROM productos WHERE tenant_id = ? AND codigo = ?',

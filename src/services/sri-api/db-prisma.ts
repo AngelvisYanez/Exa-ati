@@ -1,21 +1,54 @@
 import { neon, Pool, neonConfig, type PoolClient, type NeonQueryFunction } from '@neondatabase/serverless';
+import { PrismaPg } from '@prisma/adapter-pg';
 import ws from 'ws';
+import { Pool as PgPool } from 'pg';
 import { PrismaClient } from '@prisma/client';
 type QueryResultRow = any;
 import { randomUUID } from 'crypto';
 
 neonConfig.webSocketConstructor = ws;
 
+function databaseUrl(): string {
+  const cs = process.env.DATABASE_URL;
+  if (!cs) throw new Error('[DB] DATABASE_URL no está definido.');
+  return cs;
+}
+
+/** Postgres de Docker (localhost / db) no habla el protocolo HTTP de Neon. */
+function usesLocalPg(): boolean {
+  const cs = process.env.DATABASE_URL;
+  if (!cs) return false;
+  try {
+    const host = new URL(cs.replace(/^postgres(ql)?:/i, 'http:')).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === 'db';
+  } catch {
+    return /@(localhost|127\.0\.0\.1|db)(:\d+)?\//.test(cs);
+  }
+}
+
 // ─── Variables globales (persisten en warm starts de Vercel) ──────
 declare global {
   var __neonSql: NeonQueryFunction<any, any> | undefined;
   var __txPool: Pool | undefined;
+  var __pgPool: PgPool | undefined;
   var __prismaInstance: PrismaClient | undefined;
+}
+
+function getLocalPool(): PgPool {
+  if (!global.__pgPool) {
+    global.__pgPool = new PgPool({ connectionString: databaseUrl(), max: 10 });
+  }
+  return global.__pgPool;
 }
 
 export function getPrisma(): PrismaClient {
   if (!global.__prismaInstance) {
-    global.__prismaInstance = new PrismaClient();
+    if (usesLocalPg()) {
+      const adapter = new PrismaPg({ connectionString: databaseUrl() });
+      global.__prismaInstance = new PrismaClient({ adapter });
+    } else {
+      global.__prismaInstance = new PrismaClient();
+    }
   }
   return global.__prismaInstance;
 }
@@ -128,6 +161,18 @@ export const dbPrisma = {
       reindexedText = reindexedText.replace(/\?/g, () => `$${paramIndex++}`);
     }
 
+    if (usesLocalPg()) {
+      const result = await getLocalPool().query(reindexedText, params || []);
+      const duration = Date.now() - start;
+      if (process.env.NODE_ENV === 'development' || duration > 800) {
+        console.log(`[DB:Postgres] ${operation} → ${duration}ms`);
+      }
+      return {
+        rows: result.rows as T[],
+        rowCount: result.rowCount ?? result.rows.length,
+      };
+    }
+
     const sql = getSql();
     // sql.query() devuelve un array de filas directo
     const rows = await withHttpRetry(() => sql.query(reindexedText, params || []));
@@ -160,6 +205,9 @@ export const dbPrisma = {
   // GET CLIENT – obtiene un cliente del pool WebSocket
   // -----------------------------------------------------------------
   async getClient(): Promise<PoolClient> {
+    if (usesLocalPg()) {
+      return getLocalPool().connect() as unknown as PoolClient;
+    }
     return withTxPool((p) => p.connect());
   },
 
@@ -169,6 +217,21 @@ export const dbPrisma = {
   async transaction<T>(
     callback: (client: any) => Promise<T>
   ): Promise<T> {
+    if (usesLocalPg()) {
+      const client = await getLocalPool().connect();
+      try {
+        await client.query('BEGIN');
+        const result = await callback(client);
+        await client.query('COMMIT');
+        return result;
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+
     const client = await withTxPool((p) => p.connect());
     try {
       await client.query('BEGIN');
@@ -230,6 +293,10 @@ export const dbPrisma = {
     const returningClause = returning === '*' ? '*' : returning;
 
     const queryStr = `INSERT INTO "${table}" (${columns}) VALUES (${placeholders}) RETURNING ${returningClause}`;
+    if (usesLocalPg()) {
+      const result = await getLocalPool().query(queryStr, values);
+      return (result.rows as T[])[0] || null;
+    }
     const sql = getSql();
     const rows = await withHttpRetry(() => sql.query(queryStr, values));
     return (rows as any[])[0] || null;
@@ -259,6 +326,14 @@ export const dbPrisma = {
 
     const returningClause = returning === '*' ? '*' : returning;
     const queryStr = `UPDATE "${table}" SET ${setClause} WHERE ${reindexedWhere} RETURNING ${returningClause}`;
+
+    if (usesLocalPg()) {
+      const result = await getLocalPool().query(queryStr, [...values, ...whereParams]);
+      if (options?.strict && result.rows.length === 0) {
+        throw new Error(`Record to update in "${table}" was not found.`);
+      }
+      return result.rows as T[];
+    }
 
     const sql = getSql();
     const rows = await withHttpRetry(() => sql.query(queryStr, [...values, ...whereParams]));

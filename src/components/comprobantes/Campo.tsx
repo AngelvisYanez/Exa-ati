@@ -15,13 +15,13 @@ interface CampoProps {
 
 export default function Campo({ id, label, requerido, hint, hintClass, className, children }: CampoProps) {
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
-      <Label htmlFor={id}>
+    <div className={cn("flex flex-col gap-1", className)}>
+      <Label htmlFor={id} className="text-[13px] text-brand-gray-700">
         {label}
         {requerido && <span className="text-brand-red"> *</span>}
       </Label>
       {children}
-      {hint && <p id={`${id}-hint`} className={cn("text-[12px] text-brand-gray-500", hintClass)}>{hint}</p>}
+      {hint && <p id={`${id}-hint`} className={cn("text-[11px] leading-snug text-brand-gray-500", hintClass)}>{hint}</p>}
     </div>
   );
 }

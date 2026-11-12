@@ -39,6 +39,8 @@ interface PuntoEmisionSelectProps {
   secuencial?: string;
   onSecuencial?: (value: string) => void;
   onSerieInfo?: (serie: SerieVisible | null) => void;
+  fechaEmision?: string;
+  onFechaEmision?: (value: string) => void;
   className?: string;
 }
 
@@ -70,6 +72,8 @@ export default function PuntoEmisionSelect({
   secuencial,
   onSecuencial,
   onSerieInfo,
+  fechaEmision,
+  onFechaEmision,
   className,
 }: PuntoEmisionSelectProps) {
   const [opciones, setOpciones] = useState<OpcionSerie[]>([]);
@@ -122,10 +126,16 @@ export default function PuntoEmisionSelect({
 
   const actual = opciones.find((item) => item.serie === serie) ?? opciones[0];
 
+  const conFecha = Boolean(onFechaEmision);
+
   return (
-    <div className={cn("grid gap-4 sm:grid-cols-2", className)}>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`punto-emision-${tipo}`}>Establecimiento y punto de emisión</Label>
+    <div className={cn(
+      "grid gap-x-4 gap-y-3",
+      conFecha ? "sm:grid-cols-[minmax(0,1.4fr)_minmax(8rem,0.7fr)_11.5rem]" : "sm:grid-cols-2",
+      className,
+    )}>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={`punto-emision-${tipo}`} className="text-[13px] text-brand-gray-700">Establecimiento</Label>
         <select
           id={`punto-emision-${tipo}`}
           value={actual?.serie || ""}
@@ -140,15 +150,15 @@ export default function PuntoEmisionSelect({
             </option>
           ))}
         </select>
-        <p className="text-[13px] text-brand-gray-500">
+        <p className="text-[11px] leading-snug text-brand-gray-500">
           <Link href="/autorizaciones" className="font-medium text-brand-red hover:underline">Autorizaciones</Link>
-          {" "}define los establecimientos, su ambiente y los puntos de este comprobante.
+          {" "}define establecimientos, ambiente y puntos.
         </p>
         {error && <p className="text-sm text-orange-900" role="alert">{error}</p>}
       </div>
       {onSecuencial && (
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`secuencial-manual-${tipo}`}>Número de esta emisión (opcional)</Label>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor={`secuencial-manual-${tipo}`} className="text-[13px] text-brand-gray-700">Nº de emisión</Label>
           <Input
             id={`secuencial-manual-${tipo}`}
             inputMode="numeric"
@@ -157,7 +167,22 @@ export default function PuntoEmisionSelect({
             placeholder={actual?.siguiente || "000000001"}
             className={cn(controlClass, "font-mono tabular-nums")}
           />
-          <p className="text-[13px] text-brand-gray-500">Vacío: se usa el siguiente del punto elegido.</p>
+          <p className="text-[11px] leading-snug text-brand-gray-500">Vacío: el siguiente del punto.</p>
+        </div>
+      )}
+      {onFechaEmision && (
+        <div className="flex flex-col gap-1">
+          <Label htmlFor={`fecha-emision-${tipo}`} className="text-[13px] text-brand-gray-700">
+            Fecha <span className="text-brand-red">*</span>
+          </Label>
+          <Input
+            id={`fecha-emision-${tipo}`}
+            type="date"
+            required
+            value={fechaEmision ?? ""}
+            onChange={(event) => onFechaEmision(event.target.value)}
+            className={controlClass}
+          />
         </div>
       )}
     </div>

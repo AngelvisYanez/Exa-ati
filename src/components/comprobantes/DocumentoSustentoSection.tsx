@@ -129,13 +129,13 @@ export default function DocumentoSustentoSection({
         </ul>
       )}
 
-      <div className="my-4 flex items-center gap-3 text-[11px] font-semibold tracking-wide text-brand-gray-400 uppercase">
+      <div className="my-3 flex items-center gap-3 text-[11px] font-semibold tracking-wide text-brand-gray-400 uppercase">
         <span className="h-px flex-1 bg-brand-gray-200" aria-hidden />
         o ingresa los datos
         <span className="h-px flex-1 bg-brand-gray-200" aria-hidden />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-x-4 gap-y-3 lg:grid-cols-3">
         <Campo
           id={`${baseId}-numero`}
           label="Número del comprobante"

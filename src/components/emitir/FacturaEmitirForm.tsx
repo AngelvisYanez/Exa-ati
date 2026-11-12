@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FocusEvent, type MouseEvent } from "react";
 import { Search, TriangleAlert } from "lucide-react";
 import ComprobanteLayout from "@/components/comprobantes/ComprobanteLayout";
 import DatosComprobanteSection from "@/components/comprobantes/DatosComprobanteSection";
 import DetalleTable, { type ColumnaDetalle } from "@/components/comprobantes/DetalleTable";
 import IdentificacionSection from "@/components/comprobantes/IdentificacionSection";
 import InventarioPicker from "@/components/comprobantes/InventarioPicker";
+import LineaProductoCombobox from "@/components/comprobantes/LineaProductoCombobox";
+import ProductoRapidoDialog from "@/components/comprobantes/ProductoRapidoDialog";
 import {
   AccionEmitir,
   ChecklistEmision,
@@ -15,6 +17,7 @@ import {
   ResumenPanel,
   ResumenTotal,
 } from "@/components/comprobantes/ResumenPanel";
+import Campo from "@/components/comprobantes/Campo";
 import SeccionCard from "@/components/comprobantes/SeccionCard";
 import { TIPOS_IDENTIFICACION } from "@/components/comprobantes/identificacion";
 import { numeroComprobante, serieEmisor } from "@/components/comprobantes/numeracion";
@@ -44,6 +47,7 @@ import {
   UMBRAL_BANCARIZACION,
   VISTA_PREVIA_RIDE_DISPONIBLE,
   calcTotal,
+  conFilaSiguiente,
   desgloseFactura,
   propinaDiezPorciento,
   revisarFactura,
@@ -56,9 +60,7 @@ export type { ResultadoEmision };
 
 interface FacturaEmitirFormProps {
   emisores: EmisorOpcion[];
-  loadingEmisores: boolean;
   emisorRuc: string;
-  onEmisorRuc: (ruc: string) => void;
   fechaEmision: string;
   onFechaEmision: (value: string) => void;
   secuencial: string;
@@ -69,6 +71,7 @@ interface FacturaEmitirFormProps {
   onAmbiente: (value: string) => void;
   contactos: ContactoResumen[];
   onSeleccionarContacto: (identificacion: string) => void;
+  onContactoCreado: (contacto: ContactoResumen) => void;
   tipoId: string;
   onTipoId: (value: string) => void;
   identificacion: string;
@@ -82,7 +85,8 @@ interface FacturaEmitirFormProps {
   productos: ProductoInventario[];
   detalles: DetalleItem[];
   onDetalles: (detalles: DetalleItem[]) => void;
-  onSeleccionarProducto: (indice: number, codigo: string) => void;
+  onAgregarProducto: (codigo: string) => void;
+  onProductoCreado: (producto: ProductoInventario, indice: number) => void;
   onAgregarLinea: () => void;
   onEliminarLinea: (indice: number) => void;
   formaPago: string;
@@ -91,6 +95,8 @@ interface FacturaEmitirFormProps {
   onPlazo: (value: number) => void;
   propina: number;
   onPropina: (value: number) => void;
+  observaciones: string;
+  onObservaciones: (value: string) => void;
   emitiendo: boolean;
   resultado: ResultadoEmision | null;
   onEmitir: () => void;
@@ -107,24 +113,37 @@ function pagoTitulo(codigo: string): string {
   return PAGO_PRESENTACION[codigo]?.titulo || FORMA_PAGO.find((item) => item.value === codigo)?.label || codigo;
 }
 
+function seleccionarAlEnfocar(event: FocusEvent<HTMLInputElement>) {
+  const campo = event.currentTarget;
+  campo.select();
+  requestAnimationFrame(() => campo.select());
+  window.setTimeout(() => campo.select(), 0);
+}
+
+function evitarColapsarSeleccion(event: MouseEvent<HTMLInputElement>) {
+  event.preventDefault();
+  event.currentTarget.select();
+}
+
 export default function FacturaEmitirForm(props: FacturaEmitirFormProps) {
   const {
-    emisores, loadingEmisores, emisorRuc, onEmisorRuc,
+    emisores, emisorRuc,
     fechaEmision, onFechaEmision, secuencial, onSecuencial, serieEmision, onSerieEmision,
-    ambiente, onAmbiente, contactos, onSeleccionarContacto,
+    ambiente, onAmbiente, contactos, onSeleccionarContacto, onContactoCreado,
     tipoId, onTipoId, identificacion, onIdentificacion, razonSocial, onRazonSocial,
     email, onEmail, guardarCliente, onGuardarCliente,
-    productos, detalles, onDetalles, onSeleccionarProducto, onAgregarLinea, onEliminarLinea,
+    productos, detalles, onDetalles, onAgregarProducto, onProductoCreado, onAgregarLinea, onEliminarLinea,
     formaPago, onFormaPago, plazo, onPlazo, propina, onPropina,
+    observaciones, onObservaciones,
     emitiendo, resultado, onEmitir, onOtra, onCambiarTipo,
   } = props;
 
   const baseId = useId();
   const [inventarioAbierto, setInventarioAbierto] = useState(false);
-  const [aperturasInventario, setAperturasInventario] = useState(0);
+  const [registro, setRegistro] = useState<{ indice: number; nombre: string } | null>(null);
   const [serieGuardada, setSerieGuardada] = useState<SerieVisible | null>(null);
-  const [lineaInventario, setLineaInventario] = useState(0);
   const [propinaAutomatica, setPropinaAutomatica] = useState(false);
+  const inventarioBtnRef = useRef<HTMLButtonElement>(null);
 
   const emisor = emisores.find((item) => item.ruc === emisorRuc);
   const serieBase = serieEmisor(emisor);
@@ -175,10 +194,29 @@ export default function FacturaEmitirForm(props: FacturaEmitirFormProps) {
     if (razonSocial === NOMBRE_CONSUMIDOR_FINAL) onRazonSocial("");
   }
 
-  function abrirInventario(indice: number) {
-    setLineaInventario(indice);
-    setAperturasInventario((n) => n + 1);
-    setInventarioAbierto(true);
+  const cantidadesInventario = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const linea of detalles) {
+      if (!linea.codigoPrincipal) continue;
+      map.set(linea.codigoPrincipal, (map.get(linea.codigoPrincipal) ?? 0) + linea.cantidad);
+    }
+    return map;
+  }, [detalles]);
+
+  function elegirProducto(indice: number, codigo: string) {
+    const producto = productos.find((item) => item.codigo === codigo);
+    if (!producto) return;
+    onDetalles(conFilaSiguiente(detalles.map((linea, idx) => (
+      idx === indice
+        ? {
+            ...linea,
+            codigoPrincipal: producto.codigo,
+            descripcion: producto.nombre,
+            precioUnitario: parseFloat(producto.precio_unitario) || 0,
+            iva: producto.iva_porcentaje === 5 ? "3" : producto.iva_porcentaje === 15 ? "2" : "0",
+          }
+        : linea
+    ))));
   }
 
   function cambiarDescripcion(indice: number, valor: string) {
@@ -192,6 +230,12 @@ export default function FacturaEmitirForm(props: FacturaEmitirFormProps) {
         codigoPrincipal: sigueSiendoElProducto ? linea.codigoPrincipal : "",
       };
     }));
+  }
+
+  function cambiarDescripcionAdicional(indice: number, valor: string) {
+    onDetalles(detalles.map((linea, idx) => (
+      idx === indice ? { ...linea, descripcionAdicional: valor } : linea
+    )));
   }
 
   function cambiarNumero(indice: number, campo: "cantidad" | "precioUnitario" | "descuento", valor: string) {
@@ -208,14 +252,35 @@ export default function FacturaEmitirForm(props: FacturaEmitirFormProps) {
     {
       id: "descripcion",
       header: "Producto / servicio",
+      ancho: "min-w-[12rem]",
       render: (linea, indice) => (
         <>
-          <label className="sr-only" htmlFor={`${baseId}-desc-${indice}`}>Descripción de la línea {indice + 1}</label>
-          <Input
+          <label className="sr-only" htmlFor={`${baseId}-desc-${indice}`}>Producto o servicio de la línea {indice + 1}</label>
+          <LineaProductoCombobox
             id={`${baseId}-desc-${indice}`}
-            value={linea.descripcion}
-            onChange={(event) => cambiarDescripcion(indice, event.target.value)}
-            placeholder="Descripción"
+            valor={linea.descripcion}
+            productos={productos}
+            idSiguiente={`${baseId}-adicional-${indice}`}
+            onChange={(valor) => cambiarDescripcion(indice, valor)}
+            onElegir={(codigo) => elegirProducto(indice, codigo)}
+            onRegistrar={(nombre) => setRegistro({ indice, nombre })}
+          />
+        </>
+      ),
+    },
+    {
+      id: "adicional",
+      header: "Desc. adicional",
+      ancho: "min-w-[9rem]",
+      render: (linea, indice) => (
+        <>
+          <label className="sr-only" htmlFor={`${baseId}-adicional-${indice}`}>Descripción adicional de la línea {indice + 1}</label>
+          <Input
+            id={`${baseId}-adicional-${indice}`}
+            value={linea.descripcionAdicional ?? ""}
+            maxLength={300}
+            placeholder="Detalle opcional"
+            onChange={(event) => cambiarDescripcionAdicional(indice, event.target.value)}
             className={control}
           />
         </>
@@ -229,7 +294,16 @@ export default function FacturaEmitirForm(props: FacturaEmitirFormProps) {
       render: (linea, indice) => (
         <>
           <label className="sr-only" htmlFor={`${baseId}-cant-${indice}`}>Cantidad de la línea {indice + 1}</label>
-          <Input id={`${baseId}-cant-${indice}`} type="number" min={0} step="1" value={linea.cantidad} onChange={(event) => cambiarNumero(indice, "cantidad", event.target.value)} className={numeroClass} />
+          <Input
+            id={`${baseId}-cant-${indice}`}
+            type="text"
+            inputMode="decimal"
+            value={linea.cantidad}
+            onFocus={seleccionarAlEnfocar}
+            onMouseUp={evitarColapsarSeleccion}
+            onChange={(event) => cambiarNumero(indice, "cantidad", event.target.value)}
+            className={numeroClass}
+          />
         </>
       ),
     },
@@ -243,7 +317,7 @@ export default function FacturaEmitirForm(props: FacturaEmitirFormProps) {
         return (
           <>
             <label className="sr-only" htmlFor={`${baseId}-precio-${indice}`}>Precio unitario de la línea {indice + 1}</label>
-            <Input id={`${baseId}-precio-${indice}`} type="number" min={0} step="0.01" value={linea.precioUnitario} disabled={bloqueada} title={bloqueada ? "Precio definido en inventario" : undefined} onChange={(event) => cambiarNumero(indice, "precioUnitario", event.target.value)} className={numeroClass} />
+            <Input id={`${baseId}-precio-${indice}`} type="text" inputMode="decimal" value={linea.precioUnitario} disabled={bloqueada} title={bloqueada ? "Precio definido en inventario" : undefined} onFocus={seleccionarAlEnfocar} onMouseUp={evitarColapsarSeleccion} onChange={(event) => cambiarNumero(indice, "precioUnitario", event.target.value)} className={numeroClass} />
           </>
         );
       },
@@ -258,7 +332,7 @@ export default function FacturaEmitirForm(props: FacturaEmitirFormProps) {
         return (
           <>
             <label className="sr-only" htmlFor={`${baseId}-descnto-${indice}`}>Descuento de la línea {indice + 1}</label>
-            <Input id={`${baseId}-descnto-${indice}`} type="number" min={0} step="0.01" value={linea.descuento} aria-invalid={exceso} onChange={(event) => cambiarNumero(indice, "descuento", event.target.value)} className={cn(numeroClass, exceso && "border-brand-red")} />
+            <Input id={`${baseId}-descnto-${indice}`} type="text" inputMode="decimal" value={linea.descuento} aria-invalid={exceso} onFocus={seleccionarAlEnfocar} onMouseUp={evitarColapsarSeleccion} onChange={(event) => cambiarNumero(indice, "descuento", event.target.value)} className={cn(numeroClass, exceso && "border-brand-red")} />
           </>
         );
       },
@@ -335,7 +409,7 @@ export default function FacturaEmitirForm(props: FacturaEmitirFormProps) {
               textoOtra="Emitir otra factura"
               onOtra={onOtra}
               extra={VISTA_PREVIA_RIDE_DISPONIBLE && (
-                <Button type="button" variant="outline" className="mt-2 h-11 w-full rounded-[10px]">
+                <Button type="button" variant="outline" className="mt-2 h-9 w-full rounded-lg">
                   Vista previa del RIDE
                 </Button>
               )}
@@ -346,18 +420,14 @@ export default function FacturaEmitirForm(props: FacturaEmitirFormProps) {
     >
       <DatosComprobanteSection
         n={1}
-        ayuda="Quién emite la factura, en qué fecha y en qué ambiente del SRI se enviará."
+        ayuda="Establecimiento, número y fecha de esta emisión."
         completa={revision.comprobante}
         tipo="01"
-        emisores={emisores}
-        loadingEmisores={loadingEmisores}
         emisorRuc={emisorRuc}
-        onEmisorRuc={onEmisorRuc}
         fechaEmision={fechaEmision}
         onFechaEmision={onFechaEmision}
         serieEmision={serieEmision}
         onSerieEmision={onSerieEmision}
-        serie={serie}
         onSerieInfo={(info) => {
           setSerieGuardada(info);
           if (info) onAmbiente(info.ambiente);
@@ -372,11 +442,12 @@ export default function FacturaEmitirForm(props: FacturaEmitirFormProps) {
       <IdentificacionSection
         n={2}
         titulo="¿A quién le facturas?"
-        ayuda="Busca un cliente registrado o ingresa sus datos. Si no pide factura con datos, usa Consumidor final."
+        ayuda="Busca por nombre, RUC o cédula. Si no está, pulsa + para agregarlo. Si no pide factura con datos, usa Consumidor final."
         completa={revision.cliente}
         fuente="cliente"
         contactos={contactos}
         onSeleccionarContacto={onSeleccionarContacto}
+        onContactoCreado={onContactoCreado}
         tiposPermitidos={TIPOS_IDENTIFICACION}
         tipoId={tipoId}
         onTipoId={elegirTipo}
@@ -389,7 +460,7 @@ export default function FacturaEmitirForm(props: FacturaEmitirFormProps) {
         onEmail={onEmail}
         guardar={{ label: "Guardar como cliente para próximas facturas", checked: guardarCliente, onChange: onGuardarCliente }}
         sustituto={esConsumidor ? (
-          <div className={cn("mt-4 rounded-xl border px-4 py-3 text-[13px]", tono.info)}>
+          <div className={cn("mt-3 rounded-lg border px-3 py-2.5 text-[13px]", tono.info)}>
             <p>Se usará {ID_CONSUMIDOR_FINAL} · {NOMBRE_CONSUMIDOR_FINAL}.</p>
             <p className="mt-1">El monto de una factura a consumidor final no puede superar {money(TOPE_CONSUMIDOR_FINAL)}.</p>
             {revision.consumidorFinalExcedido && (
@@ -407,35 +478,68 @@ export default function FacturaEmitirForm(props: FacturaEmitirFormProps) {
         ayuda="Agrega productos o servicios. El IVA se calcula por línea según la tarifa que elijas."
         completa={revision.productos}
         accion={
-          <Button type="button" variant="outline" onClick={() => abrirInventario(detalles.length - 1)} className={cn(boton.secundario, "shrink-0 px-3")}>
+          <Button
+            ref={inventarioBtnRef}
+            type="button"
+            variant="outline"
+            aria-expanded={inventarioAbierto}
+            aria-haspopup="dialog"
+            onClick={() => setInventarioAbierto((abierto) => !abierto)}
+            className={cn(boton.secundario, "shrink-0 px-3")}
+          >
             <Search className="size-4" aria-hidden />
             Buscar en inventario
           </Button>
         }
       >
-        {inventarioAbierto && (
-          <InventarioPicker
-            key={aperturasInventario}
-            productos={productos}
-            linea={lineaInventario + 1}
-            onElegir={(codigo) => {
-              onSeleccionarProducto(lineaInventario, codigo);
-              setInventarioAbierto(false);
-            }}
-            onCerrar={() => setInventarioAbierto(false)}
-          />
-        )}
+        <InventarioPicker
+          open={inventarioAbierto}
+          productos={productos}
+          cantidades={cantidadesInventario}
+          anchorRef={inventarioBtnRef}
+          onAgregar={onAgregarProducto}
+          onCerrar={() => setInventarioAbierto(false)}
+        />
         <DetalleTable
           filas={detalles}
           columnas={columnas}
           subtotal={subtotalLinea}
+          minWidth="min-w-[920px]"
           onAgregar={onAgregarLinea}
           onEliminar={onEliminarLinea}
           nota={detalles.some((linea) => linea.descripcion.trim() && !linea.codigoPrincipal.trim()) && (
-            <p className="mt-2 text-xs text-brand-gray-500">Elige el producto en inventario para poder emitir. El precio y el IVA quedan los del producto.</p>
+            <p className="mt-2 text-xs text-brand-gray-500">Pulsa Enter para elegir el producto, o para registrarlo si todavía no está en inventario.</p>
           )}
           pie={<>{detalles.length === 1 ? "1 línea" : `${detalles.length} líneas`} · Descuento en dólares por línea</>}
         />
+        <ProductoRapidoDialog
+          open={registro !== null}
+          nombreInicial={registro?.nombre ?? ""}
+          precioInicial={registro ? detalles[registro.indice]?.precioUnitario : undefined}
+          tarifaInicial={registro ? (COD_IVA.find((item) => item.value === detalles[registro.indice]?.iva)?.tarifa) : undefined}
+          onCerrar={() => setRegistro(null)}
+          onCreado={(producto) => {
+            if (!registro) return;
+            onProductoCreado(producto, registro.indice);
+            setRegistro(null);
+          }}
+        />
+        <Campo
+          id={`${baseId}-obs`}
+          label="Observaciones"
+          hint="Opcional. Sale al pie de la factura en el RIDE y el XML."
+          className="mt-3"
+        >
+          <textarea
+            id={`${baseId}-obs`}
+            value={observaciones}
+            maxLength={300}
+            rows={2}
+            onChange={(event) => onObservaciones(event.target.value)}
+            placeholder="Ej. Entrega en bodega, orden de compra 123…"
+            className={cn(control, "h-auto min-h-[4.5rem] resize-y py-2")}
+          />
+        </Campo>
       </SeccionCard>
 
       <SeccionCard
@@ -444,70 +548,69 @@ export default function FacturaEmitirForm(props: FacturaEmitirFormProps) {
         ayuda="La forma de pago se reporta al SRI con su código. Desde $500 el pago debe hacerse por el sistema financiero para sustentar crédito tributario."
         completa={revision.pago && !revision.consumidorFinalExcedido}
       >
-        <div role="radiogroup" aria-label="Forma de pago" className="grid gap-2 sm:grid-cols-2">
-          {ORDEN_FORMA_PAGO.map((codigo) => {
-            const meta = PAGO_PRESENTACION[codigo];
-            const activo = formaPago === codigo;
-            return (
-              <button
-                key={codigo}
-                type="button"
-                role="radio"
-                aria-checked={activo}
-                onClick={() => onFormaPago(codigo)}
-                className={cn(
-                  "rounded-2xl border px-3 py-3 text-left focus-visible:outline-2 focus-visible:outline-brand-red",
-                  activo ? "border-brand-red bg-brand-red-subtle" : "border-brand-gray-200 bg-white hover:bg-brand-gray-50",
-                )}
-              >
-                <span className="font-mono text-[10px] font-bold tracking-wide text-brand-gray-400 uppercase">SRI {codigo}</span>
-                <span className="mt-1 block text-sm font-semibold text-brand-gray-900">{meta.titulo}</span>
-                <span className="mt-0.5 block text-xs text-brand-gray-500">{meta.descripcion}</span>
-              </button>
-            );
-          })}
+        <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+          <Campo
+            id={`${baseId}-pago`}
+            label="Forma de pago"
+            requerido
+            hint={PAGO_PRESENTACION[formaPago]?.descripcion}
+          >
+            <select
+              id={`${baseId}-pago`}
+              required
+              value={formaPago}
+              onChange={(event) => onFormaPago(event.target.value)}
+              className={control}
+            >
+              {ORDEN_FORMA_PAGO.map((codigo) => (
+                <option key={codigo} value={codigo}>
+                  {PAGO_PRESENTACION[codigo].titulo} · SRI {codigo}
+                </option>
+              ))}
+            </select>
+          </Campo>
+          <div>
+            <Label htmlFor={`${baseId}-plazo`} className="text-[13px] text-brand-gray-700">Plazo de pago</Label>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <div role="radiogroup" aria-label="Plazos frecuentes" className="flex flex-wrap gap-2">
+                {PLAZOS.map((dias) => {
+                  const activo = plazo === dias;
+                  return (
+                    <button
+                      key={dias}
+                      type="button"
+                      role="radio"
+                      aria-checked={activo}
+                      onClick={() => onPlazo(dias)}
+                      className={cn(chip.base, activo ? chip.activo : chip.inactivo)}
+                    >
+                      {dias === 0 ? "Contado" : `${dias} días`}
+                    </button>
+                  );
+                })}
+              </div>
+              <Input
+                id={`${baseId}-plazo`}
+                type="number"
+                min={0}
+                value={plazo}
+                onChange={(event) => onPlazo(parseInt(event.target.value, 10) || 0)}
+                aria-describedby={`${baseId}-plazo-hint`}
+                className={cn(control, "w-24 text-right tabular-nums")}
+              />
+            </div>
+            <p id={`${baseId}-plazo-hint`} className="mt-1.5 text-[11px] leading-snug text-brand-gray-500">
+              {plazo <= 0 ? "El cliente paga al momento." : `El cliente paga en ${plazo} días.`}
+            </p>
+          </div>
         </div>
         {revision.advertenciaBancarizacion && (
-          <p role="status" className={cn("mt-3 flex gap-2 rounded-xl border px-3 py-2.5 text-[13px]", tono.aviso)}>
+          <p role="status" className={cn("mt-3 flex gap-2 rounded-lg border px-3 py-2 text-[13px]", tono.aviso)}>
             <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
             <span>El total es de {money(totales.total)}, igual o mayor a {money(UMBRAL_BANCARIZACION)}. Efectivo (SRI 01) no usa el sistema financiero. Conviene transferencia, depósito o tarjeta.</span>
           </p>
         )}
-        <div className="mt-4">
-          <Label htmlFor={`${baseId}-plazo`}>Plazo de pago</Label>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <div role="radiogroup" aria-label="Plazos frecuentes" className="flex flex-wrap gap-2">
-              {PLAZOS.map((dias) => {
-                const activo = plazo === dias;
-                return (
-                  <button
-                    key={dias}
-                    type="button"
-                    role="radio"
-                    aria-checked={activo}
-                    onClick={() => onPlazo(dias)}
-                    className={cn(chip.base, activo ? chip.activo : chip.inactivo)}
-                  >
-                    {dias === 0 ? "Contado" : `${dias} días`}
-                  </button>
-                );
-              })}
-            </div>
-            <Input
-              id={`${baseId}-plazo`}
-              type="number"
-              min={0}
-              value={plazo}
-              onChange={(event) => onPlazo(parseInt(event.target.value, 10) || 0)}
-              aria-describedby={`${baseId}-plazo-hint`}
-              className={cn(control, "w-24 text-right tabular-nums")}
-            />
-          </div>
-          <p id={`${baseId}-plazo-hint`} className="mt-1.5 text-[12px] text-brand-gray-500">
-            {plazo <= 0 ? "El cliente paga al momento." : `El cliente paga en ${plazo} días.`}
-          </p>
-        </div>
-        <div className="mt-4 flex flex-col gap-3 rounded-xl border border-brand-gray-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-3 flex flex-col gap-3 rounded-lg border border-brand-gray-200 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <button
               type="button"

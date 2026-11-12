@@ -67,7 +67,7 @@ export default function DetalleTable<T>({
                       onClick={() => onEliminar(indice)}
                       disabled={filas.length <= minimo}
                       aria-label={`Eliminar línea ${indice + 1}`}
-                      className="flex size-11 items-center justify-center rounded-[10px] text-brand-gray-400 hover:bg-brand-red-subtle hover:text-brand-red disabled:pointer-events-none disabled:opacity-30"
+                      className="flex size-9 items-center justify-center rounded-lg text-brand-gray-400 hover:bg-brand-red-subtle hover:text-brand-red disabled:pointer-events-none disabled:opacity-30"
                     >
                       <Trash2 className="size-4" aria-hidden />
                     </button>
@@ -80,7 +80,7 @@ export default function DetalleTable<T>({
       )}
       {nota}
       <div className="mt-2 flex items-center justify-between gap-3">
-        <button type="button" onClick={onAgregar} className={cn("inline-flex h-11 items-center gap-1.5 rounded-[10px] px-3 text-sm font-semibold text-brand-red hover:bg-brand-red-subtle", foco)}>
+        <button type="button" onClick={onAgregar} className={cn("inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-brand-red hover:bg-brand-red-subtle", foco)}>
           <Plus className="size-4" aria-hidden />
           {etiquetaAgregar}
         </button>
