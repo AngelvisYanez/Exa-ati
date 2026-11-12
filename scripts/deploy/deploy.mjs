@@ -176,8 +176,8 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
     for (const name of ['XMLS_DIR', 'CERTS_DIR', 'PDFS_DIR', 'TEMPLATES_DIR']) {
       const resolved = fs.realpathSync(values[name]);
       assert(resolved.startsWith(`${ROOT}/shared/downloads/`), `${name} resuelve fuera de los datos compartidos.`);
-      run('runuser', ['-u', 'exaati', '--', '/usr/bin/test', '-r', resolved]);
-      run('runuser', ['-u', 'exaati', '--', '/usr/bin/test', '-w', resolved]);
+      run('/usr/sbin/runuser', ['-u', 'exaati', '--', '/usr/bin/test', '-r', resolved]);
+      run('/usr/sbin/runuser', ['-u', 'exaati', '--', '/usr/bin/test', '-w', resolved]);
     }
     return { values, dir };
   }
@@ -188,22 +188,31 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
       assert(!fs.existsSync(file('current')) || fs.realpathSync(file('current')) !== dir, 'No compilar la release activa.');
       assert(!fs.existsSync(path.join(dir, '.next')), 'La release ya tiene artefactos; no se reconstruye ni reutiliza un build incompleto.');
       assert(!fs.existsSync(manifestPath(args.sha)), 'Ya existe evidencia de un build para este SHA.');
-      run('runuser', ['-u', 'exaati', '--', '/usr/bin/test', '-w', dir]);
+      run('/usr/sbin/runuser', ['-u', 'exaati', '--', '/usr/bin/test', '-w', dir]);
       const available = Number(run(NODE, ['-e', 'console.log(require("node:os").freemem())']));
       assert(available >= 3 * 1024 ** 3, 'Menos de 3 GiB disponibles: build bloqueado.');
       const nodeVersion = run(NODE, ['--version']);
       const npm = '/opt/plesk/node/26/bin/npm';
-      const buildEnv = { PATH: '/opt/plesk/node/26/bin:/usr/bin:/bin', HOME: '/opt/exa-ati/shared/tmp', ...values, NEXT_TELEMETRY_DISABLED: '1' };
+      const buildEnv = {
+        PATH: '/opt/plesk/node/26/bin:/usr/bin:/bin',
+        HOME: '/opt/exa-ati/shared/tmp',
+        XDG_CACHE_HOME: '/opt/exa-ati/shared/tmp/.cache',
+        ...values,
+        NEXT_TELEMETRY_DISABLED: '1',
+        PUPPETEER_SKIP_DOWNLOAD: '1',
+        PUPPETEER_EXECUTABLE_PATH: '/usr/bin/google-chrome',
+      };
       fs.mkdirSync(file('shared', 'logs'), { recursive: true });
       const log = fs.openSync(file('shared', 'logs', `build-${args.sha}.log`), 'wx', 0o600);
       try {
         const options = { cwd: dir, env: buildEnv, stdio: ['ignore', log, log], timeout: 20 * 60 * 1000 };
-        run('runuser', ['-u', 'exaati', '--', npm, 'ci'], options);
-        run('runuser', ['-u', 'exaati', '--', npm, 'run', 'build'], options);
+        // production.env sets NODE_ENV=production; still need build-time devDependencies (e.g. @tailwindcss/postcss).
+        run('/usr/sbin/runuser', ['-u', 'exaati', '--', npm, 'ci', '--include=dev'], options);
+        run('/usr/sbin/runuser', ['-u', 'exaati', '--', npm, 'run', 'build'], options);
         const standalone = path.join(dir, '.next', 'standalone');
         assert(fs.existsSync(path.join(standalone, 'server.js')), 'Falta server.js standalone tras el build.');
-        run('runuser', ['-u', 'exaati', '--', 'cp', '-a', path.join(dir, '.next', 'static'), path.join(standalone, '.next', 'static')], options);
-        run('runuser', ['-u', 'exaati', '--', 'cp', '-a', path.join(dir, 'public'), path.join(standalone, 'public')], options);
+        run('/usr/sbin/runuser', ['-u', 'exaati', '--', 'cp', '-a', path.join(dir, '.next', 'static'), path.join(standalone, '.next', 'static')], options);
+        run('/usr/sbin/runuser', ['-u', 'exaati', '--', 'cp', '-a', path.join(dir, 'public'), path.join(standalone, 'public')], options);
         release(args.sha);
         const manifest = { sha: args.sha, mode: args.mode, configHash: configHash(values), artifactHash: artifact(dir), nodeVersion, completed: new Date().toISOString() };
         fs.writeFileSync(manifestPath(args.sha), JSON.stringify(manifest), { flag: 'wx', mode: 0o600 });
@@ -229,7 +238,7 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
     for (let attempt = 0; attempt < 15; attempt++) {
       try {
         runtime(dir, values);
-        const response = run('curl', ['--fail', '--silent', '--max-time', '3', '--write-out', '\n%{http_code}', 'http://127.0.0.1:3101/api/health']);
+        const response = run('curl', ['--fail', '--silent', '--max-time', '15', '--write-out', '\n%{http_code}', 'http://127.0.0.1:3101/api/health']);
         if (healthyHttp(response)) return;
       } catch { /* retry without disclosing process data */ }
       sleep();
@@ -285,7 +294,17 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
           },
           verify() {
             wait(dir, values);
-            run(NODE, [path.join(dir, 'scripts', 'deploy', 'preflight.mjs'), '--sha', args.sha], { cwd: dir, env: { PATH: '/opt/plesk/node/26/bin:/usr/bin:/bin' }, timeout: 90000 });
+            run(NODE, [path.join(dir, 'scripts', 'deploy', 'preflight.mjs'), '--sha', args.sha], {
+              cwd: dir,
+              env: {
+                PATH: '/opt/plesk/node/26/bin:/usr/bin:/bin',
+                GIT_SSH_COMMAND: 'ssh -i /opt/exa-ati/private/gitlab-ci/id_ed25519_clone -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes',
+                GIT_CONFIG_COUNT: '1',
+                GIT_CONFIG_KEY_0: 'safe.directory',
+                GIT_CONFIG_VALUE_0: dir,
+              },
+              timeout: 90000,
+            });
             runtime(dir, values);
           },
           restore() {
@@ -308,7 +327,7 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
     const actual = parseEnv(read(fs.realpathSync(file('env', 'active.env'))));
     assert(configHash(actual) === configHash(values), 'El enlace de entorno activo no coincide con el preparado.');
     runtime(dir, values);
-    assert(healthyHttp(run('curl', ['--fail', '--silent', '--max-time', '4', '--write-out', '\n%{http_code}', 'http://127.0.0.1:3101/api/health'])), 'Health o base no saludables.');
+    assert(healthyHttp(run('curl', ['--fail', '--silent', '--max-time', '15', '--write-out', '\n%{http_code}', 'http://127.0.0.1:3101/api/health'])), 'Health o base no saludables.');
     return { sha: args.sha, mode: args.mode, result: 'LOCAL_CHECKS_OK', pending: 'Verificación externa y funcional obligatoria.' };
   }
   return { validate, build, activate, status, validateRelease: release };
