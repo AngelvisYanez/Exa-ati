@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseEnv, validateEnv, healthy, healthyHttp, withLock, activationTransaction, createDeployer, main, isAuthorizedRepo, AUTHORIZED_REPOS } from './deploy.mjs';
+import { parseEnv, validateEnv, healthy, healthyHttp, withLock, activationTransaction, createDeployer, main, isAuthorizedRepo, AUTHORIZED_REPOS, artifactHash } from './deploy.mjs';
 const sha = 'a'.repeat(40);
 const testDB = { DATABASE_URL: 'postgresql://user:pass@test-pooler.neon.tech/db', DIRECT_DATABASE_URL: 'postgresql://user:pass@test.neon.tech/db' };
 function production() {
@@ -128,4 +128,34 @@ test('GitLab origin is accepted when main SHA matches', () => {
   try {
     assert.equal(createDeployer({ root, execute }).validateRelease(sha), path.join(root, 'releases', sha));
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+test('artifactHash covers runtime trees and ignores build intermediates', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'exa-art-'));
+  try {
+    fs.mkdirSync(path.join(dir, '.next', 'standalone'), { recursive: true });
+    fs.mkdirSync(path.join(dir, '.next', 'static', 'chunks'), { recursive: true });
+    fs.mkdirSync(path.join(dir, '.next', 'cache'), { recursive: true });
+    fs.mkdirSync(path.join(dir, '.next', 'diagnostics'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.next', 'BUILD_ID'), 'build-one\n');
+    fs.writeFileSync(path.join(dir, 'package-lock.json'), '{"lockfileVersion":3,"name":"frontend"}');
+    fs.writeFileSync(path.join(dir, '.next', 'standalone', 'server.js'), 'console.log("ok")');
+    fs.writeFileSync(path.join(dir, '.next', 'static', 'chunks', 'main.js'), 'export default 1');
+    fs.writeFileSync(path.join(dir, '.next', 'cache', 'heavy.bin'), 'SHOULD_NOT_AFFECT');
+    fs.writeFileSync(path.join(dir, '.next', 'diagnostics', 'trace'), 'SHOULD_NOT_AFFECT');
+    const first = artifactHash(dir);
+    fs.writeFileSync(path.join(dir, '.next', 'cache', 'heavy.bin'), 'CHANGED_CACHE');
+    fs.writeFileSync(path.join(dir, '.next', 'diagnostics', 'trace'), 'CHANGED_DIAG');
+    assert.equal(artifactHash(dir), first);
+    fs.writeFileSync(path.join(dir, '.next', 'standalone', 'server.js'), 'console.log("changed")');
+    assert.notEqual(artifactHash(dir), first);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+test('artifactHash rejects missing runtime trees', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'exa-art-miss-'));
+  try {
+    fs.mkdirSync(path.join(dir, '.next'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.next', 'BUILD_ID'), 'x');
+    fs.writeFileSync(path.join(dir, 'package-lock.json'), '{}');
+    assert.throws(() => artifactHash(dir), /standalone|static/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

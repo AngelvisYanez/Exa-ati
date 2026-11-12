@@ -18,6 +18,52 @@ const SHA = /^[a-f0-9]{40}$/;
 const hash = data => createHash('sha256').update(data).digest('hex');
 const assert = (ok, message) => { if (!ok) throw new Error(message); };
 const normalizeHost = host => host.toLowerCase().replace('-pooler.', '.');
+const progress = message => console.log(`${new Date().toISOString()} ${message}`);
+
+function updateHashFromFile(digest, filePath) {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const buf = Buffer.alloc(1024 * 1024);
+    let bytes = 0;
+    while ((bytes = fs.readSync(fd, buf, 0, buf.length, null)) > 0) digest.update(buf.subarray(0, bytes));
+  } finally { fs.closeSync(fd); }
+}
+
+function updateHashFromTree(digest, root, subdir) {
+  for (const item of fs.readdirSync(subdir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    const name = path.join(subdir, item.name);
+    assert(!item.isSymbolicLink(), 'Artefacto con enlace inesperado.');
+    if (item.isDirectory()) updateHashFromTree(digest, root, name);
+    else {
+      digest.update('\0');
+      digest.update(path.relative(root, name).split(path.sep).join('/'));
+      digest.update('\0');
+      updateHashFromFile(digest, name);
+    }
+  }
+}
+
+/** Runtime artifact fingerprint: BUILD_ID + package-lock + .next/standalone + .next/static. */
+export function artifactHash(dir) {
+  const digest = createHash('sha256');
+  const buildIdPath = path.join(dir, '.next', 'BUILD_ID');
+  const buildId = fs.readFileSync(buildIdPath, 'utf8').trim();
+  assert(buildId, 'Falta BUILD_ID válido.');
+  digest.update('BUILD_ID\0');
+  digest.update(buildId);
+  const lockPath = path.join(dir, 'package-lock.json');
+  assert(fs.existsSync(lockPath), 'Falta package-lock.json.');
+  digest.update('\0package-lock.json\0');
+  updateHashFromFile(digest, lockPath);
+  for (const rel of ['.next/standalone', '.next/static']) {
+    const abs = path.join(dir, rel);
+    assert(fs.existsSync(abs), `Falta ${rel}.`);
+    digest.update(`\0${rel}\0`);
+    updateHashFromTree(digest, dir, abs);
+  }
+  return digest.digest('hex');
+}
+
 export function isAuthorizedRepo(url) {
   return AUTHORIZED_REPOS.includes(String(url || '').trim());
 }
@@ -152,21 +198,23 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
     return dir;
   }
   const configHash = values => hash(JSON.stringify(Object.entries(values).sort(([a], [b]) => a.localeCompare(b))));
-  function artifact(dir) {
-    const digest = createHash('sha256');
-    function visit(subdir) {
-      for (const item of fs.readdirSync(subdir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-        if (item.name === 'cache') continue;
-        const name = path.join(subdir, item.name);
-        assert(!item.isSymbolicLink(), 'Artefacto con enlace inesperado.');
-        if (item.isDirectory()) visit(name);
-        else { digest.update(path.relative(dir, name)); digest.update(fs.readFileSync(name)); }
-      }
+  function findNodeModulesDonor(dir) {
+    const lockPath = path.join(dir, 'package-lock.json');
+    if (!fs.existsSync(lockPath)) return null;
+    const lockDigest = hash(fs.readFileSync(lockPath));
+    const candidates = [];
+    const current = file('current');
+    if (fs.existsSync(current) && fs.lstatSync(current).isSymbolicLink()) {
+      try { candidates.push(fs.realpathSync(current)); } catch { /* ignore broken current */ }
     }
-    assert(read(path.join(dir, '.next', 'BUILD_ID')).trim(), 'Falta BUILD_ID válido.');
-    visit(path.join(dir, '.next'));
-    digest.update(read(path.join(dir, 'package-lock.json')));
-    return digest.digest('hex');
+    for (const candidate of candidates) {
+      if (candidate === dir) continue;
+      const donorLock = path.join(candidate, 'package-lock.json');
+      const donorMods = path.join(candidate, 'node_modules');
+      if (!fs.existsSync(donorLock) || !fs.existsSync(donorMods)) continue;
+      if (hash(fs.readFileSync(donorLock)) === lockDigest) return candidate;
+    }
+    return null;
   }
   function validate(args) {
     const values = environment(args.mode);
@@ -193,28 +241,58 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
       assert(available >= 3 * 1024 ** 3, 'Menos de 3 GiB disponibles: build bloqueado.');
       const nodeVersion = run(NODE, ['--version']);
       const npm = '/opt/plesk/node/26/bin/npm';
+      const npmCache = file('shared', 'npm-cache');
+      fs.mkdirSync(npmCache, { recursive: true });
+      try { run('chown', ['-R', 'exaati:psacln', npmCache]); } catch { /* best-effort on non-Plesk fixtures */ }
       const buildEnv = {
         PATH: '/opt/plesk/node/26/bin:/usr/bin:/bin',
-        HOME: '/opt/exa-ati/shared/tmp',
-        XDG_CACHE_HOME: '/opt/exa-ati/shared/tmp/.cache',
+        HOME: file('shared', 'tmp'),
+        XDG_CACHE_HOME: file('shared', 'tmp', '.cache'),
+        npm_config_cache: npmCache,
         ...values,
         NEXT_TELEMETRY_DISABLED: '1',
         PUPPETEER_SKIP_DOWNLOAD: '1',
         PUPPETEER_EXECUTABLE_PATH: '/usr/bin/google-chrome',
       };
       fs.mkdirSync(file('shared', 'logs'), { recursive: true });
+      fs.mkdirSync(file('shared', 'tmp'), { recursive: true });
       const log = fs.openSync(file('shared', 'logs', `build-${args.sha}.log`), 'wx', 0o600);
       try {
         const options = { cwd: dir, env: buildEnv, stdio: ['ignore', log, log], timeout: 20 * 60 * 1000 };
-        // production.env sets NODE_ENV=production; still need build-time devDependencies (e.g. @tailwindcss/postcss).
-        run('/usr/sbin/runuser', ['-u', 'exaati', '--', npm, 'ci', '--include=dev'], options);
+        let depsMode = 'npm-ci';
+        const donor = findNodeModulesDonor(dir);
+        if (donor) {
+          progress(`build deps=reuse from ${path.basename(donor)}`);
+          try {
+            run('/usr/sbin/runuser', ['-u', 'exaati', '--', 'cp', '-a', path.join(donor, 'node_modules'), dir], options);
+            // Refresh generated Prisma client when schema changed without lockfile churn.
+            run('/usr/sbin/runuser', ['-u', 'exaati', '--', npm, 'run', 'postinstall'], options);
+            depsMode = 'reuse';
+            fs.writeSync(log, `\ndeps=reuse donor=${path.basename(donor)}\n`);
+          } catch {
+            fs.rmSync(path.join(dir, 'node_modules'), { recursive: true, force: true });
+            progress('build deps=reuse-failed falling back to npm-ci');
+            depsMode = 'npm-ci';
+          }
+        }
+        if (depsMode === 'npm-ci') {
+          progress('build deps=npm-ci');
+          fs.writeSync(log, '\ndeps=npm-ci\n');
+          // production.env sets NODE_ENV=production; still need build-time devDependencies (e.g. @tailwindcss/postcss).
+          run('/usr/sbin/runuser', ['-u', 'exaati', '--', npm, 'ci', '--include=dev', '--prefer-offline'], options);
+        }
+        progress('build next-build start');
         run('/usr/sbin/runuser', ['-u', 'exaati', '--', npm, 'run', 'build'], options);
+        progress('build next-build done');
         const standalone = path.join(dir, '.next', 'standalone');
         assert(fs.existsSync(path.join(standalone, 'server.js')), 'Falta server.js standalone tras el build.');
         run('/usr/sbin/runuser', ['-u', 'exaati', '--', 'cp', '-a', path.join(dir, '.next', 'static'), path.join(standalone, '.next', 'static')], options);
         run('/usr/sbin/runuser', ['-u', 'exaati', '--', 'cp', '-a', path.join(dir, 'public'), path.join(standalone, 'public')], options);
         release(args.sha);
-        const manifest = { sha: args.sha, mode: args.mode, configHash: configHash(values), artifactHash: artifact(dir), nodeVersion, completed: new Date().toISOString() };
+        progress('build artifact-hash start');
+        const artifactDigest = artifactHash(dir);
+        progress('build artifact-hash done');
+        const manifest = { sha: args.sha, mode: args.mode, configHash: configHash(values), artifactHash: artifactDigest, nodeVersion, depsMode, completed: new Date().toISOString() };
         fs.writeFileSync(manifestPath(args.sha), JSON.stringify(manifest), { flag: 'wx', mode: 0o600 });
         return manifest;
       } finally { fs.closeSync(log); }
@@ -249,7 +327,7 @@ export function createDeployer({ root = ROOT, execute, sleep = () => execFileSyn
     return withLock(root, () => {
       const { values, dir } = validate(args);
       const manifest = json(manifestPath(args.sha));
-      assert(manifest.sha === args.sha && manifest.mode === args.mode && manifest.configHash === configHash(values) && manifest.artifactHash === artifact(dir) && manifest.nodeVersion === run(NODE, ['--version']), 'Build ausente, alterado o construido con otra configuración/Node.');
+      assert(manifest.sha === args.sha && manifest.mode === args.mode && manifest.configHash === configHash(values) && manifest.artifactHash === artifactHash(dir) && manifest.nodeVersion === run(NODE, ['--version']), 'Build ausente, alterado o construido con otra configuración/Node.');
       assert(run('systemctl', ['is-enabled', 'exa-ati']) === 'enabled', 'Servicio nativo no preparado; requiere aprovisionamiento/migración independiente.');
       for (const [property, expected] of [['User', 'exaati'], ['Restart', 'always'], ['MemoryMax', '1073741824'], ['MemorySwapMax', '0']]) {
         assert(run('systemctl', ['show', 'exa-ati', `--property=${property}`, '--value']) === expected, `Unidad systemd: ${property} no cumple el contrato.`);

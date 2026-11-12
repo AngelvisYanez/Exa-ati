@@ -179,17 +179,20 @@ drop_caches_if_needed() {
   fi
 }
 
+ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
 prepare_release
 bootstrap_deploy_js
 backup_current
 set_release_sha_env
 drop_caches_if_needed
 
-echo "validate"
+echo "$(ts) validate"
 "$NODE" "$DEPLOY_JS" validate --mode "$MODE" --sha "$SHA"
 
-echo "build"
+echo "$(ts) build start"
 "$NODE" "$DEPLOY_JS" build --mode "$MODE" --sha "$SHA"
+echo "$(ts) build done"
 
 # After clone, prefer the release copy for activate/status.
 DEPLOY_JS="$RELEASE/scripts/deploy/deploy.mjs"
@@ -197,10 +200,10 @@ install -m 0755 "$RELEASE/scripts/deploy/from-gitlab.sh" "$BIN_DIR/from-gitlab.s
 install -m 0644 "$RELEASE/scripts/deploy/deploy.mjs" "$BIN_DIR/deploy.mjs"
 
 write_approval
-echo "activate"
+echo "$(ts) activate"
 "$NODE" "$DEPLOY_JS" activate --mode "$MODE" --sha "$SHA" --approval "$APPROVAL"
 
-echo "status"
+echo "$(ts) status"
 "$NODE" "$DEPLOY_JS" status --mode "$MODE" --sha "$SHA"
 
-echo "CI deploy TECHNICAL_CHECKS_OK sha=$SHA backup=$PRIVATE_BACKUP"
+echo "$(ts) CI deploy TECHNICAL_CHECKS_OK sha=$SHA backup=$PRIVATE_BACKUP"
