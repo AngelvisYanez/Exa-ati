@@ -9,12 +9,16 @@ export interface EmisorOpcion {
   ptoEmi?: string;
 }
 
+export type FuenteContactos = "cliente" | "proveedor";
+
 export interface ContactoResumen {
   id: string;
   tipoIdentificacion: string;
   identificacion: string;
   razonSocial: string;
   email?: string | null;
+  telefono?: string | null;
+  direccion?: string | null;
 }
 
 export interface ProductoInventario {

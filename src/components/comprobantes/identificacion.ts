@@ -74,3 +74,23 @@ export function longitudMaxima(tipo: string): number {
 export function esNumerica(tipo: string): boolean {
   return tipo === "04" || tipo === "05";
 }
+
+/** Parte el texto de búsqueda en tipo, identificación y nombre para el alta rápida. */
+export function inferirCamposContacto(query: string): {
+  tipoId: string;
+  identificacion: string;
+  razonSocial: string;
+} {
+  const q = query.trim();
+  const soloDigitos = q.replace(/\s/g, "");
+  if (/^\d{13}$/.test(soloDigitos)) {
+    return { tipoId: "04", identificacion: soloDigitos, razonSocial: "" };
+  }
+  if (/^\d{10}$/.test(soloDigitos)) {
+    return { tipoId: "05", identificacion: soloDigitos, razonSocial: "" };
+  }
+  if (/^\d{5,12}$/.test(soloDigitos)) {
+    return { tipoId: soloDigitos.length > 10 ? "04" : "05", identificacion: soloDigitos, razonSocial: "" };
+  }
+  return { tipoId: "04", identificacion: "", razonSocial: q };
+}

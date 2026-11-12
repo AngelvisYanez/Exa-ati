@@ -17,7 +17,7 @@ function irAlPaso(n: number) {
 export default function Stepper({ pasos, ariaLabel }: StepperProps) {
   const { steps, actual } = useStepper(pasos);
   return (
-    <ol aria-label={ariaLabel} className="flex items-center gap-2 overflow-x-auto pb-1">
+    <ol aria-label={ariaLabel} className="flex items-center gap-1.5 overflow-x-auto py-3">
       {steps.map((paso, index) => {
         const esActual = paso.n === actual;
         return (
@@ -30,7 +30,7 @@ export default function Stepper({ pasos, ariaLabel }: StepperProps) {
             >
               <span
                 className={cn(
-                  "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                  "flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
                   paso.estado === "completo" && "bg-success text-white",
                   paso.estado === "actual" && "bg-brand-red text-white ring-4 ring-brand-red/15",
                   paso.estado === "pendiente" && "bg-brand-gray-200 text-brand-gray-500",
@@ -38,7 +38,7 @@ export default function Stepper({ pasos, ariaLabel }: StepperProps) {
               >
                 {paso.estado === "completo" ? <Check className="size-3.5" aria-hidden /> : paso.n}
               </span>
-              <span className={cn("text-sm whitespace-nowrap", esActual ? "font-semibold text-brand-gray-900" : "text-brand-gray-500")}>
+              <span className={cn("text-[13px] whitespace-nowrap", esActual ? "font-semibold text-brand-gray-900" : "text-brand-gray-500")}>
                 {paso.label}
               </span>
             </button>

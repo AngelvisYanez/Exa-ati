@@ -13,8 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import FacturaEmitirForm from "@/components/emitir/FacturaEmitirForm";
+import type { ProductoInventario as ProductoCatalogo } from "@/components/comprobantes/types";
 import PuntoEmisionSelect from "@/components/comprobantes/PuntoEmisionSelect";
-import { COD_IVA, FORMA_PAGO, buildFacturaDatos, calcTotal } from "@/components/emitir/factura-calculos";
+import { COD_IVA, FORMA_PAGO, LINEA_VACIA, buildFacturaDatos, calcTotal, conFilaSiguiente, detallesAdicionalesDe, lineaEnBlanco, type DetalleItem } from "@/components/emitir/factura-calculos";
 
 const TIPOS: ({ cod: string; label: string; desc: string; color: string; icon: React.ReactNode })[] = [
   { cod: '01', label: 'Factura', desc: 'Comprobante de venta', color: 'emerald',
@@ -91,7 +92,6 @@ const COD_MOTIVO_ND = [
   { value: '4', label: 'Otros' },
 ];
 
-interface DetalleItem { codigoPrincipal: string; descripcion: string; cantidad: number; precioUnitario: number; descuento: number; iva: string; }
 interface Destinatario { identificacion: string; razonSocial: string; dirDestino: string; motivoTraslado: string; codDocSustento: string; numDocSustento: string; detalles: DetalleItem[]; }
 interface ProductoInventario { id: string; codigo: string; nombre: string; precio_unitario: string; iva_porcentaje: number; stock: string; activo: boolean; }
 interface ContactoResumen { id: string; tipoIdentificacion: string; identificacion: string; razonSocial: string; email?: string | null; telefono?: string | null; direccion?: string | null; }
@@ -156,13 +156,14 @@ function EmitirPageContent() {
   const [razonSocial, setRazonSocial] = useState('');
   const [direccion, setDireccion] = useState('');
   const [email, setEmail] = useState('');
-  const [detalles, setDetalles] = useState<DetalleItem[]>([{ codigoPrincipal: '', descripcion: '', cantidad: 1, precioUnitario: 0, descuento: 0, iva: '2' }]);
+  const [detalles, setDetalles] = useState<DetalleItem[]>([{ ...LINEA_VACIA }]);
 
   // Factura-specific
   const [propina, setPropina] = useState(0);
   const [formaPago, setFormaPago] = useState('01');
   const [plazo, setPlazo] = useState(0);
   const [guardarCliente, setGuardarCliente] = useState(true);
+  const [observaciones, setObservaciones] = useState('');
 
   // NC/ND-specific
   const [docModTipo, setDocModTipo] = useState('01');
@@ -200,7 +201,7 @@ function EmitirPageContent() {
 
   function agregarRetencion() { setRetenciones([...retenciones, { codigo: '1', codigoRetencion: '332', baseImponible: 0, porcentajeRetener: 2, valorRetenido: 0, codDocSustento: '01', numDocSustento: '', fechaEmisionDocSustento: '' }]); }
   function eliminarRetencion(i: number) { if (retenciones.length > 1) setRetenciones(retenciones.filter((_, idx) => idx !== i)); }
-  function agregarDetalle() { setDetalles([...detalles, { codigoPrincipal: '', descripcion: '', cantidad: 1, precioUnitario: 0, descuento: 0, iva: '2' }]); }
+  function agregarDetalle() { setDetalles([...detalles, { ...LINEA_VACIA }]); }
   function eliminarDetalle(i: number) { if (detalles.length > 1) setDetalles(detalles.filter((_, idx) => idx !== i)); }
 
   function agregarDestinatario() { setDestinatarios([...destinatarios, { identificacion: '', razonSocial: '', dirDestino: '', motivoTraslado: '', codDocSustento: '01', numDocSustento: '', detalles: [] }]); }
@@ -241,6 +242,7 @@ function EmitirPageContent() {
         propina,
         formaPago,
         plazo,
+        observaciones,
       });
     }
 
@@ -255,11 +257,15 @@ function EmitirPageContent() {
         codDocModificado: docModTipo,
         numDocModificado: docModNumero,
         fechaEmisionDocSustento: docModFecha,
-        detalles: detalles.map(d => ({
-          codigoPrincipal: d.codigoPrincipal, descripcion: d.descripcion, cantidad: d.cantidad, precioUnitario: d.precioUnitario, descuento: d.descuento,
-          precioTotalSinImpuesto: d.cantidad * d.precioUnitario - d.descuento,
-          impuestos: [{ codigo: '2', codigoPorcentaje: d.iva, tarifa: COD_IVA.find(i => i.value === d.iva)?.tarifa || 0, baseImponible: d.cantidad * d.precioUnitario - d.descuento, valor: ((d.cantidad * d.precioUnitario - d.descuento) * (COD_IVA.find(i => i.value === d.iva)?.tarifa || 0) / 100) }],
-        })),
+        detalles: detalles.map(d => {
+          const adicionales = detallesAdicionalesDe(d);
+          return {
+            codigoPrincipal: d.codigoPrincipal, descripcion: d.descripcion, cantidad: d.cantidad, precioUnitario: d.precioUnitario, descuento: d.descuento,
+            precioTotalSinImpuesto: d.cantidad * d.precioUnitario - d.descuento,
+            impuestos: [{ codigo: '2', codigoPorcentaje: d.iva, tarifa: COD_IVA.find(i => i.value === d.iva)?.tarifa || 0, baseImponible: d.cantidad * d.precioUnitario - d.descuento, valor: ((d.cantidad * d.precioUnitario - d.descuento) * (COD_IVA.find(i => i.value === d.iva)?.tarifa || 0) / 100) }],
+            ...(adicionales ? { detallesAdicionales: adicionales } : {}),
+          };
+        }),
       };
     }
 
@@ -340,11 +346,15 @@ function EmitirPageContent() {
         importeTotal: totales.total,
         totalConImpuestos,
         pagos: [{ formaPago: formaPago, total: totales.total, ...(plazo > 0 ? { plazo, unidadTiempo: 'dias' } : {}) }],
-        detalles: detalles.map(d => ({
-          codigoPrincipal: d.codigoPrincipal, descripcion: d.descripcion, cantidad: d.cantidad, precioUnitario: d.precioUnitario, descuento: d.descuento,
-          precioTotalSinImpuesto: d.cantidad * d.precioUnitario - d.descuento,
-          impuestos: [{ codigo: '2', codigoPorcentaje: d.iva, tarifa: COD_IVA.find(i => i.value === d.iva)?.tarifa || 0, baseImponible: d.cantidad * d.precioUnitario - d.descuento, valor: ((d.cantidad * d.precioUnitario - d.descuento) * (COD_IVA.find(i => i.value === d.iva)?.tarifa || 0) / 100) }],
-        })),
+        detalles: detalles.map(d => {
+          const adicionales = detallesAdicionalesDe(d);
+          return {
+            codigoPrincipal: d.codigoPrincipal, descripcion: d.descripcion, cantidad: d.cantidad, precioUnitario: d.precioUnitario, descuento: d.descuento,
+            precioTotalSinImpuesto: d.cantidad * d.precioUnitario - d.descuento,
+            impuestos: [{ codigo: '2', codigoPorcentaje: d.iva, tarifa: COD_IVA.find(i => i.value === d.iva)?.tarifa || 0, baseImponible: d.cantidad * d.precioUnitario - d.descuento, valor: ((d.cantidad * d.precioUnitario - d.descuento) * (COD_IVA.find(i => i.value === d.iva)?.tarifa || 0) / 100) }],
+            ...(adicionales ? { detallesAdicionales: adicionales } : {}),
+          };
+        }),
       };
     }
   }
@@ -376,6 +386,47 @@ function EmitirPageContent() {
     setDetalles(n);
   }
 
+  function registrarProductoEnLinea(producto: ProductoCatalogo, indice: number) {
+    setProductos((prev) => [
+      { ...producto, activo: true },
+      ...prev.filter((item) => item.id !== producto.id),
+    ]);
+    setDetalles((prev) => conFilaSiguiente(prev.map((linea, i) => (
+      i === indice
+        ? {
+            ...linea,
+            codigoPrincipal: producto.codigo,
+            descripcion: producto.nombre,
+            precioUnitario: parseFloat(producto.precio_unitario) || 0,
+            iva: ivaCodeFromPorcentaje(producto.iva_porcentaje),
+          }
+        : linea
+    ))));
+  }
+
+  function agregarProductoInventario(codigo: string) {
+    const p = productos.find((pr) => pr.codigo === codigo);
+    if (!p) return;
+    const linea: DetalleItem = {
+      ...LINEA_VACIA,
+      codigoPrincipal: p.codigo,
+      descripcion: p.nombre,
+      precioUnitario: parseFloat(p.precio_unitario) || 0,
+      iva: ivaCodeFromPorcentaje(p.iva_porcentaje),
+    };
+    setDetalles((prev) => {
+      const existente = prev.findIndex((l) => l.codigoPrincipal === p.codigo);
+      if (existente >= 0) {
+        return conFilaSiguiente(prev.map((l, i) => (i === existente ? { ...l, cantidad: l.cantidad + 1 } : l)));
+      }
+      const vacia = prev.findIndex((l) => lineaEnBlanco(l));
+      if (vacia >= 0) {
+        return conFilaSiguiente(prev.map((l, i) => (i === vacia ? { ...l, ...linea } : l)));
+      }
+      return conFilaSiguiente([...prev, linea]);
+    });
+  }
+
   const receptorEsProveedor = selectedTipo ? ['03', '07'].includes(selectedTipo.cod) : false;
   const tipoContacto = receptorEsProveedor ? 'proveedor' : 'cliente';
 
@@ -389,15 +440,23 @@ function EmitirPageContent() {
     return () => { cancel = true; };
   }, [selectedTipo, hasSriLinked, receptorEsProveedor]);
 
+  function aplicarContacto(c: ContactoResumen) {
+    setTipoId(c.tipoIdentificacion);
+    setIdentificacion(c.identificacion);
+    setRazonSocial(c.razonSocial);
+    setDireccion(c.direccion || '');
+    setEmail(c.email || '');
+  }
+
   function seleccionarContacto(identificacionSel: string) {
-    setIdentificacion(identificacionSel);
     const c = contactos.find(x => x.identificacion === identificacionSel);
-    if (c) {
-      setTipoId(c.tipoIdentificacion);
-      setRazonSocial(c.razonSocial);
-      setDireccion(c.direccion || '');
-      setEmail(c.email || '');
-    }
+    if (c) aplicarContacto(c);
+    else setIdentificacion(identificacionSel);
+  }
+
+  function registrarContactoEnFactura(contacto: ContactoResumen) {
+    setContactos((prev) => [contacto, ...prev.filter((item) => item.id !== contacto.id)]);
+    aplicarContacto(contacto);
   }
 
   async function guardarContactoSiNuevo() {
@@ -426,7 +485,8 @@ function EmitirPageContent() {
   }
 
   const handleEmitir = async () => {
-    if ((t === '01' || t === '03' || t === '04') && detalles.some(d => !d.codigoPrincipal || !d.descripcion)) {
+    const lineasActivas = detalles.filter((d) => !lineaEnBlanco(d));
+    if ((t === '01' || t === '03' || t === '04') && (lineasActivas.length === 0 || lineasActivas.some(d => !d.codigoPrincipal || !d.descripcion))) {
       toast.error('Todos los ítems deben ser productos/servicios registrados en el inventario');
       return;
     }
@@ -462,13 +522,7 @@ function EmitirPageContent() {
         <Topbar title="Nueva factura" />
         <FacturaEmitirForm
           emisores={emisores}
-          loadingEmisores={loadingEmisores}
           emisorRuc={emisorRuc}
-          onEmisorRuc={(ruc) => {
-            const sel = emisores.find((em) => em.ruc === ruc);
-            setEmisorRuc(ruc);
-            if (sel?.ambiente) setAmbiente(sel.ambiente);
-          }}
           fechaEmision={fechaEmision}
           onFechaEmision={setFechaEmision}
           secuencial={secuencial}
@@ -479,6 +533,7 @@ function EmitirPageContent() {
           onAmbiente={setAmbiente}
           contactos={contactos}
           onSeleccionarContacto={seleccionarContacto}
+          onContactoCreado={registrarContactoEnFactura}
           tipoId={tipoId}
           onTipoId={setTipoId}
           identificacion={identificacion}
@@ -492,7 +547,8 @@ function EmitirPageContent() {
           productos={productos}
           detalles={detalles}
           onDetalles={setDetalles}
-          onSeleccionarProducto={seleccionarProducto}
+          onAgregarProducto={agregarProductoInventario}
+          onProductoCreado={registrarProductoEnLinea}
           onAgregarLinea={agregarDetalle}
           onEliminarLinea={eliminarDetalle}
           formaPago={formaPago}
@@ -501,6 +557,8 @@ function EmitirPageContent() {
           onPlazo={setPlazo}
           propina={propina}
           onPropina={setPropina}
+          observaciones={observaciones}
+          onObservaciones={setObservaciones}
           emitiendo={emitiendo}
           resultado={resultado}
           onEmitir={handleEmitir}
@@ -512,11 +570,12 @@ function EmitirPageContent() {
             setDireccion('');
             setEmail('');
             setSecuencial('');
-            setDetalles([{ codigoPrincipal: '', descripcion: '', cantidad: 1, precioUnitario: 0, descuento: 0, iva: '2' }]);
+            setDetalles([{ ...LINEA_VACIA }]);
             setPropina(0);
             setFormaPago('01');
             setPlazo(0);
             setGuardarCliente(true);
+            setObservaciones('');
           }}
           onCambiarTipo={() => { setSelectedTipo(null); setResultado(null); }}
         />

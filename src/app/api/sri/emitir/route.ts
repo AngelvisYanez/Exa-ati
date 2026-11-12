@@ -157,7 +157,15 @@ export async function POST(req: Request) {
     };
     const infoKey = wrapInfo[tipo];
     const dataComprobante = infoKey
-      ? { infoTributaria, [infoKey]: datos, detalles: datos.detalles, destinatarios: datos.destinatarios }
+      ? {
+          infoTributaria,
+          [infoKey]: datos,
+          detalles: datos.detalles,
+          destinatarios: datos.destinatarios,
+          ...(Array.isArray(datos.infoAdicional) && datos.infoAdicional.length > 0
+            ? { infoAdicional: datos.infoAdicional }
+            : {}),
+        }
       : { infoTributaria, ...datos };
 
     const xmlSinFirma = builder(dataComprobante);

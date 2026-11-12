@@ -5,10 +5,10 @@
  */
 
 export const control =
-  "h-11 w-full rounded-[10px] border border-brand-gray-200 bg-white px-3 text-sm text-brand-gray-900 shadow-none placeholder:text-brand-gray-400 focus-visible:border-brand-red focus-visible:ring-3 focus-visible:ring-brand-red/15";
+  "h-9 w-full rounded-lg border border-brand-gray-200 bg-white px-2.5 text-sm text-brand-gray-900 shadow-none placeholder:text-brand-gray-400 focus-visible:border-brand-red focus-visible:ring-3 focus-visible:ring-brand-red/15";
 
-export const alturaControl = "h-11";
-export const radioControl = "rounded-[10px]";
+export const alturaControl = "h-9";
+export const radioControl = "rounded-lg";
 export const foco = "focus-visible:outline-2 focus-visible:outline-brand-red";
 
 export const tarjeta = "rounded-2xl border border-brand-gray-200 bg-white shadow-sm";
@@ -29,14 +29,14 @@ export const ambienteTono = {
 } as const;
 
 export const chip = {
-  base: "h-11 rounded-full border px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-brand-red",
+  base: "h-8 rounded-full border px-3 text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-brand-red",
   activo: "border-brand-red bg-brand-red text-white",
   inactivo: "border-brand-gray-200 bg-white text-brand-gray-700",
 } as const;
 
 export const boton = {
-  primario: "h-11 w-full rounded-[10px] bg-brand-red text-white hover:brightness-90",
-  secundario: "h-11 rounded-[10px] border-brand-gray-200 bg-white",
+  primario: "h-10 w-full rounded-lg bg-brand-red text-white hover:brightness-90",
+  secundario: "h-9 rounded-lg border-brand-gray-200 bg-white",
 } as const;
 
 export function money(value: number): string {

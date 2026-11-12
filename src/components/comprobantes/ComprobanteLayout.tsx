@@ -31,7 +31,7 @@ export default function ComprobanteLayout({
 }: ComprobanteLayoutProps) {
   return (
     <main className="ui-page flex-1 bg-brand-gray-50">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <nav aria-label="Miga de pan" className="flex flex-wrap items-center gap-1 text-xs text-brand-gray-500">
             <button type="button" onClick={onCambiarTipo} className={cn("rounded-sm hover:text-brand-gray-800", foco)}>
@@ -44,14 +44,14 @@ export default function ComprobanteLayout({
             <ChevronRight className="size-3.5" aria-hidden />
             <span className="text-brand-gray-800">{miga}</span>
           </nav>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-brand-gray-900">{titulo}</h1>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight text-brand-gray-900">{titulo}</h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={onCambiarTipo} className={cn(boton.secundario, "px-4")}>
+          <Button type="button" variant="outline" onClick={onCambiarTipo} className={cn(boton.secundario, "px-3")}>
             Cambiar tipo de comprobante
           </Button>
           {onGuardarBorrador && (
-            <Button type="button" variant="outline" onClick={onGuardarBorrador} className="h-11 rounded-[10px] px-4">
+            <Button type="button" variant="outline" onClick={onGuardarBorrador} className={cn(boton.secundario, "px-3")}>
               Guardar borrador
             </Button>
           )}
@@ -61,7 +61,7 @@ export default function ComprobanteLayout({
       <Stepper pasos={pasos} ariaLabel={ariaPasos} />
 
       <form
-        className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]"
+        className="mt-1 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]"
         onSubmit={(event: FormEvent<HTMLFormElement>) => {
           event.preventDefault();
           onSubmit();
