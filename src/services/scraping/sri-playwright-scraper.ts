@@ -32,6 +32,12 @@ export interface ScrapeOptions {
   diagDir?: string;
   proxyUrl?: string;
   directConnection?: boolean;
+  /** Omite Scrapeless aunque exista SCRAPELESS_API_KEY (fallback a Chromium local + proxy). */
+  preferLocalBrowser?: boolean;
+  connectorBridge?: {
+    hasXml(claveAcceso: string): Promise<boolean>;
+    uploadXml(claveAcceso: string, xml: string): Promise<void>;
+  };
 }
 
 interface ScrapeCounters {
@@ -127,7 +133,9 @@ export class SriPlaywrightScraper {
   private downloadsDir = '';
   private proxyUrl?: string;
   private directConnection: boolean;
+  private preferLocalBrowser: boolean;
   private userDataDir?: string;
+  private connectorBridge?: ScrapeOptions['connectorBridge'];
   /** Si está definido, solo descarga esas claves de acceso. */
   private targetClaves: Set<string> | null = null;
   private seenTargetClaves: Set<string> = new Set();
@@ -137,11 +145,16 @@ export class SriPlaywrightScraper {
     this.diagDir = opts?.diagDir || path.join(os.tmpdir(), 'downloads', 'debug');
     this.proxyUrl = opts?.proxyUrl;
     this.directConnection = opts?.directConnection ?? false;
+    this.preferLocalBrowser = opts?.preferLocalBrowser ?? false;
     this.userDataDir = opts?.userDataDir;
+    this.connectorBridge = opts?.connectorBridge;
   }
 
   async init(): Promise<void> {
-    const apiKey = this.directConnection ? undefined : process.env.SCRAPELESS_API_KEY;
+    const apiKey =
+      this.directConnection || this.preferLocalBrowser
+        ? undefined
+        : process.env.SCRAPELESS_API_KEY;
     if (apiKey) {
       console.log('[Scrapeless] Conectando a Scraping Browser de Scrapeless...');
       const { Playwright } = require('@scrapeless-ai/sdk');
@@ -213,13 +226,13 @@ export class SriPlaywrightScraper {
           const purl = new URL(this.proxyUrl);
           contextOptions.proxy = {
             server: `${purl.protocol}//${purl.hostname}:${purl.port}`,
-            username: purl.username || undefined,
-            password: purl.password || undefined,
+            username: purl.username ? decodeURIComponent(purl.username) : undefined,
+            password: purl.password ? decodeURIComponent(purl.password) : undefined,
           };
           const logMsg = `Proxy activado para Playwright: ${purl.hostname}:${purl.port}`;
           console.log(`[PW] ${logMsg}`);
         } catch (e: any) {
-          console.log(`[PW] Error parsing proxy URL "${this.proxyUrl}": ${e.message}`);
+          console.log(`[PW] Error parsing proxy URL: ${e.message}`);
         }
       }
 
@@ -1096,6 +1109,7 @@ export class SriPlaywrightScraper {
         counters.found++;
         await log(`Fila: ${tipoCode} ${claveAcceso} | ${emisorVal || ''} | $${total}`);
 
+        if (!this.connectorBridge) {
         const exists = await db.queryOne('SELECT id FROM comprobantes WHERE clave_acceso = $1', [claveAcceso])
           .catch(() => null);
         if (!exists) {
@@ -1140,6 +1154,7 @@ export class SriPlaywrightScraper {
           }
         }
 
+        }
         const alreadyStored = await this._xmlAlreadyInSystem(claveAcceso);
         if (alreadyStored) {
           counters.xmls_synced++;
@@ -1154,7 +1169,9 @@ export class SriPlaywrightScraper {
         // solo consulta una clave ya conocida (flujo de emisión propia). Por eso existe el scraper.
         await this._downloadRowFiles(page, row.index, claveAcceso, xmlDir, pdfDir, counters, log);
 
-        const synced = await this._syncDownloadedXmlToSystem(xmlPath, claveAcceso, log);
+        const synced = this.connectorBridge
+          ? await this._uploadDownloadedXml(xmlPath, claveAcceso, log)
+          : await this._syncDownloadedXmlToSystem(xmlPath, claveAcceso, log);
         if (synced) {
           counters.xmls_synced++;
         } else {
@@ -1227,9 +1244,26 @@ export class SriPlaywrightScraper {
   /** XML usable en comprobante_xmls / disco del sistema (no solo tmp de descarga). */
   private async _xmlAlreadyInSystem(claveAcceso: string): Promise<boolean> {
     try {
+      if (this.connectorBridge) return await this.connectorBridge.hasXml(claveAcceso);
       const xml = await resolveComprobanteXml(claveAcceso, { fetchFromSri: false });
       return Boolean(xml && xml.trim().length > 50);
     } catch {
+      return false;
+    }
+  }
+
+  private async _uploadDownloadedXml(
+    xmlPath: string,
+    claveAcceso: string,
+    log: (msg: string) => Promise<void>,
+  ): Promise<boolean> {
+    if (!fs.existsSync(xmlPath)) return false;
+    try {
+      await this.connectorBridge!.uploadXml(claveAcceso, fs.readFileSync(xmlPath, 'utf-8'));
+      await log(`XML sincronizado por conector local: ${claveAcceso}`);
+      return true;
+    } catch (error: any) {
+      await log(`Error sincronizando XML ${claveAcceso}: ${error.message}`);
       return false;
     }
   }
@@ -1876,7 +1910,9 @@ export class SriPlaywrightScraper {
           counters.xmls_exist++;
         }
         if (fs.existsSync(relXmlPath)) {
-          const relSynced = await this._syncDownloadedXmlToSystem(relXmlPath, relClave, log);
+          const relSynced = this.connectorBridge
+            ? await this._uploadDownloadedXml(relXmlPath, relClave, log)
+            : await this._syncDownloadedXmlToSystem(relXmlPath, relClave, log);
           if (relSynced) {
             // Relacionados no suman a `found`; solo logueamos el resultado.
             await log(`XML relacionado sincronizado: ${relClave}`);
@@ -2180,6 +2216,8 @@ export class SriPlaywrightScraper {
   async reinitWithProxy(proxyUrl: string | undefined): Promise<void> {
     await this.close().catch(() => {});
     this.proxyUrl = proxyUrl;
+    // Hop de pool local: nunca volver a Scrapeless solo por tener la API key en env.
+    this.preferLocalBrowser = true;
     this.authenticated = false;
     this.ruc = '';
     this.clave = '';

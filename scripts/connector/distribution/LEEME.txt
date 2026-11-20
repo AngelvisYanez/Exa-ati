@@ -1,0 +1,25 @@
+EXA-ATI - Conector local SRI para Windows
+========================================
+
+Este paquete hace que las consultas al SRI salgan por la conexión de Internet
+de esta computadora. No instala una extensión de navegador ni modifica la red.
+
+REQUISITOS
+1. Windows con conexión al SRI y a https://ati.exacontable.com.
+2. Node.js 20.9 o superior y Google Chrome instalados.
+3. Una clave de conector para su empresa, entregada por el administrador de EXA-ATI.
+
+INSTALACIÓN
+1. Extraiga el ZIP completo en una carpeta local. No ejecute archivos dentro del ZIP.
+2. Abra scripts\connector\distribution\Instalar-Conector.cmd.
+3. Indique la URL de EXA-ATI y escriba la clave de su empresa cuando se solicite.
+4. Espere a que termine npm ci. Se necesita Internet para instalar dependencias.
+5. Abra scripts\connector\distribution\Iniciar-Conector.cmd.
+6. Mantenga la ventana y Chrome disponibles. En EXA-ATI, filtre Documentos por fecha.
+
+La clave se guarda protegida para la cuenta de Windows que ejecutó la instalación.
+Inicie siempre el conector con esa misma cuenta. La carpeta downloads\ contendrá
+documentos tributarios y debe protegerse según las políticas de su empresa.
+
+Si no hay clave de conector o el servidor aún no tiene habilitada su empresa,
+contacte al administrador. El paquete por sí solo no activa la función.

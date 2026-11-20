@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { verifyAuth } from '@/services/sri-api/auth-helper';
 import { db } from '@/services/sri-api/db';
 import { ejecutarTrabajoScraping } from '@/services/scraping/job-runner';
+import { connectorTenantEnabled } from '@/services/scraping/local-connector';
 
 // Vercel Pro allows up to 300 seconds for background tasks.
 export const maxDuration = 300;
@@ -26,8 +27,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Falta jobId' }, { status: 400 });
     }
 
-    const job = await db.queryOne<{ id: number; status: string; tenant_id: string | null }>(
-      'SELECT id, status, tenant_id FROM scraping_jobs WHERE id = $1',
+    const job = await db.queryOne<{ id: number; status: string; tenant_id: string | null; action_type: string }>(
+      'SELECT id, status, tenant_id, action_type FROM scraping_jobs WHERE id = $1',
       [jobId]
     );
     if (!job) {
@@ -35,6 +36,14 @@ export async function POST(req: Request) {
     }
     if (job.tenant_id !== tenantId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
+    if (connectorTenantEnabled(tenantId) &&
+        ['DOWNLOAD_RECEIVED', 'DOWNLOAD_EMITTED', 'DOWNLOAD_BOTH', 'SCRAPE_RETENCIONES'].includes(job.action_type)) {
+      return NextResponse.json(
+        { error: 'Este trabajo debe ejecutarse mediante el conector local del cliente.' },
+        { status: 409 },
+      );
     }
 
     if (job.status !== 'PENDING' && job.status !== 'ERROR') {

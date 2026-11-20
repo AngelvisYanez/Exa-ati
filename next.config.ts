@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: process.cwd(),
+  outputFileTracingIncludes: {
+    "/api/sri/local-connector/download": ["./assets/connector/Conector-SRI.exe"],
+  },
   images: {
     qualities: [100, 70, 75],
   },

@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { sriClient } from "@/lib/sriClient";
-import { Menu, ChevronLeft, ChevronDown, Check, Bell, LogOut, Settings, Building2, Plus, Loader2, X, KeyRound } from "lucide-react";
+import { Menu, ChevronLeft, ChevronDown, Check, Bell, LogOut, Settings, Building2, Plus, Loader2, X, KeyRound, Download } from "lucide-react";
 import { toast } from "sonner";
 
 interface TopbarProps {
@@ -287,6 +287,17 @@ export default function Topbar({ title, period = "Período actual", backLink, la
             </Link>
           )}
         </div>
+
+        <a
+          href="/api/sri/local-connector/download"
+          download="Conector-SRI.exe"
+          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-brand-gray-200 bg-white px-2 text-brand-gray-700 shadow-2xs transition-colors hover:border-brand-red/40 hover:bg-brand-red-subtle hover:text-brand-red focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-red"
+          title="Descargar conector SRI para Windows"
+          aria-label="Descargar conector SRI para Windows"
+        >
+          <Download className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden="true" />
+          <span className="hidden whitespace-nowrap text-[11px] font-bold xl:inline">Conector SRI</span>
+        </a>
 
         {/* Notificaciones (antes de Opciones del Usuario) */}
         <div ref={notifRef} className="relative">

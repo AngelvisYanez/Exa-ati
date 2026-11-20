@@ -4,6 +4,7 @@ import { verifyAuth } from '@/services/sri-api/auth-helper';
 import { encryption } from '@/services/sri-api/encryption';
 import { ejecutarTrabajoScraping } from '@/services/scraping/job-runner';
 import { isSriScrapeAction } from '@/services/scraping/sri-scrape-actions';
+import { connectorTenantEnabled } from '@/services/scraping/local-connector';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,8 +70,20 @@ export async function POST(req: Request) {
 
     const optionsStr = options && typeof options === 'object' ? JSON.stringify(options) : undefined;
 
+    const useLocalConnector = connectorTenantEnabled(tenantId) &&
+      ['DOWNLOAD_RECEIVED', 'DOWNLOAD_EMITTED', 'DOWNLOAD_BOTH', 'SCRAPE_RETENCIONES'].includes(finalActionType);
+
     let finalClaveSri = clave_sri;
-    if (!finalClaveSri) {
+    if (useLocalConnector) {
+      const emisor = await db.queryOne<{ clave_sri_encrypted: string | null }>(
+        'SELECT clave_sri_encrypted FROM emisores WHERE ruc = $1 AND tenant_id = $2 AND activo = true',
+        [ruc, tenantId]
+      );
+      if (!emisor?.clave_sri_encrypted) {
+        return NextResponse.json({ error: 'RUC sin credencial SRI vinculada a esta empresa' }, { status: 403 });
+      }
+      finalClaveSri = '';
+    } else if (!finalClaveSri) {
       const emisor = await db.queryOne<any>(
         'SELECT clave_sri_encrypted FROM emisores WHERE ruc = $1 AND tenant_id = $2 AND activo = true',
         [ruc, tenantId]
@@ -86,12 +99,16 @@ export async function POST(req: Request) {
       fecha_hasta,
       tipo_comprobante: resolvedTipo || 'todos',
       status: 'PENDING',
+      progress_message: useLocalConnector ? 'Esperando conexión del conector local del cliente' : null,
       action_type: finalActionType,
       tenant_id: tenantId,
       updated_at: new Date(),
       created_at: new Date(),
     };
-    if (finalClaveSri) {
+    if (useLocalConnector) {
+      // La clave se descifra solo cuando el conector reclama el trabajo.
+      jobData.clave_sri = '';
+    } else if (finalClaveSri) {
       jobData.clave_sri = finalClaveSri;
     }
     if (optionsStr !== undefined) {
@@ -101,7 +118,7 @@ export async function POST(req: Request) {
     const insertedJob = await db.insert('scraping_jobs', jobData, 'id');
     const jobId = insertedJob ? insertedJob.id : null;
 
-    if (jobId) {
+    if (jobId && !useLocalConnector) {
       ejecutarTrabajoScraping(jobId).catch((err) => {
         console.error(`[Scraping] Error en ejecución de job ${jobId}:`, err.message);
       });
@@ -109,7 +126,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Trabajo de descarga iniciado exitosamente.',
+      message: useLocalConnector
+        ? 'Trabajo en espera del conector local del cliente.'
+        : 'Trabajo de descarga iniciado exitosamente.',
       jobId,
     });
 
